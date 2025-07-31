@@ -35,11 +35,11 @@ dependencies=[
 ]
 
 [project.urls]
-Homepage = "https://github.com/Unleash/unleash-client-python"
-Documentation = "https://docs.getunleash.io/unleash-client-python"
-Changelog = "https://github.com/Unleash/unleash-client-python/blob/main/CHANGELOG.md"
-Repository = "https://github.com/Unleash/unleash-client-python"
-Issues = "https://github.com/Unleash/unleash-client-python/issues"
+Homepage = "https://github.com/Unleash/unleash-python-sdk"
+Documentation = "https://docs.getunleash.io/unleash-python-sdk"
+Changelog = "https://github.com/Unleash/unleash-python-sdk/blob/main/CHANGELOG.md"
+Repository = "https://github.com/Unleash/unleash-python-sdk"
+Issues = "https://github.com/Unleash/unleash-python-sdk/issues"
 
 [tool.isort]
 profile = "black"
