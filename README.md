@@ -1,4 +1,4 @@
-# Unleash Client SDK for Python
+# Unleash SDK for Python
 
 ![](https://github.com/unleash/unleash-python-sdk/workflows/CI/badge.svg?branch=main) [![Coverage Status](https://coveralls.io/repos/github/Unleash/unleash-python-sdk/badge.svg?branch=main)](https://coveralls.io/github/Unleash/unleash-python-sdk?branch=main) [![PyPI version](https://badge.fury.io/py/UnleashClient.svg)](https://badge.fury.io/py/UnleashClient) ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/UnleashClient.svg) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
