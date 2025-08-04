@@ -6,7 +6,7 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Usage &mdash; unleash-client-python  documentation</title>
+  <title>Usage &mdash; unleash-python-sdk  documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
 
@@ -32,7 +32,7 @@
           
           
           <a href="index.html" class="icon icon-home">
-            unleash-client-python
+            unleash-python-sdk
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
@@ -82,7 +82,7 @@
 
     <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
-          <a href="index.html">unleash-client-python</a>
+          <a href="index.html">unleash-python-sdk</a>
       </nav>
 
       <div class="wy-nav-content">
@@ -92,7 +92,7 @@
       <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
       <li class="breadcrumb-item active">Usage</li>
       <li class="wy-breadcrumbs-aside">
-              <a href="https://github.com/unleash/unleash-client-python/blob/main/docs/usage.rst" class="fa fa-github"> Edit on GitHub</a>
+              <a href="https://github.com/unleash/unleash-python-sdk/blob/main/docs/usage.rst" class="fa fa-github"> Edit on GitHub</a>
       </li>
   </ul>
   <hr/>
@@ -189,7 +189,7 @@
 <section id="using-unleashclient-with-gitlab">
 <h2>Using <code class="docutils literal notranslate"><span class="pre">UnleashClient</span></code> with Gitlab<a class="headerlink" href="#using-unleashclient-with-gitlab" title="Link to this heading"></a></h2>
 <p><a class="reference external" href="https://docs.gitlab.com/ee/user/project/operations/feature_flags.html">Gitlab’s feature flags</a> only supports the features URL.  (API calls to the registration URL and metrics URL will fail with HTTP Error code 401.)</p>
-<p>If using <cite>unleash-client-python</cite> with Gitlab’s feature flags, we recommend initializing the client with <cite>disable_metrics</cite> = True and <cite>disable_registration</cite> = True.</p>
+<p>If using <cite>unleash-python-sdk</cite> with Gitlab’s feature flags, we recommend initializing the client with <cite>disable_metrics</cite> = True and <cite>disable_registration</cite> = True.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">my_client</span> <span class="o">=</span> <span class="n">UnleashClient</span><span class="p">(</span>
     <span class="n">url</span><span class="o">=</span><span class="s2">&quot;https://gitlab.com/api/v4/feature_flags/someproject/someid&quot;</span><span class="p">,</span>
     <span class="n">app_name</span><span class="o">=</span><span class="s2">&quot;myClient1&quot;</span><span class="p">,</span>
