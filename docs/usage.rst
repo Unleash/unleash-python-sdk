@@ -115,7 +115,7 @@ Using ``UnleashClient`` with Gitlab
 
 `Gitlab's feature flags <https://docs.gitlab.com/ee/user/project/operations/feature_flags.html>`_ only supports the features URL.  (API calls to the registration URL and metrics URL will fail with HTTP Error code 401.)
 
-If using `unleash-client-python` with Gitlab's feature flags, we recommend initializing the client with `disable_metrics` = True and `disable_registration` = True.
+If using `unleash-python-sdk` with Gitlab's feature flags, we recommend initializing the client with `disable_metrics` = True and `disable_registration` = True.
 
 .. code-block:: python
 

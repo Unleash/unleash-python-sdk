@@ -16,7 +16,7 @@ import UnleashClient  # noqa: F401
 
 # -- Project information -----------------------------------------------------
 
-project = "unleash-client-python"
+project = "unleash-python-sdk"
 copyright = "2022 Unleash"
 author = "Ivan Lee"
 version = version("UnleashClient")
@@ -65,6 +65,6 @@ html_static_path = ["_static"]
 html_context = {
     "display_github": True,
     "github_user": "unleash",
-    "github_repo": "unleash-client-python",
+    "github_repo": "unleash-python-sdk",
     "github_version": "main/docs/",
 }
