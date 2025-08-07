@@ -4,7 +4,7 @@ Development
 
 Contributions welcome!
 
-Here are some notes about common tools and tasks you'll run into when working on `unleash-client-python`.
+Here are some notes about common tools and tasks you'll run into when working on `unleash-python-sdk`.
 
 Tooling
 #######################################

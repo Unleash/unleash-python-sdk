@@ -90,7 +90,7 @@ class UnleashClient:
     :param url: URL of the unleash server, required.
     :param app_name: Name of the application using the unleash client, required.
     :param environment: Name of the environment using the unleash client, optional & defaults to "default".
-    :param instance_id: Unique identifier for unleash client instance, optional & defaults to "unleash-client-python"
+    :param instance_id: Unique identifier for unleash client instance, optional & defaults to "unleash-python-sdk"
     :param refresh_interval: Provisioning refresh interval in seconds, optional & defaults to 15 seconds
     :params request_timeout: Timeout for requests to unleash server in seconds, optional & defaults to 30 seconds
     :params request_retries: Number of retries for requests to unleash server, optional & defaults to 3
@@ -116,7 +116,7 @@ class UnleashClient:
         url: str,
         app_name: str,
         environment: str = "default",
-        instance_id: str = "unleash-client-python",
+        instance_id: str = "unleash-python-sdk",
         refresh_interval: int = 15,
         refresh_jitter: Optional[int] = None,
         metrics_interval: int = 60,
