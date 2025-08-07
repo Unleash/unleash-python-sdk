@@ -1,7 +1,7 @@
 from importlib_metadata import version
 
 # Library
-SDK_NAME = "unleash-client-python"
+SDK_NAME = "unleash-python-sdk"
 SDK_VERSION = version("UnleashClient")
 REQUEST_TIMEOUT = 30
 REQUEST_RETRIES = 3
