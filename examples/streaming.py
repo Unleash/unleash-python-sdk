@@ -13,10 +13,12 @@ headers = {"Authorization": TOKEN}
 
 ready = False
 
+
 def event_callback(event):
     global ready
     if event.event_type == UnleashEventType.READY:
         ready = True
+
 
 client = UnleashClient(
     url=URL,

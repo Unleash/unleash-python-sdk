@@ -16,6 +16,7 @@ from yggdrasil_engine.engine import UnleashEngine
 
 from UnleashClient.api import register_client
 from UnleashClient.constants import (
+    APPLICATION_HEADERS,
     DISABLED_VARIATION,
     ETAG,
     METRIC_LAST_SENT_TIME,
@@ -23,7 +24,6 @@ from UnleashClient.constants import (
     REQUEST_TIMEOUT,
     SDK_NAME,
     SDK_VERSION,
-    APPLICATION_HEADERS,
 )
 from UnleashClient.events import (
     BaseEvent,
@@ -34,8 +34,8 @@ from UnleashClient.events import (
 from UnleashClient.loader import load_features
 from UnleashClient.periodic_tasks import (
     aggregate_and_send_metrics,
-    fetch_and_load_features,
     fetch_and_apply_delta,
+    fetch_and_load_features,
 )
 from UnleashClient.streaming.manager import StreamingManager
 
@@ -114,7 +114,7 @@ class UnleashClient:
     :param event_callback: Function to call if impression events are enabled.  WARNING: Depending on your event library, this may have performance implications!
     """
 
-    def __init__(
+    def __init__(  # noqa: PLR0915
         self,
         url: str,
         app_name: str,
@@ -313,10 +313,21 @@ class UnleashClient:
                     )
 
                 # Decide mode
-                mode = (self.experimental_mode or {}).get("type") if self.experimental_mode else None
-                format_mode = (self.experimental_mode or {}).get("format") if self.experimental_mode else None
+                mode = (
+                    (self.experimental_mode or {}).get("type")
+                    if self.experimental_mode
+                    else None
+                )
+                format_mode = (
+                    (self.experimental_mode or {}).get("format")
+                    if self.experimental_mode
+                    else None
+                )
 
-                if fetch_toggles and (mode is None or (mode == "polling" and (format_mode in (None, "full")))):
+                if fetch_toggles and (
+                    mode is None
+                    or (mode == "polling" and (format_mode in (None, "full")))
+                ):
                     # Default/full polling
                     fetch_headers = {
                         **base_headers,
@@ -382,8 +393,8 @@ class UnleashClient:
                         executor=self.unleash_executor_name,
                         kwargs=job_args,
                     )
-                elif fetch_toggles and mode == "streaming": # Streaming mode
-                   
+                elif fetch_toggles and mode == "streaming":  # Streaming mode
+
                     stream_headers = {
                         **base_headers,
                         "unleash-interval": self.unleash_refresh_interval_str_millis,
@@ -401,7 +412,7 @@ class UnleashClient:
 
                     # Start metrics job only
                     self.unleash_scheduler.start()
-                else: # No fetching - only load from cache
+                else:  # No fetching - only load from cache
                     job_args = {
                         "cache": self.cache,
                         "engine": self.engine,

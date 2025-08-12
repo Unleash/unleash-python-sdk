@@ -1,14 +1,13 @@
-import json
 import threading
 import time
 from typing import Callable, Optional
 
 from ld_eventsource import SSEClient
 from ld_eventsource.config import ConnectStrategy
+from yggdrasil_engine.engine import UnleashEngine
 
 from UnleashClient.constants import STREAMING_URL
 from UnleashClient.utils import LOGGER
-from yggdrasil_engine.engine import UnleashEngine
 
 
 class StreamingManager:
@@ -55,7 +54,9 @@ class StreamingManager:
         if self._thread and self._thread.is_alive():
             return
         self._stop.clear()
-        self._thread = threading.Thread(target=self._run, name="UnleashStreaming", daemon=True)
+        self._thread = threading.Thread(
+            target=self._run, name="UnleashStreaming", daemon=True
+        )
         self._thread.start()
 
     def stop(self):
@@ -63,7 +64,8 @@ class StreamingManager:
         if self._thread:
             self._thread.join(timeout=5)
 
-    def _run(self):
+    def _run(self):  # noqa: PLR0912
+        client: Optional[SSEClient] = None
         try:
             LOGGER.info("Connecting to Unleash streaming endpoint: %s", self._base_url)
 
@@ -107,26 +109,29 @@ class StreamingManager:
                             if self._on_ready:
                                 try:
                                     self._on_ready()
-                                except Exception as cb_exc:
+                                except Exception as cb_exc:  # noqa: BLE001
                                     LOGGER.debug("Ready callback error: %s", cb_exc)
-                    except Exception as exc:
+                    except Exception as exc:  # noqa: BLE001
                         LOGGER.warning("Error processing SSE event: %s", exc)
                 else:
                     LOGGER.debug("Ignoring SSE event type: %s", event.event)
 
                 # Heartbeat timeout: trigger reconnect via SSEClient interrupt (uses internal retry)
-                if self._hb_timeout and (time.time() - last_event_time > self._hb_timeout):
+                if self._hb_timeout and (
+                    time.time() - last_event_time > self._hb_timeout
+                ):
                     LOGGER.warning("Heartbeat timeout exceeded; reconnecting")
                     try:
                         client.interrupt()
-                    except Exception as _:
+                    except Exception:  # noqa: BLE001
                         # If interrupt fails, close will end the loop; SSEClient will not retry when closed
                         client.close()
                         break
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             LOGGER.warning("Streaming error: %s", exc)
         finally:
             try:
-                client.close()
-            except Exception:
+                if client is not None:
+                    client.close()
+            except Exception:  # noqa: BLE001
                 pass

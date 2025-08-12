@@ -7,6 +7,7 @@ from urllib3 import Retry
 from UnleashClient.constants import DELTA_URL
 from UnleashClient.utils import LOGGER, log_resp_info
 
+
 # pylint: disable=broad-except
 def get_feature_deltas(
     url: str,

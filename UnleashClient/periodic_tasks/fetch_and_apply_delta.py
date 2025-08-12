@@ -5,9 +5,10 @@ from yggdrasil_engine.engine import UnleashEngine
 
 from UnleashClient.api.delta import get_feature_deltas
 from UnleashClient.cache import BaseCache
-from UnleashClient.constants import DELTA_URL, ETAG
+from UnleashClient.constants import ETAG
 from UnleashClient.events import UnleashEventType, UnleashFetchedEvent
 from UnleashClient.utils import LOGGER
+
 
 def fetch_and_apply_delta(
     url: str,
