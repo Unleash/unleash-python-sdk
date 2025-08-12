@@ -328,7 +328,8 @@ class UnleashClient:
                     mode is None
                     or (mode == "polling" and (format_mode in (None, "full")))
                 ):
-                    # Default/full polling
+                    # MODE: default - full polling
+
                     fetch_headers = {
                         **base_headers,
                         "unleash-interval": self.unleash_refresh_interval_str_millis,
@@ -361,7 +362,8 @@ class UnleashClient:
                         kwargs=job_args,
                     )
                 elif fetch_toggles and (mode == "polling" and format_mode == "delta"):
-                    # Delta polling
+                    # MODE: delta polling
+
                     fetch_headers = {
                         **base_headers,
                         "unleash-interval": self.unleash_refresh_interval_str_millis,
@@ -380,8 +382,6 @@ class UnleashClient:
                         "ready_callback": self._ready_callback,
                     }
                     job_func: Callable = fetch_and_apply_delta
-
-                    # Eager run once
                     job_func(**job_args)
                     self.unleash_scheduler.start()
                     self.fl_job = self.unleash_scheduler.add_job(
@@ -393,7 +393,8 @@ class UnleashClient:
                         executor=self.unleash_executor_name,
                         kwargs=job_args,
                     )
-                elif fetch_toggles and mode == "streaming":  # Streaming mode
+                elif fetch_toggles and mode == "streaming":
+                    # MODE: streaming
 
                     stream_headers = {
                         **base_headers,
