@@ -32,6 +32,7 @@ dependencies=[
     "python-dateutil",
     "semver < 4.0.0",
     "yggdrasil-engine",
+    "launchdarkly-eventsource",
 ]
 
 [project.urls]

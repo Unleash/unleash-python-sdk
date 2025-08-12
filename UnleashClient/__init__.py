@@ -23,6 +23,7 @@ from UnleashClient.constants import (
     REQUEST_TIMEOUT,
     SDK_NAME,
     SDK_VERSION,
+    APPLICATION_HEADERS,
 )
 from UnleashClient.events import (
     BaseEvent,
@@ -35,6 +36,7 @@ from UnleashClient.periodic_tasks import (
     aggregate_and_send_metrics,
     fetch_and_load_features,
 )
+from UnleashClient.streaming.manager import StreamingManager
 
 from .cache import BaseCache, FileCache
 from .utils import LOGGER, InstanceAllowType, InstanceCounter
@@ -136,6 +138,8 @@ class UnleashClient:
         scheduler_executor: Optional[str] = None,
         multiple_instance_mode: InstanceAllowType = InstanceAllowType.WARN,
         event_callback: Optional[Callable[[BaseEvent], None]] = None,
+        experimental_mode: Optional[dict] = None,
+        sse_client_factory: Optional[Callable] = None,
     ) -> None:
         custom_headers = custom_headers or {}
         custom_options = custom_options or {}
@@ -169,6 +173,9 @@ class UnleashClient:
         self.unleash_verbose_log_level = verbose_log_level
         self.unleash_event_callback = event_callback
         self._ready_callback = build_ready_callback(event_callback)
+        self.experimental_mode = experimental_mode
+        self._stream_manager: Optional[StreamingManager] = None
+        self._sse_client_factory = sse_client_factory
 
         self._do_instance_check(multiple_instance_mode)
 
@@ -267,8 +274,10 @@ class UnleashClient:
             try:
                 base_headers = {
                     **self.unleash_custom_headers,
+                    **APPLICATION_HEADERS,
                     "unleash-connection-id": self.connection_id,
                     "unleash-appname": self.unleash_app_name,
+                    "unleash-instanceid": self.unleash_instance_id,
                     "unleash-sdk": f"{SDK_NAME}:{SDK_VERSION}",
                 }
 
@@ -277,7 +286,6 @@ class UnleashClient:
                     "unleash-interval": self.unleash_metrics_interval_str_millis,
                 }
 
-                # Setup
                 metrics_args = {
                     "url": self.unleash_url,
                     "app_name": self.unleash_app_name,
@@ -303,12 +311,16 @@ class UnleashClient:
                         self.unleash_request_timeout,
                     )
 
-                if fetch_toggles:
+                # Decide mode
+                mode = (self.experimental_mode or {}).get("type") if self.experimental_mode else None
+                format_mode = (self.experimental_mode or {}).get("format") if self.experimental_mode else None
+
+                if fetch_toggles and (mode is None or (mode == "polling" and (format_mode in (None, "full")))):
+                    # Default/full polling
                     fetch_headers = {
                         **base_headers,
                         "unleash-interval": self.unleash_refresh_interval_str_millis,
                     }
-
                     job_args = {
                         "url": self.unleash_url,
                         "app_name": self.unleash_app_name,
@@ -324,26 +336,46 @@ class UnleashClient:
                         "ready_callback": self._ready_callback,
                     }
                     job_func: Callable = fetch_and_load_features
-                else:
+
+                    job_func(**job_args)  # initial fetch
+                    self.unleash_scheduler.start()
+                    self.fl_job = self.unleash_scheduler.add_job(
+                        job_func,
+                        trigger=IntervalTrigger(
+                            seconds=int(self.unleash_refresh_interval),
+                            jitter=self.unleash_refresh_jitter,
+                        ),
+                        executor=self.unleash_executor_name,
+                        kwargs=job_args,
+                    )
+                elif fetch_toggles and mode == "streaming": # Streaming mode
+                   
+                    stream_headers = {
+                        **base_headers,
+                        "unleash-interval": self.unleash_refresh_interval_str_millis,
+                    }
+                    self._stream_manager = StreamingManager(
+                        url=self.unleash_url,
+                        headers=stream_headers,
+                        request_timeout=self.unleash_request_timeout,
+                        engine=self.engine,
+                        on_ready=self._ready_callback,
+                        sse_client_factory=self._sse_client_factory,
+                        custom_options=self.unleash_custom_options,
+                    )
+                    self._stream_manager.start()
+
+                    # Start metrics job only
+                    self.unleash_scheduler.start()
+                else: # No fetching - only load from cache
                     job_args = {
                         "cache": self.cache,
                         "engine": self.engine,
                         "ready_callback": self._ready_callback,
                     }
-                    job_func = load_features
+                    load_features(**job_args)
+                    self.unleash_scheduler.start()
 
-                job_func(**job_args)  # type: ignore
-                # Start periodic jobs
-                self.unleash_scheduler.start()
-                self.fl_job = self.unleash_scheduler.add_job(
-                    job_func,
-                    trigger=IntervalTrigger(
-                        seconds=int(self.unleash_refresh_interval),
-                        jitter=self.unleash_refresh_jitter,
-                    ),
-                    executor=self.unleash_executor_name,
-                    kwargs=job_args,
-                )
                 if not self.unleash_disable_metrics:
                     self.metric_job = self.unleash_scheduler.add_job(
                         aggregate_and_send_metrics,
@@ -396,7 +428,11 @@ class UnleashClient:
 
         You shouldn't need this too much!
         """
-        self.fl_job.remove()
+        try:
+            if self.fl_job:
+                self.fl_job.remove()
+        except Exception:  # best-effort
+            pass
         if self.metric_job:
             self.metric_job.remove()
 
@@ -411,7 +447,11 @@ class UnleashClient:
                 request_timeout=self.unleash_request_timeout,
                 engine=self.engine,
             )
-
+        if self._stream_manager:
+            try:
+                self._stream_manager.stop()
+            except Exception:
+                pass
         self.unleash_scheduler.shutdown()
         self.cache.destroy()
 

@@ -6,7 +6,7 @@ SDK_VERSION = version("UnleashClient")
 REQUEST_TIMEOUT = 30
 REQUEST_RETRIES = 3
 METRIC_LAST_SENT_TIME = "mlst"
-CLIENT_SPEC_VERSION = "5.1.9"
+CLIENT_SPEC_VERSION = "5.2.0"
 
 # =Unleash=
 APPLICATION_HEADERS = {
@@ -19,6 +19,8 @@ DISABLED_VARIATION = {"name": "disabled", "enabled": False, "feature_enabled": F
 REGISTER_URL = "/client/register"
 FEATURES_URL = "/client/features"
 METRICS_URL = "/client/metrics"
+DELTA_URL = "/client/delta"
+STREAMING_URL = "/client/streaming"
 
 # Cache keys
 FAILED_STRATEGIES = "failed_strategies"
