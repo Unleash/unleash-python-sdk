@@ -35,6 +35,7 @@ from UnleashClient.loader import load_features
 from UnleashClient.periodic_tasks import (
     aggregate_and_send_metrics,
     fetch_and_load_features,
+    fetch_and_apply_delta,
 )
 from UnleashClient.streaming.manager import StreamingManager
 
@@ -338,6 +339,39 @@ class UnleashClient:
                     job_func: Callable = fetch_and_load_features
 
                     job_func(**job_args)  # initial fetch
+                    self.unleash_scheduler.start()
+                    self.fl_job = self.unleash_scheduler.add_job(
+                        job_func,
+                        trigger=IntervalTrigger(
+                            seconds=int(self.unleash_refresh_interval),
+                            jitter=self.unleash_refresh_jitter,
+                        ),
+                        executor=self.unleash_executor_name,
+                        kwargs=job_args,
+                    )
+                elif fetch_toggles and (mode == "polling" and format_mode == "delta"):
+                    # Delta polling
+                    fetch_headers = {
+                        **base_headers,
+                        "unleash-interval": self.unleash_refresh_interval_str_millis,
+                    }
+                    job_args = {
+                        "url": self.unleash_url,
+                        "app_name": self.unleash_app_name,
+                        "instance_id": self.unleash_instance_id,
+                        "headers": fetch_headers,
+                        "custom_options": self.unleash_custom_options,
+                        "cache": self.cache,
+                        "engine": self.engine,
+                        "request_timeout": self.unleash_request_timeout,
+                        "request_retries": self.unleash_request_retries,
+                        "event_callback": self.unleash_event_callback,
+                        "ready_callback": self._ready_callback,
+                    }
+                    job_func: Callable = fetch_and_apply_delta
+
+                    # Eager run once
+                    job_func(**job_args)
                     self.unleash_scheduler.start()
                     self.fl_job = self.unleash_scheduler.add_job(
                         job_func,
