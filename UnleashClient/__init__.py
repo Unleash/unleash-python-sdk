@@ -353,10 +353,11 @@ class UnleashClient:
                             "event_callback": self.unleash_event_callback,
                         }
 
+                        job_func: Callable
                         if format_mode == "delta":
-                            job_func: Callable = fetch_and_apply_delta
+                            job_func = fetch_and_apply_delta
                         else:
-                            job_func: Callable = fetch_and_load_features
+                            job_func = fetch_and_load_features
                     else:
                         # MODE: offline
 
@@ -563,9 +564,9 @@ class UnleashClient:
                     event_type=UnleashEventType.VARIANT,
                     event_id=uuid.uuid4(),
                     context=context,
-                    enabled=variant["enabled"],
+                    enabled=bool(variant["enabled"]),
                     feature_name=feature_name,
-                    variant=variant["name"],
+                    variant=str(variant["name"]),
                 )
 
                 self.unleash_event_callback(event)
