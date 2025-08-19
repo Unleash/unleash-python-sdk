@@ -69,7 +69,6 @@ class StreamingManager:
         try:
             LOGGER.info("Connecting to Unleash streaming endpoint: %s", self._base_url)
 
-            # Use LaunchDarkly EventSource client
             if self._sse_factory:
                 client = self._sse_factory(self._base_url, self._headers, self._timeout)
             else:
@@ -101,8 +100,7 @@ class StreamingManager:
                         data = event.data
                         if not data:
                             continue
-                        # Apply under lock
-                        with self._lock:
+                        with self._lock:  # Apply under lock
                             self._engine.take_state(data)
                         if event.event == "unleash-connected" and not self._hydrated:
                             self._hydrated = True

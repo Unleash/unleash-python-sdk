@@ -318,7 +318,7 @@ class UnleashClient:
                         self.unleash_request_timeout,
                     )
 
-                # Decide mode
+                # Decide upstream connection mode
                 mode = (
                     (self.experimental_mode or {}).get("type")
                     if self.experimental_mode
@@ -333,58 +333,31 @@ class UnleashClient:
                 if fetch_toggles and (
                     mode is None
                     or (mode == "polling" and (format_mode in (None, "full")))
+                    or (mode == "polling" and format_mode == "delta")
                 ):
-                    # MODE: default - full polling
+                    # MODE: polling (full fetching or delta API)
 
-                    fetch_headers = {
-                        **base_headers,
-                        "unleash-interval": self.unleash_refresh_interval_str_millis,
-                    }
+                    if mode == "polling" and format_mode == "delta":
+                        job_func: Callable = fetch_and_apply_delta
+                    else:
+                        job_func: Callable = fetch_and_load_features
+
                     job_args = {
                         **base_job_args,
                         "url": self.unleash_url,
                         "app_name": self.unleash_app_name,
                         "instance_id": self.unleash_instance_id,
-                        "headers": fetch_headers,
+                        "headers": {
+                            **base_headers,
+                            "unleash-interval": self.unleash_refresh_interval_str_millis,
+                        },
                         "custom_options": self.unleash_custom_options,
                         "request_timeout": self.unleash_request_timeout,
                         "request_retries": self.unleash_request_retries,
                         "project": self.unleash_project_name,
                         "event_callback": self.unleash_event_callback,
                     }
-                    job_func: Callable = fetch_and_load_features
-
                     job_func(**job_args)  # initial fetch
-                    self.unleash_scheduler.start()
-                    self.fl_job = self.unleash_scheduler.add_job(
-                        job_func,
-                        trigger=IntervalTrigger(
-                            seconds=int(self.unleash_refresh_interval),
-                            jitter=self.unleash_refresh_jitter,
-                        ),
-                        executor=self.unleash_executor_name,
-                        kwargs=job_args,
-                    )
-                elif fetch_toggles and (mode == "polling" and format_mode == "delta"):
-                    # MODE: delta polling
-
-                    fetch_headers = {
-                        **base_headers,
-                        "unleash-interval": self.unleash_refresh_interval_str_millis,
-                    }
-                    job_args = {
-                        **base_job_args,
-                        "url": self.unleash_url,
-                        "app_name": self.unleash_app_name,
-                        "instance_id": self.unleash_instance_id,
-                        "headers": fetch_headers,
-                        "custom_options": self.unleash_custom_options,
-                        "request_timeout": self.unleash_request_timeout,
-                        "request_retries": self.unleash_request_retries,
-                        "event_callback": self.unleash_event_callback,
-                    }
-                    job_func: Callable = fetch_and_apply_delta
-                    job_func(**job_args)
                     self.unleash_scheduler.start()
                     self.fl_job = self.unleash_scheduler.add_job(
                         job_func,
@@ -398,13 +371,9 @@ class UnleashClient:
                 elif fetch_toggles and mode == "streaming":
                     # MODE: streaming
 
-                    stream_headers = {
-                        **base_headers,
-                        "unleash-interval": self.unleash_refresh_interval_str_millis,
-                    }
                     self._stream_manager = StreamingManager(
                         url=self.unleash_url,
-                        headers=stream_headers,
+                        headers=base_headers,
                         request_timeout=self.unleash_request_timeout,
                         engine=self.engine,
                         on_ready=self._ready_callback,
@@ -413,7 +382,7 @@ class UnleashClient:
                     )
                     self._stream_manager.start()
 
-                    # Start metrics job only
+                    # Start for metrics job only
                     self.unleash_scheduler.start()
                 else:  # No fetching - only load from cache
                     load_features(**base_job_args)
