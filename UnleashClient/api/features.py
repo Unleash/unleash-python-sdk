@@ -72,7 +72,7 @@ def get_feature_toggles(
         if resp.status_code not in [200, 304]:
             log_resp_info(resp)
             LOGGER.warning(
-                "Unleash Client feature fetch failed due to unexpected HTTP status code: %s",
+                "Unleash Client feature fetch failed due to an unexpected HTTP status code: %s",
                 resp.status_code,
             )
             raise Exception(
