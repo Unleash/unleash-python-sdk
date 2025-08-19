@@ -318,6 +318,9 @@ class UnleashClient:
                         self.unleash_request_timeout,
                     )
 
+                # Start periodic jobs
+                self.unleash_scheduler.start()
+
                 # Decide upstream connection mode
                 mode = (
                     (self.experimental_mode or {}).get("type")
@@ -330,19 +333,7 @@ class UnleashClient:
                     else None
                 )
 
-                if fetch_toggles and mode == "streaming":
-                    # MODE: streaming
-                    self._stream_manager = StreamingManager(
-                        url=self.unleash_url,
-                        headers=base_headers,
-                        request_timeout=self.unleash_request_timeout,
-                        engine=self.engine,
-                        on_ready=self._ready_callback,
-                        sse_client_factory=self._sse_client_factory,
-                        custom_options=self.unleash_custom_options,
-                    )
-                    self._stream_manager.start()
-                else:
+                if mode != "streaming":
                     if fetch_toggles:
                         # MODE: polling
 
@@ -372,8 +363,7 @@ class UnleashClient:
                         job_args = base_job_args
                         job_func = load_features
 
-                    job_func(**job_args)  # initial fetch
-                    self.unleash_scheduler.start()
+                    job_func(**job_args)  # type: ignore
                     self.fl_job = self.unleash_scheduler.add_job(
                         job_func,
                         trigger=IntervalTrigger(
@@ -383,6 +373,18 @@ class UnleashClient:
                         executor=self.unleash_executor_name,
                         kwargs=job_args,
                     )
+                else:
+                    # MODE: streaming
+                    self._stream_manager = StreamingManager(
+                        url=self.unleash_url,
+                        headers=base_headers,
+                        request_timeout=self.unleash_request_timeout,
+                        engine=self.engine,
+                        on_ready=self._ready_callback,
+                        sse_client_factory=self._sse_client_factory,
+                        custom_options=self.unleash_custom_options,
+                    )
+                    self._stream_manager.start()
 
                 if not self.unleash_disable_metrics:
                     self.metric_job = self.unleash_scheduler.add_job(
