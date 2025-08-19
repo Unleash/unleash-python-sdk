@@ -298,6 +298,12 @@ class UnleashClient:
                     "engine": self.engine,
                 }
 
+                base_job_args = {
+                    "cache": self.cache,
+                    "engine": self.engine,
+                    "ready_callback": self._ready_callback,
+                }
+
                 # Register app
                 if not self.unleash_disable_registration:
                     register_client(
@@ -335,18 +341,16 @@ class UnleashClient:
                         "unleash-interval": self.unleash_refresh_interval_str_millis,
                     }
                     job_args = {
+                        **base_job_args,
                         "url": self.unleash_url,
                         "app_name": self.unleash_app_name,
                         "instance_id": self.unleash_instance_id,
                         "headers": fetch_headers,
                         "custom_options": self.unleash_custom_options,
-                        "cache": self.cache,
-                        "engine": self.engine,
                         "request_timeout": self.unleash_request_timeout,
                         "request_retries": self.unleash_request_retries,
                         "project": self.unleash_project_name,
                         "event_callback": self.unleash_event_callback,
-                        "ready_callback": self._ready_callback,
                     }
                     job_func: Callable = fetch_and_load_features
 
@@ -369,17 +373,15 @@ class UnleashClient:
                         "unleash-interval": self.unleash_refresh_interval_str_millis,
                     }
                     job_args = {
+                        **base_job_args,
                         "url": self.unleash_url,
                         "app_name": self.unleash_app_name,
                         "instance_id": self.unleash_instance_id,
                         "headers": fetch_headers,
                         "custom_options": self.unleash_custom_options,
-                        "cache": self.cache,
-                        "engine": self.engine,
                         "request_timeout": self.unleash_request_timeout,
                         "request_retries": self.unleash_request_retries,
                         "event_callback": self.unleash_event_callback,
-                        "ready_callback": self._ready_callback,
                     }
                     job_func: Callable = fetch_and_apply_delta
                     job_func(**job_args)
@@ -414,12 +416,7 @@ class UnleashClient:
                     # Start metrics job only
                     self.unleash_scheduler.start()
                 else:  # No fetching - only load from cache
-                    job_args = {
-                        "cache": self.cache,
-                        "engine": self.engine,
-                        "ready_callback": self._ready_callback,
-                    }
-                    load_features(**job_args)
+                    load_features(**base_job_args)
                     self.unleash_scheduler.start()
 
                 if not self.unleash_disable_metrics:
