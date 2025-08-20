@@ -337,7 +337,7 @@ class UnleashClient:
                     if fetch_toggles:
                         # MODE: polling
 
-                        job_args = {
+                        base_polling_args = {
                             **base_job_args,
                             "url": self.unleash_url,
                             "app_name": self.unleash_app_name,
@@ -349,14 +349,18 @@ class UnleashClient:
                             "custom_options": self.unleash_custom_options,
                             "request_timeout": self.unleash_request_timeout,
                             "request_retries": self.unleash_request_retries,
-                            "project": self.unleash_project_name,
                             "event_callback": self.unleash_event_callback,
                         }
 
                         job_func: Callable
                         if format_mode == "delta":
+                            job_args = base_polling_args
                             job_func = fetch_and_apply_delta
                         else:
+                            job_args = {
+                                **base_polling_args,
+                                "project": self.unleash_project_name,
+                            }
                             job_func = fetch_and_load_features
                     else:
                         # MODE: offline
