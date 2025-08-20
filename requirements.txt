@@ -6,7 +6,7 @@ mmhash3
 python-dateutil
 requests
 semver
-yggdrasil-engine
+yggdrasil-engine>=1.0.0
 
 # Development packages
 # - Testing
