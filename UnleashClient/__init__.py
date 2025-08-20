@@ -34,7 +34,6 @@ from UnleashClient.events import (
 from UnleashClient.loader import load_features
 from UnleashClient.periodic_tasks import (
     aggregate_and_send_metrics,
-    fetch_and_apply_delta,
     fetch_and_load_features,
 )
 from UnleashClient.streaming.manager import StreamingManager
@@ -327,17 +326,12 @@ class UnleashClient:
                     if self.experimental_mode
                     else None
                 )
-                format_mode = (
-                    (self.experimental_mode or {}).get("format")
-                    if self.experimental_mode
-                    else None
-                )
 
                 if mode != "streaming":
                     if fetch_toggles:
                         # MODE: polling
 
-                        base_polling_args = {
+                        job_args = {
                             **base_job_args,
                             "url": self.unleash_url,
                             "app_name": self.unleash_app_name,
@@ -350,18 +344,11 @@ class UnleashClient:
                             "request_timeout": self.unleash_request_timeout,
                             "request_retries": self.unleash_request_retries,
                             "event_callback": self.unleash_event_callback,
+                            "project": self.unleash_project_name,
                         }
 
                         job_func: Callable
-                        if format_mode == "delta":
-                            job_args = base_polling_args
-                            job_func = fetch_and_apply_delta
-                        else:
-                            job_args = {
-                                **base_polling_args,
-                                "project": self.unleash_project_name,
-                            }
-                            job_func = fetch_and_load_features
+                        job_func = fetch_and_load_features
                     else:
                         # MODE: offline
 

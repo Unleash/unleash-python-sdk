@@ -19,7 +19,6 @@ DISABLED_VARIATION = {"name": "disabled", "enabled": False, "feature_enabled": F
 REGISTER_URL = "/client/register"
 FEATURES_URL = "/client/features"
 METRICS_URL = "/client/metrics"
-DELTA_URL = "/client/delta"
 STREAMING_URL = "/client/streaming"
 
 # Cache keys
