@@ -3,7 +3,7 @@ import time
 from typing import Callable, Optional
 
 from ld_eventsource import SSEClient
-from ld_eventsource.config import ConnectStrategy
+from ld_eventsource.config import ConnectStrategy, RetryDelayStrategy, ErrorStrategy
 
 from UnleashClient.constants import STREAMING_URL
 from UnleashClient.utils import LOGGER
@@ -27,6 +27,9 @@ class StreamingConnector:
         sse_client_factory: Optional[Callable[[str, dict, int], SSEClient]] = None,
         heartbeat_timeout: int = 60,
         backoff_initial: float = 2.0,
+        backoff_max: float = 30.0,
+        backoff_multiplier: float = 2.0,
+        backoff_jitter: Optional[float] = 0.5,
         custom_options: Optional[dict] = None,
     ) -> None:
         self._base_url = url.rstrip("/") + STREAMING_URL
@@ -36,6 +39,9 @@ class StreamingConnector:
         self._sse_factory = sse_client_factory
         self._hb_timeout = heartbeat_timeout
         self._backoff_initial = backoff_initial
+        self._backoff_max = backoff_max
+        self._backoff_multiplier = backoff_multiplier
+        self._backoff_jitter = backoff_jitter
         self._stop = threading.Event()
         self._thread: Optional[threading.Thread] = None
         self._lock = threading.Lock()
@@ -60,71 +66,78 @@ class StreamingConnector:
             self._thread.join(timeout=5)
 
     def _run(self):  # noqa: PLR0912
-        while not self._stop.is_set():
-            client: Optional[SSEClient] = None
-            try:
-                LOGGER.info(
-                    "Connecting to Unleash streaming endpoint: %s", self._base_url
+        """
+        Main streaming loop. Creates SSEClient once and lets it handle retries internally.
+        Only recreates client if there's a catastrophic failure.
+        """
+        client: Optional[SSEClient] = None
+        
+        try:
+            LOGGER.info(
+                "Connecting to Unleash streaming endpoint: %s", self._base_url
+            )
+
+            if self._sse_factory:
+                client = self._sse_factory(
+                    self._base_url, self._headers, self._timeout
+                )
+            else:
+                connect_strategy = ConnectStrategy.http(
+                    self._base_url,
+                    headers=self._headers,
+                    urllib3_request_options=self._custom_options,
                 )
 
-                if self._sse_factory:
-                    client = self._sse_factory(
-                        self._base_url, self._headers, self._timeout
-                    )
-                else:
-                    connect_strategy = ConnectStrategy.http(
-                        self._base_url,
-                        headers=self._headers,
-                        urllib3_request_options=self._custom_options,
-                    )
-                    client = SSEClient(
-                        connect=connect_strategy,
-                        initial_retry_delay=self._backoff_initial,
-                        logger=LOGGER,
-                    )
+                retry_strategy = RetryDelayStrategy.default(
+                    max_delay=self._backoff_max,
+                    backoff_multiplier=self._backoff_multiplier,
+                    jitter_multiplier=self._backoff_jitter,
+                )
+                
+                client = SSEClient(
+                    connect=connect_strategy,
+                    initial_retry_delay=self._backoff_initial,
+                    retry_delay_strategy=retry_strategy,
+                    retry_delay_reset_threshold=60.0,
+                    error_strategy=ErrorStrategy.always_continue(),
+                    logger=LOGGER,
+                )
+
+            last_event_time = time.time()
+
+            for event in client.events:
+                if self._stop.is_set():
+                    break
+                if not event.event:
+                    continue
 
                 last_event_time = time.time()
 
-                for event in client.events:
-                    if self._stop.is_set():
-                        client.close()
-                        return
-                    if not event.event:
-                        continue
-
-                    last_event_time = time.time()
-
-                    # Delegate event processing
-                    self._processor.process(event)
-                    if event.event == "unleash-connected" and self._processor.hydrated:
-                        if self._on_ready:
-                            try:
-                                self._on_ready()
-                            except Exception as cb_exc:  # noqa: BLE001
-                                LOGGER.debug("Ready callback error: %s", cb_exc)
-
-                    # Heartbeat timeout - reconnect manually
-                    if self._hb_timeout and (
-                        time.time() - last_event_time > self._hb_timeout
-                    ):
-                        LOGGER.warning("Heartbeat timeout exceeded; reconnecting")
+                self._processor.process(event)
+                if event.event == "unleash-connected" and self._processor.hydrated:
+                    if self._on_ready:
                         try:
-                            client.interrupt()
-                        except Exception:  # noqa: BLE001
-                            # If interrupt fails, close will end the loop
-                            client.close()
-                            break
-            except Exception as exc:  # noqa: BLE001
-                LOGGER.warning("Streaming error (will retry): %s", exc)
-            finally:
-                try:
-                    if client is not None:
-                        client.close()
-                except Exception:  # noqa: BLE001
-                    pass
+                            self._on_ready()
+                        except Exception as cb_exc:  # noqa: BLE001
+                            LOGGER.debug("Ready callback error: %s", cb_exc)
 
-            if self._stop.is_set():
-                break
+                if self._hb_timeout and (
+                    time.time() - last_event_time > self._hb_timeout
+                ):
+                    LOGGER.warning("Heartbeat timeout exceeded; reconnecting")
+                    try:
+                        client.interrupt()  # Don't break, rely on SSE client retry
+                    except Exception:  # noqa: BLE001
+                        break
 
-            # On catastrophic failure - delay before attempting to recreate SSEClient
-            time.sleep(1.0)
+            LOGGER.debug("SSE stream ended")
+
+        except Exception as exc:  # noqa: BLE001
+            LOGGER.warning("Streaming connection failed: %s", exc)
+            
+        finally:
+            try:
+                if client is not None:
+                    client.close()
+            except Exception:  # noqa: BLE001
+                pass
