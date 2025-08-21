@@ -36,7 +36,7 @@ from UnleashClient.periodic_tasks import (
     aggregate_and_send_metrics,
     fetch_and_load_features,
 )
-from UnleashClient.streaming.manager import StreamingManager
+from UnleashClient.streaming import StreamingConnector, StreamingEventProcessor
 
 from .cache import BaseCache, FileCache
 from .utils import LOGGER, InstanceAllowType, InstanceCounter
@@ -174,7 +174,7 @@ class UnleashClient:
         self.unleash_event_callback = event_callback
         self._ready_callback = build_ready_callback(event_callback)
         self.experimental_mode = experimental_mode
-        self._stream_manager: Optional[StreamingManager] = None
+        self._streaming_connector: Optional[StreamingConnector] = None
         self._sse_client_factory = sse_client_factory
 
         self._do_instance_check(multiple_instance_mode)
@@ -367,16 +367,17 @@ class UnleashClient:
                     )
                 else:
                     # MODE: streaming
-                    self._stream_manager = StreamingManager(
+                    processor = StreamingEventProcessor(self.engine)
+                    self._streaming_connector = StreamingConnector(
                         url=self.unleash_url,
                         headers=base_headers,
                         request_timeout=self.unleash_request_timeout,
-                        engine=self.engine,
+                        event_processor=processor,
                         on_ready=self._ready_callback,
                         sse_client_factory=self._sse_client_factory,
                         custom_options=self.unleash_custom_options,
                     )
-                    self._stream_manager.start()
+                    self._streaming_connector.start()
 
                 if not self.unleash_disable_metrics:
                     self.metric_job = self.unleash_scheduler.add_job(
@@ -449,9 +450,9 @@ class UnleashClient:
                 request_timeout=self.unleash_request_timeout,
                 engine=self.engine,
             )
-        if self._stream_manager:
+        if self._streaming_connector:
             try:
-                self._stream_manager.stop()
+                self._streaming_connector.stop()
             except Exception:
                 pass
         self.unleash_scheduler.shutdown()
