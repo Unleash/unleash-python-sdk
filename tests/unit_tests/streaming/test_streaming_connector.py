@@ -1,12 +1,8 @@
 from __future__ import annotations
 
-import json
 import threading
 import time
 from typing import Iterable
-from unittest.mock import MagicMock, patch
-
-import pytest
 
 from UnleashClient.streaming import StreamingConnector
 from UnleashClient.streaming.event_processor import StreamingEventProcessor
@@ -62,6 +58,7 @@ class FailingSSEClient:
 
     def interrupt(self):
         self.close()
+
 
 def test_successful_connection_calls_ready():
     engine = FakeEngine()

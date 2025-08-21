@@ -1,9 +1,5 @@
 from __future__ import annotations
 
-import json
-
-import pytest
-
 from UnleashClient.streaming.event_processor import StreamingEventProcessor
 
 
