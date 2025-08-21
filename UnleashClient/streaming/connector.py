@@ -3,7 +3,7 @@ import time
 from typing import Callable, Optional
 
 from ld_eventsource import SSEClient
-from ld_eventsource.config import ConnectStrategy, RetryDelayStrategy, ErrorStrategy
+from ld_eventsource.config import ConnectStrategy, ErrorStrategy, RetryDelayStrategy
 
 from UnleashClient.constants import STREAMING_URL
 from UnleashClient.utils import LOGGER
@@ -71,16 +71,12 @@ class StreamingConnector:
         Only recreates client if there's a catastrophic failure.
         """
         client: Optional[SSEClient] = None
-        
+
         try:
-            LOGGER.info(
-                "Connecting to Unleash streaming endpoint: %s", self._base_url
-            )
+            LOGGER.info("Connecting to Unleash streaming endpoint: %s", self._base_url)
 
             if self._sse_factory:
-                client = self._sse_factory(
-                    self._base_url, self._headers, self._timeout
-                )
+                client = self._sse_factory(self._base_url, self._headers, self._timeout)
             else:
                 connect_strategy = ConnectStrategy.http(
                     self._base_url,
@@ -93,7 +89,7 @@ class StreamingConnector:
                     backoff_multiplier=self._backoff_multiplier,
                     jitter_multiplier=self._backoff_jitter,
                 )
-                
+
                 client = SSEClient(
                     connect=connect_strategy,
                     initial_retry_delay=self._backoff_initial,
@@ -134,7 +130,7 @@ class StreamingConnector:
 
         except Exception as exc:  # noqa: BLE001
             LOGGER.warning("Streaming connection failed: %s", exc)
-            
+
         finally:
             try:
                 if client is not None:
