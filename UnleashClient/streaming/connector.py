@@ -1,5 +1,4 @@
 import threading
-import time
 from typing import Callable, Optional
 
 from ld_eventsource import SSEClient
@@ -25,7 +24,6 @@ class StreamingConnector:
         event_processor: StreamingEventProcessor,
         on_ready: Optional[Callable[[], None]] = None,
         sse_client_factory: Optional[Callable[[str, dict, int], SSEClient]] = None,
-        heartbeat_timeout: int = 60,
         backoff_initial: float = 2.0,
         backoff_max: float = 30.0,
         backoff_multiplier: float = 2.0,
@@ -37,7 +35,6 @@ class StreamingConnector:
         self._timeout = request_timeout
         self._on_ready = on_ready
         self._sse_factory = sse_client_factory
-        self._hb_timeout = heartbeat_timeout
         self._backoff_initial = backoff_initial
         self._backoff_max = backoff_max
         self._backoff_multiplier = backoff_multiplier
@@ -99,15 +96,11 @@ class StreamingConnector:
                     logger=LOGGER,
                 )
 
-            last_event_time = time.time()
-
             for event in client.events:
                 if self._stop.is_set():
                     break
                 if not event.event:
                     continue
-
-                last_event_time = time.time()
 
                 self._processor.process(event)
                 if event.event == "unleash-connected" and self._processor.hydrated:
@@ -116,15 +109,6 @@ class StreamingConnector:
                             self._on_ready()
                         except Exception as cb_exc:  # noqa: BLE001
                             LOGGER.debug("Ready callback error: %s", cb_exc)
-
-                if self._hb_timeout and (
-                    time.time() - last_event_time > self._hb_timeout
-                ):
-                    LOGGER.warning("Heartbeat timeout exceeded; reconnecting")
-                    try:
-                        client.interrupt()  # Don't break, rely on SSE client retry
-                    except Exception:  # noqa: BLE001
-                        break
 
             LOGGER.debug("SSE stream ended")
 
