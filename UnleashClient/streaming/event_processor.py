@@ -50,6 +50,7 @@ class StreamingEventProcessor:
             return
         with self._lock:
             self._engine.take_state(event_data)
+            # TODO: backup file
 
     def _handle_connected(self, event: Any) -> None:
         LOGGER.debug("Processing initial hydration data")
