@@ -1,16 +1,17 @@
 import uuid
-from .base_connector import BaseConnector
-from typing import Optional, Callable
+from typing import Callable, Optional
+
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
-
 from yggdrasil_engine.engine import UnleashEngine
 
-from UnleashClient.cache import BaseCache
 from UnleashClient.api import get_feature_toggles
+from UnleashClient.cache import BaseCache
 from UnleashClient.constants import ETAG, FEATURES_URL
 from UnleashClient.events import UnleashEventType, UnleashFetchedEvent
 from UnleashClient.utils import LOGGER
+
+from .base_connector import BaseConnector
 
 
 class PollingConnector(BaseConnector):
@@ -51,12 +52,19 @@ class PollingConnector(BaseConnector):
         self.ready_callback = ready_callback
         self.job = None
 
+    @property
+    def unleash_refresh_interval_str_millis(self) -> str:
+        return str(self.refresh_interval * 1000)
+
     def _fetch_and_load(self):
         (state, etag) = get_feature_toggles(
             url=self.url,
             app_name=self.app_name,
             instance_id=self.instance_id,
-            headers=self.headers,
+            headers={
+                **self.headers,
+                "unleash-interval": self.unleash_refresh_interval_str_millis,
+            },
             custom_options=self.custom_options,
             request_timeout=self.request_timeout,
             request_retries=self.request_retries,
@@ -87,7 +95,7 @@ class PollingConnector(BaseConnector):
             if self.ready_callback:
                 self.ready_callback()
 
-    def run(self):
+    def start(self):
         self._fetch_and_load()
 
         self.job = self.scheduler.add_job(

@@ -1,13 +1,15 @@
-from .base_connector import BaseConnector
 from typing import Callable
+
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
-
 from yggdrasil_engine.engine import UnleashEngine
 
 from UnleashClient.cache import BaseCache
 from UnleashClient.constants import FEATURES_URL
 from UnleashClient.utils import LOGGER
+
+from .base_connector import BaseConnector
+
 
 class OfflineConnector(BaseConnector):
     def __init__(
@@ -29,16 +31,15 @@ class OfflineConnector(BaseConnector):
         self.refresh_jitter = refresh_jitter
         self.job = None
 
-    def run(self):
+    def start(self):
         self.load_features()
 
         self.job = self.scheduler.add_job(
             self.load_features,
             trigger=IntervalTrigger(
-                seconds=self.refresh_interval,
-                jitter=self.refresh_jitter
+                seconds=self.refresh_interval, jitter=self.refresh_jitter
             ),
-            executor=self.scheduler_executor
+            executor=self.scheduler_executor,
         )
 
     def stop(self):

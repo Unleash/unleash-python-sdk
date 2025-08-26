@@ -6,6 +6,7 @@ from UnleashClient.cache import BaseCache
 from UnleashClient.constants import FEATURES_URL
 from UnleashClient.utils import LOGGER
 
+
 # FIXME: remove - use BaseConnector.load_features
 def load_features(
     cache: BaseCache,

@@ -7,6 +7,7 @@ from UnleashClient.cache import BaseCache
 from UnleashClient.constants import FEATURES_URL
 from UnleashClient.utils import LOGGER
 
+
 class BaseConnector(ABC):
     def __init__(
         self,
@@ -24,7 +25,7 @@ class BaseConnector(ABC):
         self.ready_callback = ready_callback
 
     @abstractmethod
-    def run(self):
+    def start(self):
         pass
 
     @abstractmethod
@@ -51,4 +52,6 @@ class BaseConnector(ABC):
                 LOGGER.warning(warnings)
         except Exception as e:
             LOGGER.error(f"Error loading features: {e}")
-            LOGGER.debug(f"Full feature response body from server: {feature_provisioning}")
+            LOGGER.debug(
+                f"Full feature response body from server: {feature_provisioning}"
+            )
