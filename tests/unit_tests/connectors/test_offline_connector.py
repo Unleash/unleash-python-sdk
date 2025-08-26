@@ -44,7 +44,7 @@ def test_offline_connector_start_stop(cache_empty):
     engine = UnleashEngine()
     scheduler = BackgroundScheduler()
     scheduler.start()
-    
+
     temp_cache = cache_empty
     temp_cache.set(FEATURES_URL, MOCK_FEATURE_RESPONSE)
 
@@ -57,10 +57,10 @@ def test_offline_connector_start_stop(cache_empty):
 
     connector.start()
     assert connector.job is not None
-    
+
     connector.stop()
     assert connector.job is None
-    
+
     scheduler.shutdown()
 
 
@@ -84,5 +84,5 @@ def test_offline_connector_ready_callback(cache_empty):
     )
 
     connector.load_features()
-    
+
     assert callback_called

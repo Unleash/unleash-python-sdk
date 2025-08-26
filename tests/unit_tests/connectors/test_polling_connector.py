@@ -121,7 +121,7 @@ def test_polling_connector_start_stop(cache_empty):
     engine = UnleashEngine()
     scheduler = BackgroundScheduler()
     scheduler.start()
-    
+
     responses.add(
         responses.GET,
         FULL_FEATURE_URL,
@@ -150,5 +150,5 @@ def test_polling_connector_start_stop(cache_empty):
 
     connector.stop()
     assert connector.job is None
-    
+
     scheduler.shutdown()
