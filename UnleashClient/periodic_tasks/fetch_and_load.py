@@ -1,4 +1,5 @@
 import uuid
+import warnings
 from typing import Callable, Optional
 
 from yggdrasil_engine.engine import UnleashEngine
@@ -11,6 +12,7 @@ from UnleashClient.loader import load_features
 from UnleashClient.utils import LOGGER
 
 
+# FIXME: remove - use Polling_connector._fetch_and_load
 def fetch_and_load_features(
     url: str,
     app_name: str,
