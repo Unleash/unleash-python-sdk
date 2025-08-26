@@ -5,8 +5,6 @@ from apscheduler.triggers.interval import IntervalTrigger
 from yggdrasil_engine.engine import UnleashEngine
 
 from UnleashClient.cache import BaseCache
-from UnleashClient.constants import FEATURES_URL
-from UnleashClient.utils import LOGGER
 
 from .base_connector import BaseConnector
 

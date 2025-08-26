@@ -31,10 +31,8 @@ from UnleashClient.events import (
     UnleashEventType,
     UnleashReadyEvent,
 )
-from UnleashClient.loader import load_features
 from UnleashClient.periodic_tasks import (
     aggregate_and_send_metrics,
-    fetch_and_load_features,
 )
 
 from .cache import BaseCache, FileCache
@@ -219,10 +217,13 @@ class UnleashClient:
 
         # Bootstrapping
         if self.unleash_bootstrapped:
-            load_features(
-                cache=self.cache,
+            # FIXME: improve bootstrapping
+            temp_connector = OfflineConnector(
                 engine=self.engine,
+                cache=self.cache,
+                scheduler=None,  # No scheduler needed for bootstrapping
             )
+            temp_connector.load_features()
 
         self.connector: OfflineConnector | PollingConnector = None
 
@@ -504,9 +505,9 @@ class UnleashClient:
                     event_type=UnleashEventType.VARIANT,
                     event_id=uuid.uuid4(),
                     context=context,
-                    enabled=variant["enabled"],
+                    enabled=bool(variant["enabled"]),
                     feature_name=feature_name,
-                    variant=variant["name"],
+                    variant=str(variant["name"]),
                 )
 
                 self.unleash_event_callback(event)
