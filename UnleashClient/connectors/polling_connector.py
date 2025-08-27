@@ -52,10 +52,6 @@ class PollingConnector(BaseConnector):
         self.ready_callback = ready_callback
         self.job = None
 
-    @property
-    def unleash_refresh_interval_str_millis(self) -> str:
-        return str(self.refresh_interval * 1000)
-
     def _fetch_and_load(self):
         (state, etag) = get_feature_toggles(
             url=self.url,
@@ -63,7 +59,7 @@ class PollingConnector(BaseConnector):
             instance_id=self.instance_id,
             headers={
                 **self.headers,
-                "unleash-interval": self.unleash_refresh_interval_str_millis,
+                "unleash-interval": str(self.refresh_interval * 1000),
             },
             custom_options=self.custom_options,
             request_timeout=self.request_timeout,

@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Callable, Optional
+import json
 
 from yggdrasil_engine.engine import UnleashEngine
 
@@ -42,7 +43,12 @@ class BaseConnector(ABC):
             return
 
         try:
-            warnings = self.engine.take_state(feature_provisioning)
+            payload = (
+                json.dumps(feature_provisioning)
+                if isinstance(feature_provisioning, dict)
+                else feature_provisioning
+            )
+            warnings = self.engine.take_state(payload)
             if self.ready_callback:
                 self.ready_callback()
             if warnings:

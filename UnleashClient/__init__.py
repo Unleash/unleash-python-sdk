@@ -10,7 +10,7 @@ from typing import Any, Callable, Dict, Optional
 from apscheduler.executors.pool import ThreadPoolExecutor
 from apscheduler.job import Job
 from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.schedulers.base import BaseScheduler
+from apscheduler.schedulers.base import BaseScheduler, STATE_RUNNING
 from apscheduler.triggers.interval import IntervalTrigger
 from yggdrasil_engine.engine import UnleashEngine
 
@@ -287,6 +287,7 @@ class UnleashClient:
                     )
 
                 if fetch_toggles:
+                    self.unleash_scheduler.start()
                     self.connector = PollingConnector(
                         engine=self.engine,
                         cache=self.cache,
@@ -305,6 +306,7 @@ class UnleashClient:
                         ready_callback=self._ready_callback,
                     )
                 else:
+                    self.unleash_scheduler.start()
                     self.connector = OfflineConnector(
                         engine=self.engine,
                         cache=self.cache,
@@ -318,7 +320,8 @@ class UnleashClient:
                 self.connector.start()
 
                 if not self.unleash_disable_metrics:
-                    # TODO: refactor
+                    if getattr(self.unleash_scheduler, "state", None) != STATE_RUNNING:
+                        self.unleash_scheduler.start()
 
                     self.metrics_headers = {
                         **base_headers,
