@@ -204,7 +204,9 @@ class UnleashClient:
 
         self.connector: OfflineConnector | PollingConnector = None
 
-    def _init_scheduler(self, scheduler: Optional[BaseScheduler], scheduler_executor: Optional[str]) -> None:
+    def _init_scheduler(
+        self, scheduler: Optional[BaseScheduler], scheduler_executor: Optional[str]
+    ) -> None:
         """
         Scheduler bootstrapping
         """
