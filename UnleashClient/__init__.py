@@ -5,7 +5,7 @@ import uuid
 import warnings
 from dataclasses import asdict
 from datetime import datetime, timezone
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, Optional, Union
 
 from apscheduler.executors.pool import ThreadPoolExecutor
 from apscheduler.job import Job
@@ -202,7 +202,7 @@ class UnleashClient:
                 scheduler=None,
             ).load_features()
 
-        self.connector: OfflineConnector | PollingConnector = None
+        self.connector: Union[OfflineConnector, PollingConnector] = None
 
     def _init_scheduler(
         self, scheduler: Optional[BaseScheduler], scheduler_executor: Optional[str]
