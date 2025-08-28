@@ -1,3 +1,3 @@
-from .base_connector import BaseConnector as BaseConnector
-from .offline_connector import OfflineConnector as OfflineConnector
-from .polling_connector import PollingConnector as PollingConnector
+from .base_connector import BaseConnector
+from .offline_connector import OfflineConnector
+from .polling_connector import PollingConnector
