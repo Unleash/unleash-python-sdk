@@ -412,7 +412,8 @@ class UnleashClient:
                 engine=self.engine,
             )
 
-        self.unleash_scheduler.shutdown()
+        if getattr(self.unleash_scheduler, "state", None) == STATE_RUNNING:
+            self.unleash_scheduler.shutdown()
         self.cache.destroy()
 
     @staticmethod
