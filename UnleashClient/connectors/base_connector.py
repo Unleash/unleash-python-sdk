@@ -1,6 +1,6 @@
+import json
 from abc import ABC, abstractmethod
 from typing import Callable, Optional
-import json
 
 from yggdrasil_engine.engine import UnleashEngine
 

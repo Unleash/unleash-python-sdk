@@ -10,7 +10,7 @@ from typing import Any, Callable, Dict, Optional
 from apscheduler.executors.pool import ThreadPoolExecutor
 from apscheduler.job import Job
 from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.schedulers.base import BaseScheduler, STATE_RUNNING
+from apscheduler.schedulers.base import STATE_RUNNING, BaseScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from yggdrasil_engine.engine import UnleashEngine
 
@@ -217,13 +217,11 @@ class UnleashClient:
 
         # Bootstrapping
         if self.unleash_bootstrapped:
-            # FIXME: improve bootstrapping
-            temp_connector = OfflineConnector(
+            OfflineConnector(
                 engine=self.engine,
                 cache=self.cache,
-                scheduler=None,  # No scheduler needed for bootstrapping
-            )
-            temp_connector.load_features()
+                scheduler=None,
+            ).load_features()
 
         self.connector: OfflineConnector | PollingConnector = None
 
