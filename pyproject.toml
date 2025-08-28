@@ -31,13 +31,14 @@ dependencies=[
     "importlib_metadata",
     "python-dateutil",
     "semver < 4.0.0",
-    "yggdrasil-engine",
+    "yggdrasil-engine >= 1.0.0",
+    "launchdarkly-eventsource",
 ]
 
 [project.urls]
 Homepage = "https://github.com/Unleash/unleash-python-sdk"
 Documentation = "https://docs.getunleash.io/unleash-python-sdk"
-Changelog = "https://github.com/Unleash/unleash-python-sdk/blob/main/CHANGELOG.md"
+Changelog = "https://github.com/unleash/unleash-python-sdk/blob/main/CHANGELOG.md"
 Repository = "https://github.com/Unleash/unleash-python-sdk"
 Issues = "https://github.com/Unleash/unleash-python-sdk/issues"
 
