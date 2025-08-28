@@ -184,7 +184,30 @@ class UnleashClient:
 
         self.metrics_headers: dict = {}
 
-        # Scheduler bootstrapping
+        self._init_scheduler(scheduler, scheduler_executor)
+
+        if custom_strategies:
+            self.engine.register_custom_strategies(custom_strategies)
+
+        self.strategy_mapping = {**custom_strategies}
+
+        # Client status
+        self.is_initialized = False
+
+        # Bootstrapping
+        if self.unleash_bootstrapped:
+            OfflineConnector(
+                engine=self.engine,
+                cache=self.cache,
+                scheduler=None,
+            ).load_features()
+
+        self.connector: OfflineConnector | PollingConnector = None
+
+    def _init_scheduler(self, scheduler: Optional[BaseScheduler], scheduler_executor: Optional[str]) -> None:
+        """
+        Scheduler bootstrapping
+        """
         # - Figure out the Unleash executor name.
         if scheduler and scheduler_executor:
             self.unleash_executor_name = scheduler_executor
@@ -206,24 +229,6 @@ class UnleashClient:
         else:
             executors = {self.unleash_executor_name: ThreadPoolExecutor()}
             self.unleash_scheduler = BackgroundScheduler(executors=executors)
-
-        if custom_strategies:
-            self.engine.register_custom_strategies(custom_strategies)
-
-        self.strategy_mapping = {**custom_strategies}
-
-        # Client status
-        self.is_initialized = False
-
-        # Bootstrapping
-        if self.unleash_bootstrapped:
-            OfflineConnector(
-                engine=self.engine,
-                cache=self.cache,
-                scheduler=None,
-            ).load_features()
-
-        self.connector: OfflineConnector | PollingConnector = None
 
     @property
     def unleash_metrics_interval_str_millis(self) -> str:
