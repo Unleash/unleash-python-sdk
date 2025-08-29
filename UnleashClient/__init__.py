@@ -5,7 +5,7 @@ import uuid
 import warnings
 from dataclasses import asdict
 from datetime import datetime, timezone
-from typing import Any, Callable, Dict, Optional, Union
+from typing import Any, Callable, Dict, Optional
 
 from apscheduler.executors.pool import ThreadPoolExecutor
 from apscheduler.job import Job
@@ -16,6 +16,7 @@ from yggdrasil_engine.engine import UnleashEngine
 
 from UnleashClient.api import register_client
 from UnleashClient.connectors import (
+    BaseConnector,
     BootstrapConnector,
     OfflineConnector,
     PollingConnector,
@@ -205,7 +206,7 @@ class UnleashClient:
                 cache=self.cache,
             ).start()
 
-        self.connector: Union[OfflineConnector, PollingConnector] = None
+        self.connector: BaseConnector = None
 
     def _init_scheduler(
         self, scheduler: Optional[BaseScheduler], scheduler_executor: Optional[str]
