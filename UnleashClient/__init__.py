@@ -15,7 +15,11 @@ from apscheduler.triggers.interval import IntervalTrigger
 from yggdrasil_engine.engine import UnleashEngine
 
 from UnleashClient.api import register_client
-from UnleashClient.connectors import OfflineConnector, PollingConnector
+from UnleashClient.connectors import (
+    BootstrapConnector,
+    OfflineConnector,
+    PollingConnector,
+)
 from UnleashClient.constants import (
     DISABLED_VARIATION,
     ETAG,
@@ -196,11 +200,10 @@ class UnleashClient:
 
         # Bootstrapping
         if self.unleash_bootstrapped:
-            OfflineConnector(
+            BootstrapConnector(
                 engine=self.engine,
                 cache=self.cache,
-                scheduler=None,
-            ).load_features()
+            ).start()
 
         self.connector: Union[OfflineConnector, PollingConnector] = None
 
