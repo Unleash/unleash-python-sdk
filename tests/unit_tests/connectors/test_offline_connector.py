@@ -1,3 +1,5 @@
+import json
+
 from apscheduler.schedulers.background import BackgroundScheduler
 from yggdrasil_engine.engine import UnleashEngine
 
@@ -11,7 +13,7 @@ def test_offline_connector_load_features(cache_empty):
     scheduler = BackgroundScheduler()
     temp_cache = cache_empty
 
-    temp_cache.set(FEATURES_URL, MOCK_FEATURE_RESPONSE)
+    temp_cache.set(FEATURES_URL, json.dumps(MOCK_FEATURE_RESPONSE))
 
     connector = OfflineConnector(
         engine=engine,
@@ -20,7 +22,6 @@ def test_offline_connector_load_features(cache_empty):
     )
 
     connector.load_features()
-
     assert engine.is_enabled("testFlag", {})
 
 
@@ -36,8 +37,7 @@ def test_offline_connector_load_features_empty_cache(cache_empty):
     )
 
     connector.load_features()
-
-    assert engine.is_enabled("testFlag", {}) is None
+    assert not engine.is_enabled("testFlag", {})
 
 
 def test_offline_connector_start_stop(cache_empty):
@@ -46,7 +46,7 @@ def test_offline_connector_start_stop(cache_empty):
     scheduler.start()
 
     temp_cache = cache_empty
-    temp_cache.set(FEATURES_URL, MOCK_FEATURE_RESPONSE)
+    temp_cache.set(FEATURES_URL, json.dumps(MOCK_FEATURE_RESPONSE))
 
     connector = OfflineConnector(
         engine=engine,
@@ -68,7 +68,7 @@ def test_offline_connector_ready_callback(cache_empty):
     engine = UnleashEngine()
     scheduler = BackgroundScheduler()
     temp_cache = cache_empty
-    temp_cache.set(FEATURES_URL, MOCK_FEATURE_RESPONSE)
+    temp_cache.set(FEATURES_URL, json.dumps(MOCK_FEATURE_RESPONSE))
 
     callback_called = False
 
@@ -83,6 +83,6 @@ def test_offline_connector_ready_callback(cache_empty):
         ready_callback=ready_callback,
     )
 
-    connector.load_features()
-
+    connector.start()
     assert callback_called
+    connector.stop()

@@ -40,6 +40,9 @@ class OfflineConnector(BaseConnector):
             executor=self.scheduler_executor,
         )
 
+        if self.ready_callback:
+            self.ready_callback()
+
     def stop(self):
         if self.job:
             self.job.remove()
