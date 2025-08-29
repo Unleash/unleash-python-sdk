@@ -412,8 +412,10 @@ class UnleashClient:
                 engine=self.engine,
             )
 
-        if getattr(self.unleash_scheduler, "state", None) == STATE_RUNNING:
+        try:
             self.unleash_scheduler.shutdown()
+        except Exception as exc:
+            LOGGER.warning("Exception during scheduler shutdown: %s", exc)
         self.cache.destroy()
 
     @staticmethod

@@ -37,7 +37,7 @@ def test_offline_connector_load_features_empty_cache(cache_empty):
 
     connector.load_features()
 
-    assert not engine.is_enabled("testFlag", {})
+    assert engine.is_enabled("testFlag", {}) is None
 
 
 def test_offline_connector_start_stop(cache_empty):

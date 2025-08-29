@@ -43,12 +43,7 @@ class BaseConnector(ABC):
             return
 
         try:
-            payload = (
-                json.dumps(feature_provisioning)
-                if isinstance(feature_provisioning, dict)
-                else feature_provisioning
-            )
-            warnings = self.engine.take_state(payload)
+            warnings = self.engine.take_state(feature_provisioning)
             if self.ready_callback:
                 self.ready_callback()
             if warnings:
