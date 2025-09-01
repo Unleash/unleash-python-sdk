@@ -274,6 +274,7 @@ class UnleashClient:
         if not self.is_initialized:
             # pylint: disable=no-else-raise
             try:
+                start_scheduler = False
                 base_headers = {
                     **self.unleash_custom_headers,
                     "unleash-connection-id": self.connection_id,
@@ -296,7 +297,7 @@ class UnleashClient:
                     )
 
                 if fetch_toggles:
-                    self.unleash_scheduler.start()
+                    start_scheduler = True
                     self.connector = PollingConnector(
                         engine=self.engine,
                         cache=self.cache,
@@ -315,7 +316,7 @@ class UnleashClient:
                         ready_callback=self._ready_callback,
                     )
                 else:
-                    self.unleash_scheduler.start()
+                    start_scheduler = True
                     self.connector = OfflineConnector(
                         engine=self.engine,
                         cache=self.cache,
@@ -330,7 +331,7 @@ class UnleashClient:
 
                 if not self.unleash_disable_metrics:
                     if getattr(self.unleash_scheduler, "state", None) != STATE_RUNNING:
-                        self.unleash_scheduler.start()
+                        start_scheduler = True
 
                     self.metrics_headers = {
                         **base_headers,
@@ -357,6 +358,10 @@ class UnleashClient:
                         executor=self.unleash_executor_name,
                         kwargs=metrics_args,
                     )
+
+                if start_scheduler:
+                    self.unleash_scheduler.start()
+
             except Exception as excep:
                 # Log exceptions during initialization.  is_initialized will remain false.
                 LOGGER.warning(
