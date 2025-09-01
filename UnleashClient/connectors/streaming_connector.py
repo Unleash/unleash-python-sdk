@@ -97,13 +97,15 @@ class StreamingConnector(BaseConnector):
                 if event.event in ("unleash-connected", "unleash-updated"):
                     try:
                         self.engine.take_state(event.data)
-                        if event.event == "unleash-connected" and not ready_fired:
-                            ready_fired = True
-                            if self.ready_callback:
-                                try:
-                                    self.ready_callback()
-                                except Exception:
-                                    LOGGER.debug("Ready callback failed", exc_info=True)
+                        if (
+                            event.event == "unleash-connected"
+                            and self.ready_callback
+                            and not ready_fired
+                        ):
+                            try:
+                                self.ready_callback()
+                            except Exception:
+                                LOGGER.debug("Ready callback failed", exc_info=True)
                     except Exception:
                         LOGGER.debug("Error applying streaming state", exc_info=True)
                 else:
