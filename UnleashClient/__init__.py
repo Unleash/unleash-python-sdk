@@ -10,11 +10,17 @@ from typing import Any, Callable, Dict, Optional
 from apscheduler.executors.pool import ThreadPoolExecutor
 from apscheduler.job import Job
 from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.schedulers.base import BaseScheduler
+from apscheduler.schedulers.base import STATE_RUNNING, BaseScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from yggdrasil_engine.engine import UnleashEngine
 
 from UnleashClient.api import register_client
+from UnleashClient.connectors import (
+    BaseConnector,
+    BootstrapConnector,
+    OfflineConnector,
+    PollingConnector,
+)
 from UnleashClient.constants import (
     DISABLED_VARIATION,
     ETAG,
@@ -30,10 +36,8 @@ from UnleashClient.events import (
     UnleashEventType,
     UnleashReadyEvent,
 )
-from UnleashClient.loader import load_features
 from UnleashClient.periodic_tasks import (
     aggregate_and_send_metrics,
-    fetch_and_load_features,
 )
 
 from .cache import BaseCache, FileCache
@@ -185,7 +189,31 @@ class UnleashClient:
 
         self.metrics_headers: dict = {}
 
-        # Scheduler bootstrapping
+        self._init_scheduler(scheduler, scheduler_executor)
+
+        if custom_strategies:
+            self.engine.register_custom_strategies(custom_strategies)
+
+        self.strategy_mapping = {**custom_strategies}
+
+        # Client status
+        self.is_initialized = False
+
+        # Bootstrapping
+        if self.unleash_bootstrapped:
+            BootstrapConnector(
+                engine=self.engine,
+                cache=self.cache,
+            ).start()
+
+        self.connector: BaseConnector = None
+
+    def _init_scheduler(
+        self, scheduler: Optional[BaseScheduler], scheduler_executor: Optional[str]
+    ) -> None:
+        """
+        Scheduler bootstrapping
+        """
         # - Figure out the Unleash executor name.
         if scheduler and scheduler_executor:
             self.unleash_executor_name = scheduler_executor
@@ -207,25 +235,6 @@ class UnleashClient:
         else:
             executors = {self.unleash_executor_name: ThreadPoolExecutor()}
             self.unleash_scheduler = BackgroundScheduler(executors=executors)
-
-        if custom_strategies:
-            self.engine.register_custom_strategies(custom_strategies)
-
-        self.strategy_mapping = {**custom_strategies}
-
-        # Client status
-        self.is_initialized = False
-
-        # Bootstrapping
-        if self.unleash_bootstrapped:
-            load_features(
-                cache=self.cache,
-                engine=self.engine,
-            )
-
-    @property
-    def unleash_refresh_interval_str_millis(self) -> str:
-        return str(self.unleash_refresh_interval * 1000)
 
     @property
     def unleash_metrics_interval_str_millis(self) -> str:
@@ -265,28 +274,12 @@ class UnleashClient:
         if not self.is_initialized:
             # pylint: disable=no-else-raise
             try:
+                start_scheduler = False
                 base_headers = {
                     **self.unleash_custom_headers,
                     "unleash-connection-id": self.connection_id,
                     "unleash-appname": self.unleash_app_name,
                     "unleash-sdk": f"{SDK_NAME}:{SDK_VERSION}",
-                }
-
-                self.metrics_headers = {
-                    **base_headers,
-                    "unleash-interval": self.unleash_metrics_interval_str_millis,
-                }
-
-                # Setup
-                metrics_args = {
-                    "url": self.unleash_url,
-                    "app_name": self.unleash_app_name,
-                    "connection_id": self.connection_id,
-                    "instance_id": self.unleash_instance_id,
-                    "headers": self.metrics_headers,
-                    "custom_options": self.unleash_custom_options,
-                    "request_timeout": self.unleash_request_timeout,
-                    "engine": self.engine,
                 }
 
                 # Register app
@@ -304,47 +297,58 @@ class UnleashClient:
                     )
 
                 if fetch_toggles:
-                    fetch_headers = {
+                    start_scheduler = True
+                    self.connector = PollingConnector(
+                        engine=self.engine,
+                        cache=self.cache,
+                        scheduler=self.unleash_scheduler,
+                        url=self.unleash_url,
+                        app_name=self.unleash_app_name,
+                        instance_id=self.unleash_instance_id,
+                        headers=base_headers,
+                        custom_options=self.unleash_custom_options,
+                        request_timeout=self.unleash_request_timeout,
+                        request_retries=self.unleash_request_retries,
+                        project=self.unleash_project_name,
+                        scheduler_executor=self.unleash_executor_name,
+                        refresh_interval=self.unleash_refresh_interval,
+                        event_callback=self.unleash_event_callback,
+                        ready_callback=self._ready_callback,
+                    )
+                else:
+                    start_scheduler = True
+                    self.connector = OfflineConnector(
+                        engine=self.engine,
+                        cache=self.cache,
+                        scheduler=self.unleash_scheduler,
+                        scheduler_executor=self.unleash_executor_name,
+                        refresh_interval=self.unleash_refresh_interval,
+                        refresh_jitter=self.unleash_refresh_jitter,
+                        ready_callback=self._ready_callback,
+                    )
+
+                self.connector.start()
+
+                if not self.unleash_disable_metrics:
+                    if getattr(self.unleash_scheduler, "state", None) != STATE_RUNNING:
+                        start_scheduler = True
+
+                    self.metrics_headers = {
                         **base_headers,
-                        "unleash-interval": self.unleash_refresh_interval_str_millis,
+                        "unleash-interval": self.unleash_metrics_interval_str_millis,
                     }
 
-                    job_args = {
+                    metrics_args = {
                         "url": self.unleash_url,
                         "app_name": self.unleash_app_name,
+                        "connection_id": self.connection_id,
                         "instance_id": self.unleash_instance_id,
-                        "headers": fetch_headers,
+                        "headers": self.metrics_headers,
                         "custom_options": self.unleash_custom_options,
-                        "cache": self.cache,
-                        "engine": self.engine,
                         "request_timeout": self.unleash_request_timeout,
-                        "request_retries": self.unleash_request_retries,
-                        "project": self.unleash_project_name,
-                        "event_callback": self.unleash_event_callback,
-                        "ready_callback": self._ready_callback,
-                    }
-                    job_func: Callable = fetch_and_load_features
-                else:
-                    job_args = {
-                        "cache": self.cache,
                         "engine": self.engine,
-                        "ready_callback": self._ready_callback,
                     }
-                    job_func = load_features
 
-                job_func(**job_args)  # type: ignore
-                # Start periodic jobs
-                self.unleash_scheduler.start()
-                self.fl_job = self.unleash_scheduler.add_job(
-                    job_func,
-                    trigger=IntervalTrigger(
-                        seconds=int(self.unleash_refresh_interval),
-                        jitter=self.unleash_refresh_jitter,
-                    ),
-                    executor=self.unleash_executor_name,
-                    kwargs=job_args,
-                )
-                if not self.unleash_disable_metrics:
                     self.metric_job = self.unleash_scheduler.add_job(
                         aggregate_and_send_metrics,
                         trigger=IntervalTrigger(
@@ -354,6 +358,10 @@ class UnleashClient:
                         executor=self.unleash_executor_name,
                         kwargs=metrics_args,
                     )
+
+                if start_scheduler:
+                    self.unleash_scheduler.start()
+
             except Exception as excep:
                 # Log exceptions during initialization.  is_initialized will remain false.
                 LOGGER.warning(
@@ -396,7 +404,8 @@ class UnleashClient:
 
         You shouldn't need this too much!
         """
-        self.fl_job.remove()
+        if self.connector:
+            self.connector.stop()
         if self.metric_job:
             self.metric_job.remove()
 
@@ -412,7 +421,10 @@ class UnleashClient:
                 engine=self.engine,
             )
 
-        self.unleash_scheduler.shutdown()
+        try:
+            self.unleash_scheduler.shutdown()
+        except Exception as exc:
+            LOGGER.warning("Exception during scheduler shutdown: %s", exc)
         self.cache.destroy()
 
     @staticmethod
@@ -513,9 +525,9 @@ class UnleashClient:
                     event_type=UnleashEventType.VARIANT,
                     event_id=uuid.uuid4(),
                     context=context,
-                    enabled=variant["enabled"],
+                    enabled=bool(variant["enabled"]),
                     feature_name=feature_name,
-                    variant=variant["name"],
+                    variant=str(variant["name"]),
                 )
 
                 self.unleash_event_callback(event)

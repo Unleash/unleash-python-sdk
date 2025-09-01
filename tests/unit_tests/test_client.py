@@ -1420,3 +1420,22 @@ def test_identification_values_are_passed_in():
         uuid.UUID(metrics_request.headers["UNLEASH-CONNECTION-ID"])
     except ValueError:
         assert False, "Invalid UUID format in UNLEASH-CONNECTION-ID"
+
+
+def test_uc_bootstrap_initializes_offline_connector():
+    """Test that UnleashClient initializes OfflineConnector when bootstrapped."""
+    cache = FileCache("MOCK_CACHE")
+    cache.bootstrap_from_dict(MOCK_FEATURE_RESPONSE)
+
+    unleash_client = UnleashClient(
+        URL,
+        APP_NAME,
+        cache=cache,
+        disable_metrics=True,
+        disable_registration=True,
+    )
+
+    assert unleash_client.unleash_bootstrapped
+    assert unleash_client.is_enabled("testFlag")
+
+    unleash_client.destroy()
