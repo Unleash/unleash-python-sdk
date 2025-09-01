@@ -20,7 +20,7 @@ from UnleashClient.connectors import (
     BootstrapConnector,
     OfflineConnector,
     PollingConnector,
-    StreamingConnector
+    StreamingConnector,
 )
 from UnleashClient.constants import (
     APPLICATION_HEADERS,

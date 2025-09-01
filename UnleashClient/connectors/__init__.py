@@ -9,5 +9,5 @@ __all__ = [
     "BootstrapConnector",
     "OfflineConnector",
     "PollingConnector",
-    "StreamingConnector"
+    "StreamingConnector",
 ]
