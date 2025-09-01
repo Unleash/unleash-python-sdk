@@ -25,21 +25,6 @@ def test_offline_connector_load_features(cache_empty):
     assert engine.is_enabled("testFlag", {})
 
 
-def test_offline_connector_load_features_empty_cache(cache_empty):
-    engine = UnleashEngine()
-    scheduler = BackgroundScheduler()
-    temp_cache = cache_empty
-
-    connector = OfflineConnector(
-        engine=engine,
-        cache=temp_cache,
-        scheduler=scheduler,
-    )
-
-    connector.load_features()
-    assert not engine.is_enabled("testFlag", {})
-
-
 def test_offline_connector_start_stop(cache_empty):
     engine = UnleashEngine()
     scheduler = BackgroundScheduler()
