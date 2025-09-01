@@ -289,6 +289,7 @@ class UnleashClient:
                     "unleash-sdk": f"{SDK_NAME}:{SDK_VERSION}",
                 }
 
+                # Register app
                 if not self.unleash_disable_registration:
                     register_client(
                         self.unleash_url,
@@ -301,7 +302,6 @@ class UnleashClient:
                         self.strategy_mapping,
                         self.unleash_request_timeout,
                     )
-
                 mode = "streaming" if self.connector_mode == "streaming" else None
 
                 if mode == "streaming" and fetch_toggles:
