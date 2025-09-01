@@ -33,7 +33,6 @@ def _state_with_feature(name: str) -> str:
 def test_streaming_processes_unleash_connected_event(monkeypatch):
     captured = {}
 
-    # Patch ConnectStrategy.http to capture URL and headers
     def fake_http(url, headers=None, urllib3_request_options=None):
         captured["url"] = url
         captured["headers"] = headers or {}
@@ -44,7 +43,6 @@ def test_streaming_processes_unleash_connected_event(monkeypatch):
         staticmethod(fake_http),
     )
 
-    # Patch SSEClient to yield our fake events
     class FakeSSEClient:
         def __init__(self, **kwargs):
             self._events = [

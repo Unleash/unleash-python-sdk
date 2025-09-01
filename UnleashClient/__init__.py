@@ -23,7 +23,6 @@ from UnleashClient.connectors import (
     StreamingConnector,
 )
 from UnleashClient.constants import (
-    APPLICATION_HEADERS,
     DISABLED_VARIATION,
     ETAG,
     METRIC_LAST_SENT_TIME,
@@ -281,7 +280,6 @@ class UnleashClient:
             try:
                 start_scheduler = False
                 base_headers = {
-                    **APPLICATION_HEADERS,
                     **self.unleash_custom_headers,
                     "unleash-connection-id": self.connection_id,
                     "unleash-appname": self.unleash_app_name,
