@@ -444,7 +444,10 @@ class UnleashClient:
         except Exception as exc:
             LOGGER.warning("Exception during scheduler teardown: %s", exc)
 
-        self.cache.destroy()
+        try:
+            self.cache.destroy()
+        except Exception as exc:
+            LOGGER.warning("Exception during cache teardown: %s", exc)
 
     @staticmethod
     def _get_fallback_value(
