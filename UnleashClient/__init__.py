@@ -438,9 +438,12 @@ class UnleashClient:
             )
 
         try:
-            self.unleash_scheduler.shutdown()
+            if hasattr(self, "unleash_scheduler") and self.unleash_scheduler:
+                self.unleash_scheduler.remove_all_jobs()
+                self.unleash_scheduler.shutdown(wait=True)
         except Exception as exc:
-            LOGGER.warning("Exception during scheduler shutdown: %s", exc)
+            LOGGER.warning("Exception during scheduler teardown: %s", exc)
+
         self.cache.destroy()
 
     @staticmethod
