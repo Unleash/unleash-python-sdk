@@ -11,6 +11,7 @@ import pytest
 import urllib3
 
 from UnleashClient import INSTANCES, UnleashClient
+from UnleashClient.cache import FileCache
 
 
 def cleanup_threads():
@@ -29,11 +30,17 @@ def cleanup_threads():
 
 
 @pytest.fixture(autouse=True)
-def reset_instances():
-    """Reset instances before each test."""
+def reset_instances(tmp_path):
+    """Reset instances before each test and ensure clean cache."""
     INSTANCES._reset()
     yield
     cleanup_threads()
+
+
+@pytest.fixture
+def clean_cache(tmp_path):
+    """Provide a clean FileCache for testing."""
+    return FileCache("test-app", directory=str(tmp_path))
 
 
 def create_sse_stream() -> bytes:
@@ -68,6 +75,16 @@ def create_sse_stream() -> bytes:
     stream_data += f"event: feature-updated\ndata: {json.dumps(update_data)}\n\n"
 
     return stream_data.encode("utf-8")
+
+
+def wait_for(predicate, timeout: float = 3.0, interval: float = 0.05) -> bool:
+    """Wait until predicate() is True or timeout elapses."""
+    end = time.monotonic() + timeout
+    while time.monotonic() < end:
+        if predicate():
+            return True
+        time.sleep(interval)
+    return predicate()
 
 
 class MockHTTPResponse:
@@ -125,26 +142,26 @@ class MockHTTPResponse:
         return None
 
 
-def test_client_streaming_hydration(monkeypatch):
+def test_client_streaming_hydration(monkeypatch, clean_cache):
     """Test streaming connector using urllib3 mocking."""
 
     mock_calls = []
 
     def mock_urlopen(self, method, url, body=None, headers=None, **kwargs):
-        """Mock urllib3.PoolManager.urlopen method."""
+        """Mock urllib3.PoolManager/HTTPConnectionPool.urlopen."""
         mock_calls.append(
             {"method": method, "url": url, "headers": headers, "body": body}
         )
 
-        if "/streaming" in url:
+        if "/client/streaming" in str(url):
             sse_data = create_sse_stream()
             return MockHTTPResponse(sse_data, status=200)
-        elif "/register" in url:
+        elif "/register" in str(url):
             response_data = json.dumps({"status": "ok"}).encode("utf-8")
             return MockHTTPResponse(
                 response_data, status=200, headers={"Content-Type": "application/json"}
             )
-        elif "/metrics" in url:
+        elif "/metrics" in str(url):
             response_data = json.dumps({"status": "ok"}).encode("utf-8")
             return MockHTTPResponse(
                 response_data, status=200, headers={"Content-Type": "application/json"}
@@ -152,7 +169,12 @@ def test_client_streaming_hydration(monkeypatch):
         else:
             return MockHTTPResponse(b'{"status": "ok"}', status=200)
 
+    monkeypatch.setattr(
+        urllib3.connectionpool.HTTPConnectionPool, "urlopen", mock_urlopen
+    )
     monkeypatch.setattr(urllib3.PoolManager, "urlopen", mock_urlopen)
+
+    assert not clean_cache.exists("http://localhost:4242/api/client/features")
 
     client = UnleashClient(
         url="http://localhost:4242",
@@ -161,15 +183,22 @@ def test_client_streaming_hydration(monkeypatch):
         disable_metrics=True,
         disable_registration=True,
         experimental_mode="streaming",
+        cache=clean_cache,
     )
 
     try:
         client.initialize_client()
 
-        streaming_calls = [call for call in mock_calls if "/streaming" in call["url"]]
+        wait_for(lambda: any("/client/streaming" in str(c["url"]) for c in mock_calls))
+
+        streaming_calls = [
+            call for call in mock_calls if "/client/streaming" in str(call["url"])
+        ]
         assert (
             len(streaming_calls) >= 1
-        ), f"Should have called streaming endpoint. All calls: {[call['url'] for call in mock_calls]}"
+        ), f"Should have called streaming endpoint. All calls: {[str(call['url']) for call in mock_calls]}"
+
+        time.sleep(0.5)
 
         result = client.is_enabled("test-feature")
 
@@ -179,7 +208,7 @@ def test_client_streaming_hydration(monkeypatch):
         client.destroy()
 
 
-def test_client_streaming_retry(monkeypatch):
+def test_client_streaming_retry(monkeypatch, clean_cache):
     """Test streaming connector retry behavior using urllib3 mocking."""
 
     mock_calls = []
@@ -194,7 +223,7 @@ def test_client_streaming_retry(monkeypatch):
             {"method": method, "url": url, "headers": headers, "attempt": call_count}
         )
 
-        if "/streaming" in url:
+        if "/client/streaming" in str(url):
             if call_count <= 2:
                 # Fail first 2 attempts, succeed on 3rd attempt
                 raise urllib3.exceptions.ConnectTimeoutError(
@@ -207,6 +236,9 @@ def test_client_streaming_retry(monkeypatch):
             response_data = json.dumps({"status": "ok"}).encode("utf-8")
             return MockHTTPResponse(response_data, status=200)
 
+    monkeypatch.setattr(
+        urllib3.connectionpool.HTTPConnectionPool, "urlopen", mock_urlopen_with_retry
+    )
     monkeypatch.setattr(urllib3.PoolManager, "urlopen", mock_urlopen_with_retry)
 
     client = UnleashClient(
@@ -216,13 +248,20 @@ def test_client_streaming_retry(monkeypatch):
         disable_metrics=True,
         disable_registration=True,
         experimental_mode="streaming",
+        cache=clean_cache,
     )
 
     try:
         client.initialize_client()
-        time.sleep(3.0)
+        wait_for(
+            lambda: sum(1 for c in mock_calls if "/client/streaming" in str(c["url"]))
+            >= 2,
+            timeout=5.0,
+        )
 
-        streaming_calls = [call for call in mock_calls if "/streaming" in call["url"]]
+        streaming_calls = [
+            call for call in mock_calls if "/client/streaming" in str(call["url"])
+        ]
 
         assert (
             len(streaming_calls) >= 2
@@ -232,7 +271,7 @@ def test_client_streaming_retry(monkeypatch):
         client.destroy()
 
 
-def test_client_streaming_error_handling(monkeypatch):
+def test_client_streaming_error_handling(monkeypatch, clean_cache):
     """Test streaming connector error handling using urllib3 mocking."""
 
     mock_calls = []
@@ -241,12 +280,15 @@ def test_client_streaming_error_handling(monkeypatch):
         """Mock urllib3 that returns various error conditions."""
         mock_calls.append({"method": method, "url": url, "headers": headers})
 
-        if "/streaming" in url:
+        if "/client/streaming" in str(url):
             return MockHTTPResponse(b"Internal Server Error", status=500)
         else:
             response_data = json.dumps({"status": "ok"}).encode("utf-8")
             return MockHTTPResponse(response_data, status=200)
 
+    monkeypatch.setattr(
+        urllib3.connectionpool.HTTPConnectionPool, "urlopen", mock_urlopen_with_errors
+    )
     monkeypatch.setattr(urllib3.PoolManager, "urlopen", mock_urlopen_with_errors)
 
     client = UnleashClient(
@@ -256,12 +298,17 @@ def test_client_streaming_error_handling(monkeypatch):
         disable_metrics=True,
         disable_registration=True,
         experimental_mode="streaming",
+        cache=clean_cache,
     )
 
     try:
         client.initialize_client()
 
-        streaming_calls = [call for call in mock_calls if "/streaming" in call["url"]]
+        wait_for(lambda: any("/client/streaming" in str(c["url"]) for c in mock_calls))
+
+        streaming_calls = [
+            call for call in mock_calls if "/client/streaming" in str(call["url"])
+        ]
         assert len(streaming_calls) >= 1, "Should have attempted streaming connection"
 
         result = client.is_enabled("test-feature")
