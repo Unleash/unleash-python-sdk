@@ -125,7 +125,7 @@ class MockHTTPResponse:
         return None
 
 
-def test_streaming_connector_with_urllib3_mock(monkeypatch):
+def test_client_streaming_hydration(monkeypatch):
     """Test streaming connector using urllib3 mocking."""
 
     mock_calls = []
@@ -165,7 +165,6 @@ def test_streaming_connector_with_urllib3_mock(monkeypatch):
 
     try:
         client.initialize_client()
-        time.sleep(1.0)
 
         streaming_calls = [call for call in mock_calls if "/streaming" in call["url"]]
         assert (
@@ -180,7 +179,7 @@ def test_streaming_connector_with_urllib3_mock(monkeypatch):
         client.destroy()
 
 
-def test_streaming_connector_retry_behavior(monkeypatch):
+def test_client_streaming_retry(monkeypatch):
     """Test streaming connector retry behavior using urllib3 mocking."""
 
     mock_calls = []
@@ -233,7 +232,7 @@ def test_streaming_connector_retry_behavior(monkeypatch):
         client.destroy()
 
 
-def test_streaming_connector_error_handling(monkeypatch):
+def test_client_streaming_error_handling(monkeypatch):
     """Test streaming connector error handling using urllib3 mocking."""
 
     mock_calls = []
@@ -261,7 +260,6 @@ def test_streaming_connector_error_handling(monkeypatch):
 
     try:
         client.initialize_client()
-        time.sleep(1.0)
 
         streaming_calls = [call for call in mock_calls if "/streaming" in call["url"]]
         assert len(streaming_calls) >= 1, "Should have attempted streaming connection"
