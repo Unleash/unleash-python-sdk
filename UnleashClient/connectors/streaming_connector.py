@@ -7,7 +7,7 @@ from yggdrasil_engine.engine import UnleashEngine
 
 from UnleashClient.cache import BaseCache
 from UnleashClient.connectors.base_connector import BaseConnector
-from UnleashClient.constants import APPLICATION_HEADERS, STREAMING_URL
+from UnleashClient.constants import APPLICATION_HEADERS, FEATURES_URL, STREAMING_URL
 from UnleashClient.utils import LOGGER
 
 
@@ -91,7 +91,6 @@ class StreamingConnector(BaseConnector):
             )
 
             # Initial hydration happens in the stream.
-            ready_fired = False
             for event in self._client.events:
                 if self._stop.is_set():
                     break
@@ -101,17 +100,15 @@ class StreamingConnector(BaseConnector):
                 if event.event in ("unleash-connected", "unleash-updated"):
                     try:
                         self.engine.take_state(event.data)
-                        if (
-                            event.event == "unleash-connected"
-                            and self.ready_callback
-                            and not ready_fired
-                        ):
+                        self.cache.set("features", self.engine.get_state(FEATURES_URL))
+
+                        if event.event == "unleash-connected" and self.ready_callback:
                             try:
                                 self.ready_callback()
                             except Exception:
                                 LOGGER.debug("Ready callback failed", exc_info=True)
                     except Exception:
-                        LOGGER.debug("Error applying streaming state", exc_info=True)
+                        LOGGER.error("Error applying streaming state", exc_info=True)
                 else:
                     LOGGER.debug("Ignoring SSE event type: %s", event.event)
 

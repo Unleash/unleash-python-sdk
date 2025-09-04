@@ -174,8 +174,6 @@ def test_client_streaming_hydration(monkeypatch, clean_cache):
     )
     monkeypatch.setattr(urllib3.PoolManager, "urlopen", mock_urlopen)
 
-    assert not clean_cache.exists("http://localhost:4242/api/client/features")
-
     client = UnleashClient(
         url="http://localhost:4242",
         app_name="test-app",
