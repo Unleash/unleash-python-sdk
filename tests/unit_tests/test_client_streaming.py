@@ -180,7 +180,7 @@ def test_client_streaming_hydration(monkeypatch, clean_cache):
         instance_id="test-instance",
         disable_metrics=True,
         disable_registration=True,
-        experimental_mode="streaming",
+        experimental_mode={"type": "streaming"},
         cache=clean_cache,
     )
 
@@ -245,7 +245,7 @@ def test_client_streaming_retry(monkeypatch, clean_cache):
         instance_id="test-instance",
         disable_metrics=True,
         disable_registration=True,
-        experimental_mode="streaming",
+        experimental_mode={"type": "streaming"},
         cache=clean_cache,
     )
 
@@ -295,7 +295,7 @@ def test_client_streaming_error_handling(monkeypatch, clean_cache):
         instance_id="test-instance",
         disable_metrics=True,
         disable_registration=True,
-        experimental_mode="streaming",
+        experimental_mode={"type": "streaming"},
         cache=clean_cache,
     )
 

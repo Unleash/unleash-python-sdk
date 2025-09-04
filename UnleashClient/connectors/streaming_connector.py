@@ -100,7 +100,7 @@ class StreamingConnector(BaseConnector):
                 if event.event in ("unleash-connected", "unleash-updated"):
                     try:
                         self.engine.take_state(event.data)
-                        self.cache.set("features", self.engine.get_state(FEATURES_URL))
+                        self.cache.set(FEATURES_URL, self.engine.get_state())
 
                         if event.event == "unleash-connected" and self.ready_callback:
                             try:
@@ -109,12 +109,14 @@ class StreamingConnector(BaseConnector):
                                 LOGGER.debug("Ready callback failed", exc_info=True)
                     except Exception:
                         LOGGER.error("Error applying streaming state", exc_info=True)
+                        self.load_features()
                 else:
                     LOGGER.debug("Ignoring SSE event type: %s", event.event)
 
             LOGGER.debug("SSE stream ended")
         except Exception as exc:
             LOGGER.warning("Streaming connection failed: %s", exc)
+            self.load_features()
         finally:
             try:
                 if self._client is not None:
