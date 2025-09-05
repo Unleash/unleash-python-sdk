@@ -230,6 +230,7 @@ def test_UC_initialize_default():
     assert client.unleash_url == URL
     assert client.unleash_app_name == APP_NAME
     assert client.unleash_metrics_interval == 60
+    client.destroy()
 
 
 def test_UC_initialize_full():
@@ -258,6 +259,7 @@ def test_UC_initialize_full():
     assert client.unleash_disable_registration == DISABLE_REGISTRATION
     assert client.unleash_custom_headers == CUSTOM_HEADERS
     assert client.unleash_custom_options == CUSTOM_OPTIONS
+    client.destroy()
 
 
 def test_UC_type_violation():
@@ -265,6 +267,7 @@ def test_UC_type_violation():
     assert client.unleash_url == URL
     assert client.unleash_app_name == APP_NAME
     assert client.unleash_refresh_interval == "60"
+    client.destroy()
 
 
 @responses.activate
@@ -504,6 +507,7 @@ def test_uc_not_initialized_isenabled():
     assert unleash_client.is_enabled(
         "ThisFlagDoesn'tExist", fallback_function=lambda x, y: True
     )
+    unleash_client.destroy()
 
 
 def test_uc_dependency(unleash_client_bootstrap_dependencies):
@@ -576,6 +580,7 @@ def test_uc_not_initialized_getvariant():
     assert not variant["enabled"]
     assert variant["name"] == "disabled"
     assert not variant["feature_enabled"]
+    unleash_client.destroy()
 
 
 @responses.activate
@@ -765,6 +770,7 @@ def test_uc_with_invalid_url():
 
     with pytest.raises(ValueError):
         unleash_client.initialize_client()
+    unleash_client.destroy()
 
 
 def test_uc_with_network_error():
@@ -778,6 +784,7 @@ def test_uc_with_network_error():
     unleash_client.initialize_client()
 
     assert unleash_client.is_enabled
+    unleash_client.destroy()
 
 
 @responses.activate
@@ -949,51 +956,78 @@ def test_uc_custom_scheduler():
     )
     fetch_signal.wait(timeout=REFRESH_INTERVAL * 3)
     assert len(unleash_client.feature_definitions()) >= 9
+    unleash_client.destroy()
 
 
 def test_multiple_instances_blocks_client_instantiation():
+    client1 = None
+    client2 = None
     with pytest.raises(Exception):
-        UnleashClient(URL, APP_NAME, multiple_instance_mode=InstanceAllowType.BLOCK)
-        UnleashClient(URL, APP_NAME, multiple_instance_mode=InstanceAllowType.BLOCK)
+        client1 = UnleashClient(
+            URL, APP_NAME, multiple_instance_mode=InstanceAllowType.BLOCK
+        )
+        client2 = UnleashClient(
+            URL, APP_NAME, multiple_instance_mode=InstanceAllowType.BLOCK
+        )
+    if client1:
+        client1.destroy()
+    if client2:
+        client2.destroy()
 
 
 def test_multiple_instances_with_allow_multiple_warns(caplog):
-    UnleashClient(URL, APP_NAME, multiple_instance_mode=InstanceAllowType.WARN)
-    UnleashClient(URL, APP_NAME, multiple_instance_mode=InstanceAllowType.WARN)
+    client1 = UnleashClient(
+        URL, APP_NAME, multiple_instance_mode=InstanceAllowType.WARN
+    )
+    client2 = UnleashClient(
+        URL, APP_NAME, multiple_instance_mode=InstanceAllowType.WARN
+    )
     assert any(["You already have 1 instance" in r.msg for r in caplog.records])
+    client1.destroy()
+    client2.destroy()
 
 
 def test_multiple_instances_tracks_current_instance_count(caplog):
-    UnleashClient(URL, APP_NAME)
-    UnleashClient(URL, APP_NAME, multiple_instance_mode=InstanceAllowType.WARN)
-    UnleashClient(URL, APP_NAME, multiple_instance_mode=InstanceAllowType.WARN)
+    client1 = UnleashClient(URL, APP_NAME)
+    client2 = UnleashClient(
+        URL, APP_NAME, multiple_instance_mode=InstanceAllowType.WARN
+    )
+    client3 = UnleashClient(
+        URL, APP_NAME, multiple_instance_mode=InstanceAllowType.WARN
+    )
     assert any(["You already have 1 instance" in r.msg for r in caplog.records])
     assert any(["You already have 2 instance(s)" in r.msg for r in caplog.records])
+    client1.destroy()
+    client2.destroy()
+    client3.destroy()
 
 
 def test_multiple_instances_no_warnings_or_errors_with_different_client_configs(caplog):
-    UnleashClient(URL, "some-probably-unique-app-name")
-    UnleashClient(
+    client1 = UnleashClient(URL, "some-probably-unique-app-name")
+    client2 = UnleashClient(
         URL,
         "some-probably-unique-app-name",
         instance_id="some-unique-instance-id",
         refresh_interval="60",
     )
-    UnleashClient(
+    client3 = UnleashClient(
         URL, "some-probably-unique-but-different-app-name", refresh_interval="60"
     )
     assert not any(
         ["Multiple instances has been disabled" in r.msg for r in caplog.records]
     )
+    client1.destroy()
+    client2.destroy()
+    client3.destroy()
 
 
 def test_multiple_instances_are_unique_on_api_key(caplog):
-    UnleashClient(
+    client1 = UnleashClient(
         URL,
         "some-probably-unique-app-name",
         custom_headers={"Authorization": "penguins"},
     )
-    UnleashClient(
+    client2 = UnleashClient(
         URL,
         "some-probably-unique-app-name",
         custom_headers={"Authorization": "hamsters"},
@@ -1001,6 +1035,8 @@ def test_multiple_instances_are_unique_on_api_key(caplog):
     assert not any(
         ["Multiple instances has been disabled" in r.msg for r in caplog.records]
     )
+    client1.destroy()
+    client2.destroy()
 
 
 @responses.activate
@@ -1056,6 +1092,7 @@ def test_signals_feature_flag(cache):
     assert variant_event.feature_name == "testVariations"
     assert variant_event.enabled
     assert variant_event.variant == "VarA"
+    unleash_client.destroy()
 
 
 @responses.activate
@@ -1135,6 +1172,7 @@ def test_ready_signal(cache):
     ready_signal.wait(timeout=1)
 
     assert trapped_events == 1
+    unleash_client.destroy()
 
 
 def test_ready_signal_works_with_bootstrapping():
@@ -1170,6 +1208,8 @@ def test_ready_signal_works_with_bootstrapping():
 
     assert trapped_events == 1
 
+    unleash_client.destroy()
+
 
 def test_context_handles_numerics():
     cache = FileCache("MOCK_CACHE")
@@ -1187,6 +1227,7 @@ def test_context_handles_numerics():
     context = {"userId": 99999}
 
     assert unleash_client.is_enabled("NumericConstraint", context)
+    unleash_client.destroy()
 
 
 def test_context_handles_datetimes():
@@ -1206,6 +1247,7 @@ def test_context_handles_datetimes():
     context = {"currentTime": current_time}
 
     assert unleash_client.is_enabled("testConstraintFlag", context)
+    unleash_client.destroy()
 
 
 def test_context_adds_current_time_if_not_set():
@@ -1222,6 +1264,7 @@ def test_context_adds_current_time_if_not_set():
     )
 
     assert unleash_client.is_enabled("DateConstraint")
+    unleash_client.destroy()
 
 
 def test_context_moves_properties_fields_to_properties():
@@ -1235,6 +1278,7 @@ def test_context_moves_properties_fields_to_properties():
     context = {"myContext": "1234"}
 
     assert "myContext" in unleash_client._safe_context(context)["properties"]
+    unleash_client.destroy()
 
 
 def test_existing_properties_are_retained_when_custom_context_properties_are_in_the_root():
@@ -1249,6 +1293,7 @@ def test_existing_properties_are_retained_when_custom_context_properties_are_in_
 
     assert "myContext" in unleash_client._safe_context(context)["properties"]
     assert "yourContext" in unleash_client._safe_context(context)["properties"]
+    unleash_client.destroy()
 
 
 def test_base_context_properties_are_retained_in_root():
@@ -1262,6 +1307,7 @@ def test_base_context_properties_are_retained_in_root():
     context = {"userId": "1234"}
 
     assert "userId" in unleash_client._safe_context(context)
+    unleash_client.destroy()
 
 
 def test_is_enabled_works_with_properties_field_in_the_context_root():
@@ -1277,6 +1323,7 @@ def test_is_enabled_works_with_properties_field_in_the_context_root():
 
     context = {"myContext": "1234"}
     assert unleash_client.is_enabled("customContextToggle", context)
+    unleash_client.destroy()
 
 
 def test_uuids_are_valid_context_properties():
@@ -1295,6 +1342,7 @@ def test_uuids_are_valid_context_properties():
         assert (
             False
         ), f"An exception was raised when passing a UUID as a context property: {e}"
+    unleash_client.destroy()
 
 
 @responses.activate

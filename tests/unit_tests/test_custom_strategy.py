@@ -64,6 +64,7 @@ def test_uc_customstrategy_happypath(recwarn):
     # Check custom strategy.
     assert unleash_client.is_enabled("CustomToggle", {"sound": "meow"})
     assert not unleash_client.is_enabled("CustomToggle", {"sound": "bark"})
+    unleash_client.destroy()
 
 
 @responses.activate
@@ -100,3 +101,4 @@ def test_uc_customstrategy_safemulti():
 
     # Check a toggle that contains an outdated custom strategy and a default strategy.
     assert unleash_client.is_enabled("CustomToggleWarningMultiStrat", {"sound": "meow"})
+    unleash_client.destroy()

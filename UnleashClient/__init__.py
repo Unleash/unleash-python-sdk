@@ -20,6 +20,7 @@ from UnleashClient.connectors import (
     BootstrapConnector,
     OfflineConnector,
     PollingConnector,
+    StreamingConnector,
 )
 from UnleashClient.constants import (
     DISABLED_VARIATION,
@@ -43,6 +44,11 @@ from UnleashClient.periodic_tasks import (
 from .cache import BaseCache, FileCache
 from .utils import LOGGER, InstanceAllowType, InstanceCounter
 
+try:
+    from typing import Literal, TypedDict
+except ImportError:
+    from typing_extensions import Literal, TypedDict  # type: ignore
+
 INSTANCES = InstanceCounter()
 _BASE_CONTEXT_FIELDS = [
     "userId",
@@ -53,6 +59,10 @@ _BASE_CONTEXT_FIELDS = [
     "remoteAddress",
     "properties",
 ]
+
+
+class ExperimentalMode(TypedDict, total=False):
+    type: Literal["streaming", "polling"]
 
 
 def build_ready_callback(
@@ -113,6 +123,7 @@ class UnleashClient:
     :param scheduler_executor: Name of APSCheduler executor to use if using a custom scheduler.
     :param multiple_instance_mode: Determines how multiple instances being instantiated is handled by the SDK, when set to InstanceAllowType.BLOCK, the client constructor will fail when more than one instance is detected, when set to InstanceAllowType.WARN, multiple instances will be allowed but log a warning, when set to InstanceAllowType.SILENTLY_ALLOW, no warning or failure will be raised when instantiating multiple instances of the client. Defaults to InstanceAllowType.WARN
     :param event_callback: Function to call if impression events are enabled.  WARNING: Depending on your event library, this may have performance implications!
+    :param experimental_mode: Optional dict to configure mode. Use {"type": "streaming"} to enable streaming or {"type": "polling"} (default).
     """
 
     def __init__(
@@ -140,6 +151,7 @@ class UnleashClient:
         scheduler_executor: Optional[str] = None,
         multiple_instance_mode: InstanceAllowType = InstanceAllowType.WARN,
         event_callback: Optional[Callable[[BaseEvent], None]] = None,
+        experimental_mode: Optional[ExperimentalMode] = None,
     ) -> None:
         custom_headers = custom_headers or {}
         custom_options = custom_options or {}
@@ -173,6 +185,7 @@ class UnleashClient:
         self.unleash_verbose_log_level = verbose_log_level
         self.unleash_event_callback = event_callback
         self._ready_callback = build_ready_callback(event_callback)
+        self.connector_mode: ExperimentalMode = experimental_mode or {"type": "polling"}
 
         self._do_instance_check(multiple_instance_mode)
 
@@ -279,6 +292,7 @@ class UnleashClient:
                     **self.unleash_custom_headers,
                     "unleash-connection-id": self.connection_id,
                     "unleash-appname": self.unleash_app_name,
+                    "unleash-instanceid": self.unleash_instance_id,
                     "unleash-sdk": f"{SDK_NAME}:{SDK_VERSION}",
                 }
 
@@ -295,8 +309,19 @@ class UnleashClient:
                         self.strategy_mapping,
                         self.unleash_request_timeout,
                     )
+                mode = self.connector_mode.get("type", "polling")
 
-                if fetch_toggles:
+                if mode == "streaming" and fetch_toggles:
+                    self.connector = StreamingConnector(
+                        engine=self.engine,
+                        cache=self.cache,
+                        url=self.unleash_url,
+                        headers=base_headers,
+                        request_timeout=self.unleash_request_timeout,
+                        ready_callback=self._ready_callback,
+                        custom_options=self.unleash_custom_options,
+                    )
+                elif fetch_toggles:
                     start_scheduler = True
                     self.connector = PollingConnector(
                         engine=self.engine,
@@ -422,10 +447,16 @@ class UnleashClient:
             )
 
         try:
-            self.unleash_scheduler.shutdown()
+            if hasattr(self, "unleash_scheduler") and self.unleash_scheduler:
+                self.unleash_scheduler.remove_all_jobs()
+                self.unleash_scheduler.shutdown(wait=True)
         except Exception as exc:
-            LOGGER.warning("Exception during scheduler shutdown: %s", exc)
-        self.cache.destroy()
+            LOGGER.warning("Exception during scheduler teardown: %s", exc)
+
+        try:
+            self.cache.destroy()
+        except Exception as exc:
+            LOGGER.warning("Exception during cache teardown: %s", exc)
 
     @staticmethod
     def _get_fallback_value(
