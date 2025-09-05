@@ -43,7 +43,12 @@ from tests.utilities.testing_constants import (
 )
 from UnleashClient import INSTANCES, UnleashClient
 from UnleashClient.cache import FileCache
-from UnleashClient.constants import FEATURES_URL, METRICS_URL, REGISTER_URL
+from UnleashClient.constants import (
+    CLIENT_SPEC_VERSION,
+    FEATURES_URL,
+    METRICS_URL,
+    REGISTER_URL,
+)
 from UnleashClient.events import BaseEvent, UnleashEvent, UnleashEventType
 from UnleashClient.utils import InstanceAllowType
 
@@ -1468,6 +1473,39 @@ def test_identification_values_are_passed_in():
         uuid.UUID(metrics_request.headers["UNLEASH-CONNECTION-ID"])
     except ValueError:
         assert False, "Invalid UUID format in UNLEASH-CONNECTION-ID"
+
+
+@responses.activate
+def test_uc_polling_connector_sends_spec_version_header(readyable_unleash_client):
+    """Test that the client sends spec version header when using polling connector"""
+    unleash_client, ready_signal, _ = readyable_unleash_client
+
+    # Set up API
+    responses.add(responses.POST, URL + REGISTER_URL, json={}, status=202)
+    responses.add(
+        responses.GET, URL + FEATURES_URL, json=MOCK_FEATURE_RESPONSE, status=200
+    )
+    responses.add(responses.POST, URL + METRICS_URL, json={}, status=202)
+
+    # Initialize client (which should use polling by default)
+    unleash_client.initialize_client()
+    ready_signal.wait(timeout=1)
+
+    # Find the features request (should be the GET request to FEATURES_URL)
+    features_requests = [
+        call
+        for call in responses.calls
+        if call.request.method == "GET" and FEATURES_URL in call.request.url
+    ]
+
+    assert len(features_requests) >= 1, "No features request found"
+    features_request = features_requests[0].request
+
+    # Verify the spec version header is present
+    assert (
+        "Unleash-Client-Spec" in features_request.headers
+    ), "Spec version header missing"
+    assert features_request.headers["Unleash-Client-Spec"] == CLIENT_SPEC_VERSION
 
 
 def test_uc_bootstrap_initializes_offline_connector():

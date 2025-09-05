@@ -19,7 +19,11 @@ from tests.utilities.testing_constants import (
     URL,
 )
 from UnleashClient.connectors import PollingConnector
-from UnleashClient.constants import ETAG, FEATURES_URL
+from UnleashClient.constants import (
+    CLIENT_SPEC_VERSION,
+    ETAG,
+    FEATURES_URL,
+)
 
 FULL_FEATURE_URL = URL + FEATURES_URL
 
@@ -54,6 +58,40 @@ def test_polling_connector_fetch_and_load(cache_empty):
 
     assert engine.is_enabled("testFlag", {})
     assert temp_cache.get(ETAG) == ETAG_VALUE
+
+
+@responses.activate
+def test_polling_connector_sends_spec_version_header(cache_empty):
+    """Test that the polling connector sends the spec version header automatically"""
+    engine = UnleashEngine()
+    scheduler = BackgroundScheduler()
+    responses.add(
+        responses.GET,
+        FULL_FEATURE_URL,
+        json=MOCK_FEATURE_RESPONSE,
+        status=200,
+        headers={"etag": ETAG_VALUE},
+    )
+    temp_cache = cache_empty
+
+    connector = PollingConnector(
+        engine=engine,
+        cache=temp_cache,
+        scheduler=scheduler,
+        url=URL,
+        app_name=APP_NAME,
+        instance_id=INSTANCE_ID,
+        custom_options=CUSTOM_OPTIONS,
+        request_timeout=REQUEST_TIMEOUT,
+        request_retries=REQUEST_RETRIES,
+    )
+
+    connector._fetch_and_load()
+
+    assert len(responses.calls) == 1
+    request = responses.calls[0].request
+    assert "Unleash-Client-Spec" in request.headers
+    assert request.headers["Unleash-Client-Spec"] == CLIENT_SPEC_VERSION
 
 
 @responses.activate
