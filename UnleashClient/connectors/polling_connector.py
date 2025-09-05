@@ -7,7 +7,7 @@ from yggdrasil_engine.engine import UnleashEngine
 
 from UnleashClient.api import get_feature_toggles
 from UnleashClient.cache import BaseCache
-from UnleashClient.constants import APPLICATION_HEADERS, ETAG, FEATURES_URL
+from UnleashClient.constants import ETAG, FEATURES_URL
 from UnleashClient.events import UnleashEventType, UnleashFetchedEvent
 from UnleashClient.utils import LOGGER
 
@@ -58,7 +58,6 @@ class PollingConnector(BaseConnector):
             app_name=self.app_name,
             instance_id=self.instance_id,
             headers={
-                **APPLICATION_HEADERS,
                 **self.headers,
                 "unleash-interval": str(self.refresh_interval * 1000),
             },
