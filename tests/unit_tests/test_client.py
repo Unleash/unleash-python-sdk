@@ -1480,18 +1480,15 @@ def test_uc_polling_connector_sends_spec_version_header(readyable_unleash_client
     """Test that the client sends spec version header when using polling connector"""
     unleash_client, ready_signal, _ = readyable_unleash_client
 
-    # Set up API
     responses.add(responses.POST, URL + REGISTER_URL, json={}, status=202)
     responses.add(
         responses.GET, URL + FEATURES_URL, json=MOCK_FEATURE_RESPONSE, status=200
     )
     responses.add(responses.POST, URL + METRICS_URL, json={}, status=202)
 
-    # Initialize client (which should use polling by default)
     unleash_client.initialize_client()
     ready_signal.wait(timeout=1)
 
-    # Find the features request (should be the GET request to FEATURES_URL)
     features_requests = [
         call
         for call in responses.calls
@@ -1501,7 +1498,6 @@ def test_uc_polling_connector_sends_spec_version_header(readyable_unleash_client
     assert len(features_requests) >= 1, "No features request found"
     features_request = features_requests[0].request
 
-    # Verify the spec version header is present
     assert (
         "Unleash-Client-Spec" in features_request.headers
     ), "Spec version header missing"
