@@ -95,8 +95,8 @@ class StreamingConnector(BaseConnector):
                 if self._stop.is_set():
                     LOGGER.debug("SSE stream stopped by user request")
                     break
-                
-                if hasattr(item, 'event') and hasattr(item, 'data'):
+
+                if hasattr(item, "event") and hasattr(item, "data"):
                     if not item.event:
                         continue
 
@@ -105,23 +105,32 @@ class StreamingConnector(BaseConnector):
                             self.engine.take_state(item.data)
                             self.cache.set(FEATURES_URL, self.engine.get_state())
 
-                            if item.event == "unleash-connected" and self.ready_callback:
+                            if (
+                                item.event == "unleash-connected"
+                                and self.ready_callback
+                            ):
                                 try:
                                     self.ready_callback()
                                 except Exception:
                                     LOGGER.debug("Ready callback failed", exc_info=True)
                         except Exception:
-                            LOGGER.error("Error applying streaming state", exc_info=True)
+                            LOGGER.error(
+                                "Error applying streaming state", exc_info=True
+                            )
                             self.load_features()
                     else:
                         LOGGER.warning("Ignoring SSE event type: %s", item.event)
-                elif hasattr(item, 'error'):
+                elif hasattr(item, "error"):
                     if item.error is None:
                         if not self._stop.is_set():
-                            LOGGER.info("SSE stream ended - server closed connection gracefully")
+                            LOGGER.info(
+                                "SSE stream ended - server closed connection gracefully"
+                            )
                     else:
                         if not self._stop.is_set():
-                            LOGGER.warning("SSE stream error: %s - will retry", item.error)
+                            LOGGER.warning(
+                                "SSE stream error: %s - will retry", item.error
+                            )
         except Exception as exc:
             LOGGER.warning("Streaming connection failed: %s", exc)
             self.load_features()
