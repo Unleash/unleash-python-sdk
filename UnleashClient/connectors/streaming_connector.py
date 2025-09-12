@@ -65,78 +65,80 @@ class StreamingConnector(BaseConnector):
         if self._thread:
             self._thread.join(timeout=5)
 
+    def _create_client(self) -> SSEClient:
+        connect_strategy = ConnectStrategy.http(
+            self._base_url,
+            headers=self._headers,
+            urllib3_request_options=self._custom_options,
+        )
+        retry_strategy = RetryDelayStrategy.default(
+            max_delay=self._backoff_max,
+            backoff_multiplier=self._backoff_multiplier,
+            jitter_multiplier=self._backoff_jitter,
+        )
+
+        self._client = SSEClient(
+            connect=connect_strategy,
+            initial_retry_delay=self._backoff_initial,
+            retry_delay_strategy=retry_strategy,
+            retry_delay_reset_threshold=60.0,
+            error_strategy=ErrorStrategy.always_continue(),
+            logger=LOGGER,
+        )
+
+        return self._client
+
+    def _process_event(self, item) -> None:
+        if not item.event:
+            return
+
+        if item.event in ("unleash-connected", "unleash-updated"):
+            try:
+                self.engine.take_state(item.data)
+                self.cache.set(FEATURES_URL, self.engine.get_state())
+
+                if item.event == "unleash-connected" and self.ready_callback:
+                    try:
+                        self.ready_callback()
+                    except Exception:
+                        LOGGER.debug("Ready callback failed", exc_info=True)
+            except Exception:
+                LOGGER.error("Error applying streaming state", exc_info=True)
+                self.load_features()
+        else:
+            LOGGER.warning("Ignoring SSE event type: %s", item.event)
+
+    def _process_error(self, error) -> None:
+        if error is None:
+            if not self._stop.is_set():
+                LOGGER.info("SSE stream ended - server closed connection gracefully")
+        else:
+            if not self._stop.is_set():
+                LOGGER.warning("SSE stream error: %s - will retry", error)
+
+    def _close_client(self) -> None:
+        try:
+            if self._client is not None:
+                self._client.close()
+        except Exception:
+            pass
+
     def _run(self):
         try:
             LOGGER.info("Connecting to Unleash streaming endpoint: %s", self._base_url)
+            client = self._create_client()
 
-            connect_strategy = ConnectStrategy.http(
-                self._base_url,
-                headers=self._headers,
-                urllib3_request_options=self._custom_options,
-            )
-
-            retry_strategy = RetryDelayStrategy.default(
-                max_delay=self._backoff_max,
-                backoff_multiplier=self._backoff_multiplier,
-                jitter_multiplier=self._backoff_jitter,
-            )
-
-            self._client = SSEClient(
-                connect=connect_strategy,
-                initial_retry_delay=self._backoff_initial,
-                retry_delay_strategy=retry_strategy,
-                retry_delay_reset_threshold=60.0,
-                error_strategy=ErrorStrategy.always_continue(),
-                logger=LOGGER,
-            )
-
-            # Initial hydration happens in the stream.
-            for item in self._client.all:
+            for item in client.all:
                 if self._stop.is_set():
                     LOGGER.debug("SSE stream stopped by user request")
                     break
 
                 if hasattr(item, "event") and hasattr(item, "data"):
-                    if not item.event:
-                        continue
-
-                    if item.event in ("unleash-connected", "unleash-updated"):
-                        try:
-                            self.engine.take_state(item.data)
-                            self.cache.set(FEATURES_URL, self.engine.get_state())
-
-                            if (
-                                item.event == "unleash-connected"
-                                and self.ready_callback
-                            ):
-                                try:
-                                    self.ready_callback()
-                                except Exception:
-                                    LOGGER.debug("Ready callback failed", exc_info=True)
-                        except Exception:
-                            LOGGER.error(
-                                "Error applying streaming state", exc_info=True
-                            )
-                            self.load_features()
-                    else:
-                        LOGGER.warning("Ignoring SSE event type: %s", item.event)
+                    self._process_event(item)
                 elif hasattr(item, "error"):
-                    if item.error is None:
-                        if not self._stop.is_set():
-                            LOGGER.info(
-                                "SSE stream ended - server closed connection gracefully"
-                            )
-                    else:
-                        if not self._stop.is_set():
-                            LOGGER.warning(
-                                "SSE stream error: %s - will retry", item.error
-                            )
+                    self._process_error(item.error)
         except Exception as exc:
             LOGGER.warning("Streaming connection failed: %s", exc)
             self.load_features()
         finally:
-            try:
-                if self._client is not None:
-                    self._client.close()
-            except Exception:
-                pass
+            self._close_client()
