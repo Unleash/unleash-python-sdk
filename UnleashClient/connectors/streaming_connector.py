@@ -112,9 +112,8 @@ class StreamingConnector(BaseConnector):
         if error is None:
             if not self._stop.is_set():
                 LOGGER.info("SSE stream ended - server closed connection gracefully")
-        else:
-            if not self._stop.is_set():
-                LOGGER.warning("SSE stream error: %s - will retry", error)
+        elif not self._stop.is_set():
+            LOGGER.warning("SSE stream error: %s - will retry", error)
 
     def _close_client(self) -> None:
         try:
