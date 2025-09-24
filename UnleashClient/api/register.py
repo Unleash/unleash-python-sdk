@@ -71,7 +71,7 @@ def register_client(
             **custom_options,
         )
 
-        if resp.status_code != 202:
+        if resp.status_code not in {200, 202}:
             log_resp_info(resp)
             LOGGER.warning(
                 "Unleash Client registration failed due to unexpected HTTP status code: %s",
