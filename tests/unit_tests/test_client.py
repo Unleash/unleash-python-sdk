@@ -1,4 +1,5 @@
 import json
+import re
 import threading
 import time
 import uuid
@@ -1487,3 +1488,20 @@ def test_uc_bootstrap_initializes_offline_connector():
     assert unleash_client.is_enabled("testFlag")
 
     unleash_client.destroy()
+
+
+@responses.activate
+def test_spec_header_is_sent_when_fetching_features():
+    responses.add(
+        responses.GET, URL + FEATURES_URL, json=MOCK_FEATURE_RESPONSE, status=200
+    )
+
+    unleash_client = UnleashClient(
+        URL, APP_NAME, disable_metrics=True, disable_registration=True
+    )
+    unleash_client.initialize_client()
+    client_spec = responses.calls[0].request.headers["Unleash-Client-Spec"]
+
+    ## assert that the client spec looks like a semver string
+    semver_regex = r"^\d+\.\d+\.\d+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$"
+    assert re.match(semver_regex, client_spec)
