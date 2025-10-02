@@ -83,7 +83,7 @@ except FileNotFoundError:
 
 @pytest.mark.skipif(
     sys.version_info < (3, 9) and platform.system() == "Windows",
-    reason="Requires Python >= 3.9 on Windows"
+    reason="Requires Python >= 3.9 on Windows",
 )
 @pytest.mark.parametrize("spec", TEST_DATA, ids=TEST_NAMES)
 def test_spec(spec):
