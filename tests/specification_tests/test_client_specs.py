@@ -1,4 +1,6 @@
 import json
+import platform
+import sys
 import uuid
 from os import path
 
@@ -79,6 +81,10 @@ except FileNotFoundError:
     raise
 
 
+@pytest.mark.skipif(
+    sys.version_info < (3, 9) and platform.system() == "Windows",
+    reason="Requires Python >= 3.9 on Windows"
+)
 @pytest.mark.parametrize("spec", TEST_DATA, ids=TEST_NAMES)
 def test_spec(spec):
     unleash_client, test_data, is_variant_test = spec
