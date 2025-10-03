@@ -3,7 +3,6 @@ Unit tests for streaming connector using urllib3 mocking for low-level HTTP inte
 """
 
 import json
-import threading
 import time
 from io import BytesIO
 
