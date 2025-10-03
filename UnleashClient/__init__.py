@@ -6,7 +6,7 @@ import warnings
 from dataclasses import asdict
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, Optional
-from enum import IntEnum, auto
+from enum import IntEnum
 
 from apscheduler.executors.pool import ThreadPoolExecutor
 from apscheduler.job import Job
