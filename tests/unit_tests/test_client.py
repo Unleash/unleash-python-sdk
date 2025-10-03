@@ -1505,3 +1505,43 @@ def test_spec_header_is_sent_when_fetching_features():
     ## assert that the client spec looks like a semver string
     semver_regex = r"^\d+\.\d+\.\d+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$"
     assert re.match(semver_regex, client_spec)
+
+
+def test_shutdown_calls_scheduler_at_most_once():
+    class MockScheduler:
+        def __init__(self):
+            self.shutdown_called = 0
+            self.running = False
+            self.current_jobs = 0
+
+        def start(self):
+            self.running = True
+
+        def shutdown(self, *args, **kwargs):
+            self.shutdown_called += 1
+            self.running = False
+
+        def add_job(self, *args, **kwargs):
+            self.current_jobs += 1
+
+        def remove_job(self, *args, **kwargs):
+            self.current_jobs -= 1
+
+        def remove_all_jobs(self, *args, **kwargs):
+            self.current_jobs = 0
+
+    scheduler = MockScheduler()
+
+    unleash_client = UnleashClient(
+        URL,
+        APP_NAME,
+        scheduler=scheduler,
+        scheduler_executor=BackgroundScheduler(),
+        disable_metrics=True,
+        disable_registration=True,
+    )
+    unleash_client.initialize_client()
+    unleash_client.destroy()
+    unleash_client.destroy()
+
+    assert scheduler.shutdown_called == 1

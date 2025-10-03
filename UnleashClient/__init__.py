@@ -1,14 +1,17 @@
 # pylint: disable=invalid-name
 import random
 import string
+import threading
 import uuid
 import warnings
 from dataclasses import asdict
 from datetime import datetime, timezone
+from enum import IntEnum
 from typing import Any, Callable, Dict, Optional
 
 from apscheduler.executors.pool import ThreadPoolExecutor
 from apscheduler.job import Job
+from apscheduler.jobstores.base import JobLookupError
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.schedulers.base import STATE_RUNNING, BaseScheduler
 from apscheduler.triggers.interval import IntervalTrigger
@@ -60,6 +63,12 @@ _BASE_CONTEXT_FIELDS = [
     "remoteAddress",
     "properties",
 ]
+
+
+class _RunState(IntEnum):
+    UNINITIALIZED = 0
+    INITIALIZED = 1
+    SHUTDOWN = 2
 
 
 class ExperimentalMode(TypedDict, total=False):
@@ -187,6 +196,8 @@ class UnleashClient:
         self.unleash_event_callback = event_callback
         self._ready_callback = build_ready_callback(event_callback)
         self.connector_mode: ExperimentalMode = experimental_mode or {"type": "polling"}
+        self._lifecycle_lock = threading.RLock()
+        self._closed = threading.Event()
 
         self._do_instance_check(multiple_instance_mode)
 
@@ -211,7 +222,7 @@ class UnleashClient:
         self.strategy_mapping = {**custom_strategies}
 
         # Client status
-        self.is_initialized = False
+        self._run_state = _RunState.UNINITIALIZED
 
         # Bootstrapping
         if self.unleash_bootstrapped:
@@ -258,6 +269,10 @@ class UnleashClient:
     def connection_id(self):
         return self._connection_id
 
+    @property
+    def is_initialized(self):
+        return self._run_state == _RunState.INITIALIZED
+
     def initialize_client(self, fetch_toggles: bool = True) -> None:
         """
         Initializes client and starts communication with central unleash server(s).
@@ -285,8 +300,12 @@ class UnleashClient:
                 pass
         """
         # Only perform initialization steps if client is not initialized.
-        if not self.is_initialized:
-            # pylint: disable=no-else-raise
+        with self._lifecycle_lock:
+            if self._closed.is_set() or self._run_state > _RunState.UNINITIALIZED:
+                warnings.warn(
+                    "Attempted to initialize an Unleash Client instance that has already been initialized."
+                )
+                return
             try:
                 start_scheduler = False
                 base_headers = {
@@ -388,6 +407,7 @@ class UnleashClient:
 
                 if start_scheduler:
                     self.unleash_scheduler.start()
+                self._run_state = _RunState.INITIALIZED
 
             except Exception as excep:
                 # Log exceptions during initialization.  is_initialized will remain false.
@@ -395,13 +415,6 @@ class UnleashClient:
                     "Exception during UnleashClient initialization: %s", excep
                 )
                 raise excep
-            else:
-                # Set is_initialized to true if no exception is encountered.
-                self.is_initialized = True
-        else:
-            warnings.warn(
-                "Attempted to initialize an Unleash Client instance that has already been initialized."
-            )
 
     def feature_definitions(self) -> dict:
         """
@@ -431,34 +444,42 @@ class UnleashClient:
 
         You shouldn't need this too much!
         """
-        if self.connector:
-            self.connector.stop()
-        if self.metric_job:
-            self.metric_job.remove()
+        with self._lifecycle_lock:
+            if self._closed.is_set():
+                return
+            self._closed.set()
+            self._run_state = _RunState.SHUTDOWN
+            if self.connector:
+                self.connector.stop()
 
-            # Flush metrics before shutting down.
-            aggregate_and_send_metrics(
-                url=self.unleash_url,
-                app_name=self.unleash_app_name,
-                connection_id=self.connection_id,
-                instance_id=self.unleash_instance_id,
-                headers=self.metrics_headers,
-                custom_options=self.unleash_custom_options,
-                request_timeout=self.unleash_request_timeout,
-                engine=self.engine,
-            )
+            if self.metric_job:
+                # Flush metrics before shutting down.
+                aggregate_and_send_metrics(
+                    url=self.unleash_url,
+                    app_name=self.unleash_app_name,
+                    connection_id=self.connection_id,
+                    instance_id=self.unleash_instance_id,
+                    headers=self.metrics_headers,
+                    custom_options=self.unleash_custom_options,
+                    request_timeout=self.unleash_request_timeout,
+                    engine=self.engine,
+                )
+                try:
+                    self.metric_job.remove()
+                except JobLookupError as exc:
+                    LOGGER.info("Exception during connector teardown: %s", exc)
 
-        try:
-            if hasattr(self, "unleash_scheduler") and self.unleash_scheduler:
-                self.unleash_scheduler.remove_all_jobs()
-                self.unleash_scheduler.shutdown(wait=True)
-        except Exception as exc:
-            LOGGER.warning("Exception during scheduler teardown: %s", exc)
+            try:
+                if hasattr(self, "unleash_scheduler") and self.unleash_scheduler:
+                    self.unleash_scheduler.remove_all_jobs()
+                    self.unleash_scheduler.shutdown(wait=True)
+            except Exception as exc:
+                LOGGER.warning("Exception during scheduler teardown: %s", exc)
 
-        try:
-            self.cache.destroy()
-        except Exception as exc:
-            LOGGER.warning("Exception during cache teardown: %s", exc)
+            try:
+                self.cache.destroy()
+            except Exception as exc:
+                LOGGER.warning("Exception during cache teardown: %s", exc)
 
     @staticmethod
     def _get_fallback_value(
