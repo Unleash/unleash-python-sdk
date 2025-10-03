@@ -11,6 +11,7 @@ from typing import Any, Callable, Dict, Optional
 
 from apscheduler.executors.pool import ThreadPoolExecutor
 from apscheduler.job import Job
+from apscheduler.jobstores.base import JobLookupError
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.schedulers.base import STATE_RUNNING, BaseScheduler
 from apscheduler.triggers.interval import IntervalTrigger
@@ -450,9 +451,8 @@ class UnleashClient:
             self._run_state = _RunState.SHUTDOWN
             if self.connector:
                 self.connector.stop()
-            if self.metric_job:
-                self.metric_job.remove()
 
+            if self.metric_job:
                 # Flush metrics before shutting down.
                 aggregate_and_send_metrics(
                     url=self.unleash_url,
@@ -464,6 +464,10 @@ class UnleashClient:
                     request_timeout=self.unleash_request_timeout,
                     engine=self.engine,
                 )
+                try:
+                    self.metric_job.remove()
+                except JobLookupError as exc:
+                    LOGGER.info("Exception during connector teardown: %s", exc)
 
             try:
                 if hasattr(self, "unleash_scheduler") and self.unleash_scheduler:
