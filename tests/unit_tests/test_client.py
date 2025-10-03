@@ -1506,6 +1506,7 @@ def test_spec_header_is_sent_when_fetching_features():
     semver_regex = r"^\d+\.\d+\.\d+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$"
     assert re.match(semver_regex, client_spec)
 
+
 def test_shutdown_calls_scheduler_at_most_once():
     class MockScheduler:
         def __init__(self):
