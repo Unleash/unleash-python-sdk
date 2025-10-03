@@ -3,7 +3,6 @@ Unit tests for streaming connector using urllib3 mocking for low-level HTTP inte
 """
 
 import json
-import threading
 import time
 from io import BytesIO
 
@@ -14,27 +13,11 @@ from UnleashClient import INSTANCES, UnleashClient
 from UnleashClient.cache import FileCache
 
 
-def cleanup_threads():
-    """Wait for all background threads to finish."""
-    for thread in threading.enumerate():
-        if thread != threading.current_thread() and thread.is_alive():
-            if (
-                hasattr(thread, "_stop")
-                or "unleash" in thread.name.lower()
-                or "scheduler" in thread.name.lower()
-            ):
-                try:
-                    thread.join(timeout=2.0)
-                except Exception:
-                    pass
-
-
 @pytest.fixture(autouse=True)
 def reset_instances(tmp_path):
     """Reset instances before each test and ensure clean cache."""
     INSTANCES._reset()
     yield
-    cleanup_threads()
 
 
 @pytest.fixture
