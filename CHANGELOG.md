@@ -1,3 +1,7 @@
+## v6.4.0
+* (Minor) Added experimental streaming support.
+* (Bugfix) The SDK should shutdown gracefully in a threaded environment, rather than raising an error.
+
 ## v6.3.0
 * (Minor) Added 'fetch' and 'ready' lifecycle events.
 
