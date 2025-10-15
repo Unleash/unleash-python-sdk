@@ -24,6 +24,8 @@ pip install UnleashClient
 You must initialize the SDK before you use it. Note that until the SDK has synchronized with the API, all features will evaluate to `false` unless
 you have a [bootstrapped configuration](#bootstrap) or you use [fallbacks](#fallback-function).
 
+#### Synchronous Client
+
 ```python
 from UnleashClient import UnleashClient
 
@@ -33,6 +35,27 @@ client = UnleashClient(
     custom_headers={'Authorization': '<API token>'})
 
 client.initialize_client()
+```
+
+#### Asynchronous Client
+
+The SDK also supports asynchronous operations using `asyncio`:
+
+```python
+import asyncio
+from UnleashClient.asynchronous import AsyncUnleashClient
+
+async def main():
+    async with AsyncUnleashClient(
+        url="https:<YOUR-API-URL>",
+        app_name="my-python-app",
+        custom_headers={'Authorization': '<API token>'}
+    ) as client:
+        # Client is automatically initialized
+        enabled = client.is_enabled("my_toggle")
+        print(enabled)
+
+asyncio.run(main())
 ```
 
 ### Check features
@@ -61,9 +84,19 @@ print(variant)
 
 If your program no longer needs the SDK, you can call `destroy()`, which shuts down the SDK and flushes any pending metrics to Unleash.
 
+#### Synchronous Client
+
 ```python
 client.destroy()
 ```
+
+#### Asynchronous Client
+
+```python
+await client.destroy()
+```
+
+When using the async client as a context manager (recommended), cleanup is handled automatically.
 
 ## Usage
 

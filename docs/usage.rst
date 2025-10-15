@@ -2,8 +2,11 @@
 Usage
 ****************************************
 
-Initialization
+Synchronous Client
 #######################################
+
+Initialization
+=======================================
 
 .. code-block:: python
 
@@ -18,6 +21,43 @@ To clean up gracefully:
     client.destroy()
 
 If the client is already initialized, calling ``initialize_client()`` again will raise a warning.  This is not recommended client usage as it results in unnecessary calls to the Unleash server.
+
+Asynchronous Client
+#######################################
+
+The Unleash Python SDK also supports asynchronous operations using asyncio.
+
+Initialization
+=======================================
+
+.. code-block:: python
+
+    import asyncio
+    from UnleashClient.asynchronous import AsyncUnleashClient
+    
+    async def main():
+        client = AsyncUnleashClient("https://unleash.herokuapp.com/api", "My Program")
+        await client.initialize_client()
+        
+        # Your code here
+        
+        await client.destroy()
+    
+    asyncio.run(main())
+
+You can also use the async client as a context manager:
+
+.. code-block:: python
+
+    import asyncio
+    from UnleashClient.asynchronous import AsyncUnleashClient
+    
+    async def main():
+        async with AsyncUnleashClient("https://unleash.herokuapp.com/api", "My Program") as client:
+            # Client is automatically initialized and cleaned up
+            is_enabled = client.is_enabled("my_toggle")
+    
+    asyncio.run(main())
 
 Checking if a feature is enabled
 #######################################
@@ -110,6 +150,25 @@ To see what's going on when PoCing code, you can use the following:
     handler.setFormatter(formatter)
     root.addHandler(handler)
 
+Async Client Feature Checks
+#######################################
+
+The async client provides the same ``is_enabled()`` and ``get_variant()`` methods as the synchronous client.
+Note that these methods are **not** async - only the initialization and cleanup are async.
+
+.. code-block:: python
+
+    import asyncio
+    from UnleashClient.asynchronous import AsyncUnleashClient
+    
+    async def main():
+        async with AsyncUnleashClient("https://unleash.herokuapp.com/api", "My Program") as client:
+            # These are synchronous calls
+            is_enabled = client.is_enabled("my_toggle")
+            variant = client.get_variant("variant_toggle", {"userId": "123"})
+    
+    asyncio.run(main())
+
 Using ``UnleashClient`` with Gitlab
 #######################################
 
@@ -126,3 +185,21 @@ If using `unleash-python-sdk` with Gitlab's feature flags, we recommend initiali
         disable_metrics=True,
         disable_registration=True
     )
+
+For async:
+
+.. code-block:: python
+
+    from UnleashClient.asynchronous import AsyncUnleashClient
+    
+    async def main():
+        async with AsyncUnleashClient(
+            url="https://gitlab.com/api/v4/feature_flags/someproject/someid",
+            app_name="myClient1",
+            instance_id="myinstanceid",
+            disable_metrics=True,
+            disable_registration=True
+        ) as client:
+            is_enabled = client.is_enabled("my_toggle")
+    
+    asyncio.run(main())
