@@ -7,7 +7,7 @@ from contextlib import suppress
 from dataclasses import asdict
 from datetime import datetime, timezone
 from enum import IntEnum
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Dict, Optional
 
 from yggdrasil_engine.engine import UnleashEngine
 
@@ -533,7 +533,7 @@ class AsyncUnleashClient:
         return variant
 
     def _safe_context(self, context: Optional[dict]) -> dict:
-        new_context: dict[str, Any] = self.unleash_static_context.copy()
+        new_context: Dict[str, Any] = self.unleash_static_context.copy()
         new_context.update(context or {})
 
         if "currentTime" not in new_context:
@@ -543,7 +543,7 @@ class AsyncUnleashClient:
         safe_properties = {
             k: self._safe_context_value(v) for k, v in safe_properties.items()
         }
-        safe_context: dict[str, Any] = {
+        safe_context: Dict[str, Any] = {
             k: self._safe_context_value(v)
             for k, v in new_context.items()
             if k != "properties"
