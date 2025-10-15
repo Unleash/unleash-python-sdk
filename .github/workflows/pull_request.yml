@@ -4,6 +4,9 @@ on:
   push:
   pull_request:
 
+concurrency:
+  cancel-in-progress: true
+  group: CI-${{ github.ref }}
 
 jobs:
   main:
@@ -30,6 +33,7 @@ jobs:
           coveralls --service=github
 
   tox:
+    timeout-minutes: 10
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:

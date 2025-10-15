@@ -25,6 +25,7 @@ classifiers=[
 
 dependencies=[
     "requests",
+    "niquests",
     "fcache",
     "mmh3",
     "apscheduler < 4.0.0",
@@ -33,6 +34,7 @@ dependencies=[
     "semver < 4.0.0",
     "yggdrasil-engine >= 1.0.0",
     "launchdarkly-eventsource",
+    "aiofiles",
 ]
 
 [project.urls]

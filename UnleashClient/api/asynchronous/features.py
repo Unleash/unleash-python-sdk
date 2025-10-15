@@ -1,15 +1,13 @@
 from typing import Optional, Tuple
 
-import requests
-from requests.adapters import HTTPAdapter
-from urllib3 import Retry
+import niquests as requests
 
-from UnleashClient.constants import FEATURES_URL
-from UnleashClient.utils import LOGGER, log_resp_info
+from ...constants import FEATURES_URL
+from ...utils import LOGGER, log_resp_info
 
 
 # pylint: disable=broad-except
-def get_feature_toggles(
+async def get_feature_toggles(
     url: str,
     app_name: str,
     instance_id: str,
@@ -21,7 +19,7 @@ def get_feature_toggles(
     cached_etag: str = "",
 ) -> Tuple[str, str]:
     """
-    Retrieves feature flags from unleash central server.
+    Retrieves feature flags from unleash central server asynchronously.
 
     Notes:
     * If unsuccessful (i.e. not HTTP status code 200), exception will be caught and logged.
@@ -55,13 +53,8 @@ def get_feature_toggles(
         if project:
             base_params = {"project": project}
 
-        adapter = HTTPAdapter(
-            max_retries=Retry(total=request_retries, status_forcelist=[500, 502, 504])
-        )
-        with requests.Session() as session:
-            session.mount("https://", adapter)
-            session.mount("http://", adapter)
-            resp = session.get(
+        async with requests.AsyncSession() as session:
+            resp = await session.get(
                 base_url,
                 headers={**headers, **request_specific_headers},
                 params=base_params,

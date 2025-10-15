@@ -5,6 +5,7 @@ importlib_metadata
 mmhash3
 python-dateutil
 requests
+niquests
 semver
 yggdrasil-engine>=1.0.0
 launchdarkly-eventsource
@@ -18,6 +19,7 @@ mimesis==4.1.3
 mypy
 pylint
 pytest
+pytest-asyncio
 pytest-cov
 pytest-html
 pytest-mock
@@ -34,5 +36,5 @@ build
 setuptools_scm
 twine
 
-# - Typing
-types-requests
+# - Async
+aiofiles
