@@ -34,15 +34,15 @@ Initialization
 
     import asyncio
     from UnleashClient.asynchronous import AsyncUnleashClient
-    
+
     async def main():
         client = AsyncUnleashClient("https://unleash.herokuapp.com/api", "My Program")
         await client.initialize_client()
-        
+
         # Your code here
-        
+
         await client.destroy()
-    
+
     asyncio.run(main())
 
 You can also use the async client as a context manager:
@@ -51,12 +51,12 @@ You can also use the async client as a context manager:
 
     import asyncio
     from UnleashClient.asynchronous import AsyncUnleashClient
-    
+
     async def main():
         async with AsyncUnleashClient("https://unleash.herokuapp.com/api", "My Program") as client:
             # Client is automatically initialized and cleaned up
             is_enabled = client.is_enabled("my_toggle")
-    
+
     asyncio.run(main())
 
 Checking if a feature is enabled
@@ -160,13 +160,13 @@ Note that these methods are **not** async - only the initialization and cleanup 
 
     import asyncio
     from UnleashClient.asynchronous import AsyncUnleashClient
-    
+
     async def main():
         async with AsyncUnleashClient("https://unleash.herokuapp.com/api", "My Program") as client:
             # These are synchronous calls
             is_enabled = client.is_enabled("my_toggle")
             variant = client.get_variant("variant_toggle", {"userId": "123"})
-    
+
     asyncio.run(main())
 
 Using ``UnleashClient`` with Gitlab
@@ -191,7 +191,7 @@ For async:
 .. code-block:: python
 
     from UnleashClient.asynchronous import AsyncUnleashClient
-    
+
     async def main():
         async with AsyncUnleashClient(
             url="https://gitlab.com/api/v4/feature_flags/someproject/someid",
@@ -201,5 +201,5 @@ For async:
             disable_registration=True
         ) as client:
             is_enabled = client.is_enabled("my_toggle")
-    
+
     asyncio.run(main())
