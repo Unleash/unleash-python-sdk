@@ -4,10 +4,8 @@ import string
 import threading
 import uuid
 import warnings
-from dataclasses import asdict
 from datetime import datetime, timezone
-from enum import IntEnum
-from typing import Any, Callable, Dict, Optional
+from typing import Callable, Optional
 
 from apscheduler.executors.pool import ThreadPoolExecutor
 from apscheduler.job import Job
@@ -27,7 +25,6 @@ from UnleashClient.connectors import (
 )
 from UnleashClient.constants import (
     APPLICATION_HEADERS,
-    DISABLED_VARIATION,
     ETAG,
     METRIC_LAST_SENT_TIME,
     REQUEST_RETRIES,
@@ -35,12 +32,14 @@ from UnleashClient.constants import (
     SDK_NAME,
     SDK_VERSION,
 )
-from UnleashClient.events import (
-    BaseEvent,
-    UnleashEvent,
-    UnleashEventType,
-    UnleashReadyEvent,
+from UnleashClient.core import UnleashClientContract
+from UnleashClient.core.client import (
+    Evaluator,
+    RunState,
+    ExperimentalMode,
+    build_ready_callback,
 )
+from UnleashClient.events import BaseEvent
 from UnleashClient.periodic_tasks import (
     aggregate_and_send_metrics,
 )
@@ -48,66 +47,11 @@ from UnleashClient.periodic_tasks import (
 from .cache import BaseCache, FileCache
 from .utils import LOGGER, InstanceAllowType, InstanceCounter
 
-try:
-    from typing import Literal, TypedDict
-except ImportError:
-    from typing_extensions import Literal, TypedDict  # type: ignore
-
 INSTANCES = InstanceCounter()
-_BASE_CONTEXT_FIELDS = [
-    "userId",
-    "sessionId",
-    "environment",
-    "appName",
-    "currentTime",
-    "remoteAddress",
-    "properties",
-]
-
-
-class _RunState(IntEnum):
-    UNINITIALIZED = 0
-    INITIALIZED = 1
-    SHUTDOWN = 2
-
-
-class ExperimentalMode(TypedDict, total=False):
-    type: Literal["streaming", "polling"]
-
-
-def build_ready_callback(
-    event_callback: Optional[Callable[[BaseEvent], None]] = None,
-) -> Optional[Callable]:
-    """
-    Builds a callback function that can be used to notify when the Unleash client is ready.
-    """
-
-    if not event_callback:
-        return None
-
-    already_fired = False
-
-    def ready_callback() -> None:
-        """
-        Callback function to notify that the Unleash client is ready.
-        This will only call the event_callback once.
-        """
-        nonlocal already_fired
-        if already_fired:
-            return
-        if event_callback:
-            event = UnleashReadyEvent(
-                event_type=UnleashEventType.READY,
-                event_id=uuid.uuid4(),
-            )
-            already_fired = True
-            event_callback(event)
-
-    return ready_callback
 
 
 # pylint: disable=dangerous-default-value
-class UnleashClient:
+class UnleashClient(UnleashClientContract):
     """
     A client for the Unleash feature toggle system.
 
@@ -222,7 +166,7 @@ class UnleashClient:
         self.strategy_mapping = {**custom_strategies}
 
         # Client status
-        self._run_state = _RunState.UNINITIALIZED
+        self._run_state = RunState.UNINITIALIZED
 
         # Bootstrapping
         if self.unleash_bootstrapped:
@@ -232,6 +176,14 @@ class UnleashClient:
             ).start()
 
         self.connector: BaseConnector = None
+
+        self._evaluator = Evaluator(
+            engine=self.engine,
+            cache=self.cache,
+            static_context=self.unleash_static_context,
+            verbose_log_level=self.unleash_verbose_log_level,
+            event_callback=self.unleash_event_callback,
+        )
 
     def _init_scheduler(
         self, scheduler: Optional[BaseScheduler], scheduler_executor: Optional[str]
@@ -271,7 +223,7 @@ class UnleashClient:
 
     @property
     def is_initialized(self):
-        return self._run_state == _RunState.INITIALIZED
+        return self._run_state == RunState.INITIALIZED
 
     def initialize_client(self, fetch_toggles: bool = True) -> None:
         """
@@ -301,7 +253,7 @@ class UnleashClient:
         """
         # Only perform initialization steps if client is not initialized.
         with self._lifecycle_lock:
-            if self._closed.is_set() or self._run_state > _RunState.UNINITIALIZED:
+            if self._closed.is_set() or self._run_state > RunState.UNINITIALIZED:
                 warnings.warn(
                     "Attempted to initialize an Unleash Client instance that has already been initialized."
                 )
@@ -407,7 +359,8 @@ class UnleashClient:
 
                 if start_scheduler:
                     self.unleash_scheduler.start()
-                self._run_state = _RunState.INITIALIZED
+                self._evaluator.mark_hydrated()
+                self._run_state = RunState.INITIALIZED
 
             except Exception as excep:
                 # Log exceptions during initialization.  is_initialized will remain false.
@@ -431,12 +384,7 @@ class UnleashClient:
             }
         }
         """
-
-        toggles = self.engine.list_known_toggles()
-        return {
-            toggle.name: {"type": toggle.type, "project": toggle.project}
-            for toggle in toggles
-        }
+        return self._evaluator.feature_definitions()
 
     def destroy(self) -> None:
         """
@@ -448,7 +396,7 @@ class UnleashClient:
             if self._closed.is_set():
                 return
             self._closed.set()
-            self._run_state = _RunState.SHUTDOWN
+            self._run_state = RunState.SHUTDOWN
             if self.connector:
                 self.connector.stop()
 
@@ -481,17 +429,6 @@ class UnleashClient:
             except Exception as exc:
                 LOGGER.warning("Exception during cache teardown: %s", exc)
 
-    @staticmethod
-    def _get_fallback_value(
-        fallback_function: Callable, feature_name: str, context: dict
-    ) -> bool:
-        if fallback_function:
-            fallback_value = fallback_function(feature_name, context)
-        else:
-            fallback_value = False
-
-        return fallback_value
-
     # pylint: disable=broad-except
     def is_enabled(
         self,
@@ -511,39 +448,10 @@ class UnleashClient:
         :param fallback_function: Allows users to provide a custom function to set default value.
         :return: Feature flag result
         """
-        context = self._safe_context(context)
-        feature_enabled = self.engine.is_enabled(feature_name, context)
+        return self._evaluator.is_enabled(feature_name, context, fallback_function)
 
-        if feature_enabled is None:
-            feature_enabled = self._get_fallback_value(
-                fallback_function, feature_name, context
-            )
+        # pylint: disable=broad-except
 
-        self.engine.count_toggle(feature_name, feature_enabled)
-        try:
-            if (
-                self.unleash_event_callback
-                and self.engine.should_emit_impression_event(feature_name)
-            ):
-                event = UnleashEvent(
-                    event_type=UnleashEventType.FEATURE_FLAG,
-                    event_id=uuid.uuid4(),
-                    context=context,
-                    enabled=feature_enabled,
-                    feature_name=feature_name,
-                )
-
-                self.unleash_event_callback(event)
-        except Exception as excep:
-            LOGGER.log(
-                self.unleash_verbose_log_level,
-                "Error in event callback: %s",
-                excep,
-            )
-
-        return feature_enabled
-
-    # pylint: disable=broad-except
     def get_variant(self, feature_name: str, context: Optional[dict] = None) -> dict:
         """
         Checks if a feature toggle is enabled.  If so, return variant.
@@ -556,88 +464,7 @@ class UnleashClient:
         :param context: Dictionary with context (e.g. IPs, email) for feature toggle.
         :return: Variant and feature flag status.
         """
-        context = self._safe_context(context)
-        variant = self._resolve_variant(feature_name, context)
-
-        if not variant:
-            if self.unleash_bootstrapped or self.is_initialized:
-                LOGGER.log(
-                    self.unleash_verbose_log_level,
-                    "Attempted to get feature flag/variation %s, but client wasn't initialized!",
-                    feature_name,
-                )
-            variant = DISABLED_VARIATION
-
-        self.engine.count_variant(feature_name, variant["name"])
-        self.engine.count_toggle(feature_name, variant["feature_enabled"])
-
-        if self.unleash_event_callback and self.engine.should_emit_impression_event(
-            feature_name
-        ):
-            try:
-                event = UnleashEvent(
-                    event_type=UnleashEventType.VARIANT,
-                    event_id=uuid.uuid4(),
-                    context=context,
-                    enabled=bool(variant["enabled"]),
-                    feature_name=feature_name,
-                    variant=str(variant["name"]),
-                )
-
-                self.unleash_event_callback(event)
-            except Exception as excep:
-                LOGGER.log(
-                    self.unleash_verbose_log_level,
-                    "Error in event callback: %s",
-                    excep,
-                )
-
-        return variant
-
-    def _safe_context(self, context) -> dict:
-        new_context: Dict[str, Any] = self.unleash_static_context.copy()
-        new_context.update(context or {})
-
-        if "currentTime" not in new_context:
-            new_context["currentTime"] = datetime.now(timezone.utc).isoformat()
-
-        safe_properties = self._extract_properties(new_context)
-        safe_properties = {
-            k: self._safe_context_value(v) for k, v in safe_properties.items()
-        }
-        safe_context = {
-            k: self._safe_context_value(v)
-            for k, v in new_context.items()
-            if k != "properties"
-        }
-
-        safe_context["properties"] = safe_properties
-
-        return safe_context
-
-    def _extract_properties(self, context: dict) -> dict:
-        properties = context.get("properties", {})
-        extracted_fields = {
-            k: v for k, v in context.items() if k not in _BASE_CONTEXT_FIELDS
-        }
-        extracted_fields.update(properties)
-        return extracted_fields
-
-    def _safe_context_value(self, value):
-        if isinstance(value, datetime):
-            return value.isoformat()
-        if isinstance(value, (int, float)):
-            return str(value)
-        return str(value)
-
-    def _resolve_variant(self, feature_name: str, context: dict) -> dict:
-        """
-        Resolves a feature variant.
-        """
-        variant = self.engine.get_variant(feature_name, context)
-        if variant:
-            return {k: v for k, v in asdict(variant).items() if v is not None}
-        return None
+        return self._evaluator.get_variant(feature_name, context)
 
     def _do_instance_check(self, multiple_instance_mode):
         identifier = self.__get_identifier()
