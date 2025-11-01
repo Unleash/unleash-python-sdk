@@ -1,9 +1,8 @@
-from typing import Callable
-from dataclasses import asdict
-from enum import IntEnum
-from typing import Any, Dict, Optional
 import uuid
+from dataclasses import asdict
 from datetime import datetime, timezone
+from enum import IntEnum
+from typing import Any, Dict, Optional, Callable
 
 from UnleashClient.events import (
     BaseEvent,

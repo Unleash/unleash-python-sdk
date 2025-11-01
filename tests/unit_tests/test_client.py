@@ -1293,7 +1293,9 @@ def test_existing_properties_are_retained_when_custom_context_properties_are_in_
     context = {"myContext": "1234", "properties": {"yourContext": "1234"}}
 
     assert "myContext" in unleash_client._evaluator._safe_context(context)["properties"]
-    assert "yourContext" in unleash_client._evaluator._safe_context(context)["properties"]
+    assert (
+        "yourContext" in unleash_client._evaluator._safe_context(context)["properties"]
+    )
     unleash_client.destroy()
 
 
