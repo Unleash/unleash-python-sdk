@@ -1,9 +1,8 @@
-from collections.abc import Callable
+from typing import Callable
 from dataclasses import asdict
 from enum import IntEnum
 from typing import Any, Dict, Optional
 import uuid
-from typing_extensions import Literal
 from datetime import datetime, timezone
 
 from UnleashClient.events import (
