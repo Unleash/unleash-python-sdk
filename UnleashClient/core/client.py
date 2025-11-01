@@ -80,7 +80,7 @@ class Evaluator:
         cache,
         static_context: Dict[str, Any],
         verbose_log_level: int,
-        event_callback=Optional[Callable[[BaseEvent], None]],
+        event_callback: Optional[Callable[[BaseEvent], None]],
     ) -> None:
         self.engine = engine
         self.cache = cache
