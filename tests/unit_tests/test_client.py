@@ -1278,7 +1278,7 @@ def test_context_moves_properties_fields_to_properties():
 
     context = {"myContext": "1234"}
 
-    assert "myContext" in unleash_client._safe_context(context)["properties"]
+    assert "myContext" in unleash_client._evaluator._safe_context(context)["properties"]
     unleash_client.destroy()
 
 
@@ -1292,8 +1292,10 @@ def test_existing_properties_are_retained_when_custom_context_properties_are_in_
 
     context = {"myContext": "1234", "properties": {"yourContext": "1234"}}
 
-    assert "myContext" in unleash_client._safe_context(context)["properties"]
-    assert "yourContext" in unleash_client._safe_context(context)["properties"]
+    assert "myContext" in unleash_client._evaluator._safe_context(context)["properties"]
+    assert (
+        "yourContext" in unleash_client._evaluator._safe_context(context)["properties"]
+    )
     unleash_client.destroy()
 
 
@@ -1307,7 +1309,7 @@ def test_base_context_properties_are_retained_in_root():
 
     context = {"userId": "1234"}
 
-    assert "userId" in unleash_client._safe_context(context)
+    assert "userId" in unleash_client._evaluator._safe_context(context)
     unleash_client.destroy()
 
 
