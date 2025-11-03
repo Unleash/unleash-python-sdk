@@ -15,7 +15,7 @@ from apscheduler.schedulers.base import STATE_RUNNING, BaseScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from yggdrasil_engine.engine import UnleashEngine
 
-from UnleashClient.api import register_client
+from UnleashClient.api.sync_api import register_client
 from UnleashClient.connectors import (
     BaseConnector,
     BootstrapConnector,

@@ -5,7 +5,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from yggdrasil_engine.engine import UnleashEngine
 
-from UnleashClient.api import get_feature_toggles
+from UnleashClient.api.sync_api import get_feature_toggles
 from UnleashClient.cache import BaseCache
 from UnleashClient.constants import ETAG, FEATURES_URL
 from UnleashClient.events import UnleashEventType, UnleashFetchedEvent

@@ -3,7 +3,7 @@ from platform import python_implementation, python_version
 import yggdrasil_engine
 from yggdrasil_engine.engine import UnleashEngine
 
-from UnleashClient.api import send_metrics
+from UnleashClient.api.sync_api import send_metrics
 from UnleashClient.constants import CLIENT_SPEC_VERSION
 from UnleashClient.utils import LOGGER
 

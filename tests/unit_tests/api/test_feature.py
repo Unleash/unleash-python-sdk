@@ -19,7 +19,7 @@ from tests.utilities.testing_constants import (
     REQUEST_TIMEOUT,
     URL,
 )
-from UnleashClient.api import get_feature_toggles
+from UnleashClient.api.sync_api import get_feature_toggles
 from UnleashClient.constants import FEATURES_URL
 
 FULL_FEATURE_URL = URL + FEATURES_URL
