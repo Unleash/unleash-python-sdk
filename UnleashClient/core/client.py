@@ -2,7 +2,7 @@ import uuid
 from dataclasses import asdict
 from datetime import datetime, timezone
 from enum import IntEnum
-from typing import Any, Dict, Optional, Callable
+from typing import Any, Callable, Dict, Optional
 
 from UnleashClient.events import (
     BaseEvent,

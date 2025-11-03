@@ -1,21 +1,19 @@
 import json
 from datetime import datetime, timezone
 from platform import python_implementation, python_version
-import requests
-import yggdrasil_engine
 from typing import Optional, Tuple
 
-from urllib3 import Retry
+import requests
+import yggdrasil_engine
 from requests.adapters import HTTPAdapter
-from UnleashClient.constants import APPLICATION_HEADERS, METRICS_URL
-from UnleashClient.utils import LOGGER, log_resp_info
 from requests.exceptions import InvalidHeader, InvalidSchema, InvalidURL, MissingSchema
-from UnleashClient.constants import FEATURES_URL
-
+from urllib3 import Retry
 
 from UnleashClient.constants import (
     APPLICATION_HEADERS,
     CLIENT_SPEC_VERSION,
+    FEATURES_URL,
+    METRICS_URL,
     REGISTER_URL,
     SDK_NAME,
     SDK_VERSION,
