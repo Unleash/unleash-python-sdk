@@ -11,7 +11,7 @@ from tests.utilities.testing_constants import (
     REQUEST_TIMEOUT,
     URL,
 )
-from UnleashClient.api import send_metrics
+from UnleashClient.api.sync_api import send_metrics
 from UnleashClient.constants import METRICS_URL
 
 FULL_METRICS_URL = URL + METRICS_URL

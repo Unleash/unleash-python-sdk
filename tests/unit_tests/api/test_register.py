@@ -14,7 +14,7 @@ from tests.utilities.testing_constants import (
     REQUEST_TIMEOUT,
     URL,
 )
-from UnleashClient.api import register_client
+from UnleashClient.api.sync_api import register_client
 from UnleashClient.constants import CLIENT_SPEC_VERSION, REGISTER_URL
 
 FULL_REGISTER_URL = URL + REGISTER_URL
