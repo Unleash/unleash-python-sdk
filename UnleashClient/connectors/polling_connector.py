@@ -7,14 +7,15 @@ from yggdrasil_engine.engine import UnleashEngine
 
 from UnleashClient.api.sync_api import get_feature_toggles
 from UnleashClient.cache import BaseCache
+from UnleashClient.connectors.hydration import hydrate_engine
 from UnleashClient.constants import ETAG, FEATURES_URL
 from UnleashClient.events import UnleashEventType, UnleashFetchedEvent
 from UnleashClient.utils import LOGGER
 
-from .base_connector import BaseConnector
+from .base_sync_connector import BaseSyncConnector
 
 
-class PollingConnector(BaseConnector):
+class PollingConnector(BaseSyncConnector):
     def __init__(
         self,
         engine: UnleashEngine,
@@ -78,7 +79,7 @@ class PollingConnector(BaseConnector):
         if etag:
             self.cache.set(ETAG, etag)
 
-        self.load_features()
+        hydrate_engine(self.cache, self.engine, self.ready_callback)
 
         if state:
             if self.event_callback:

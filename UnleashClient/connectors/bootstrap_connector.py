@@ -1,11 +1,12 @@
 from yggdrasil_engine.engine import UnleashEngine
 
 from UnleashClient.cache import BaseCache
+from UnleashClient.connectors.hydration import hydrate_engine
 
-from .base_connector import BaseConnector
+from .base_sync_connector import BaseSyncConnector
 
 
-class BootstrapConnector(BaseConnector):
+class BootstrapConnector(BaseSyncConnector):
     def __init__(
         self,
         engine: UnleashEngine,
@@ -16,7 +17,7 @@ class BootstrapConnector(BaseConnector):
         self.job = None
 
     def start(self):
-        self.load_features()
+        hydrate_engine(self.cache, self.engine, None)
 
     def stop(self):
         pass

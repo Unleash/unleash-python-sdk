@@ -5,6 +5,7 @@ from yggdrasil_engine.engine import UnleashEngine
 
 from tests.utilities.mocks.mock_features import MOCK_FEATURE_RESPONSE
 from UnleashClient.connectors import OfflineConnector
+from UnleashClient.connectors.hydration import hydrate_engine
 from UnleashClient.constants import FEATURES_URL
 
 
@@ -21,7 +22,7 @@ def test_offline_connector_load_features(cache_empty):
         scheduler=scheduler,
     )
 
-    connector.load_features()
+    hydrate_engine(connector.cache, connector.engine, None)
     assert engine.is_enabled("testFlag", {})
 
 
