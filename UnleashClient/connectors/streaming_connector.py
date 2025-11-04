@@ -6,12 +6,13 @@ from ld_eventsource.config import ConnectStrategy, ErrorStrategy, RetryDelayStra
 from yggdrasil_engine.engine import UnleashEngine
 
 from UnleashClient.cache import BaseCache
-from UnleashClient.connectors.base_connector import BaseConnector
+from UnleashClient.connectors.base_sync_connector import BaseSyncConnector
+from UnleashClient.connectors.hydration import hydrate_engine
 from UnleashClient.constants import APPLICATION_HEADERS, FEATURES_URL, STREAMING_URL
 from UnleashClient.utils import LOGGER
 
 
-class StreamingConnector(BaseConnector):
+class StreamingConnector(BaseSyncConnector):
     def __init__(
         self,
         engine: UnleashEngine,
@@ -109,14 +110,14 @@ class StreamingConnector(BaseConnector):
                                 LOGGER.debug("Ready callback failed", exc_info=True)
                     except Exception:
                         LOGGER.error("Error applying streaming state", exc_info=True)
-                        self.load_features()
+                        hydrate_engine(self.cache, self.engine, self.ready_callback)
                 else:
                     LOGGER.debug("Ignoring SSE event type: %s", event.event)
 
             LOGGER.debug("SSE stream ended")
         except Exception as exc:
             LOGGER.warning("Streaming connection failed: %s", exc)
-            self.load_features()
+            hydrate_engine(self.cache, self.engine, self.ready_callback)
         finally:
             try:
                 if self._client is not None:

@@ -17,7 +17,7 @@ from yggdrasil_engine.engine import UnleashEngine
 
 from UnleashClient.api.sync_api import register_client
 from UnleashClient.connectors import (
-    BaseConnector,
+    BaseSyncConnector,
     BootstrapConnector,
     OfflineConnector,
     PollingConnector,
@@ -175,7 +175,7 @@ class UnleashClient(UnleashClientContract):
                 cache=self.cache,
             ).start()
 
-        self.connector: BaseConnector = None
+        self.connector: BaseSyncConnector = None
 
         self._evaluator = Evaluator(
             engine=self.engine,
