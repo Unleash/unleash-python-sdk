@@ -1,11 +1,12 @@
 import json
+
 import pytest
-from aioresponses import aioresponses
 from aiohttp import ClientConnectionError
+from aioresponses import aioresponses
 from yarl import URL as YURL
 
 from UnleashClient.api.async_api import register_client_async
-from UnleashClient.constants import REGISTER_URL, CLIENT_SPEC_VERSION
+from UnleashClient.constants import CLIENT_SPEC_VERSION, REGISTER_URL
 
 BASE_URL = "https://example.com"
 FULL_REGISTER_URL = BASE_URL + REGISTER_URL

@@ -1,4 +1,5 @@
 import json
+
 import pytest
 from aioresponses import aioresponses
 
