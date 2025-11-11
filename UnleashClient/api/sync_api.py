@@ -17,7 +17,7 @@ from UnleashClient.utils import LOGGER, log_resp_info
 
 
 # pylint: disable=broad-except
-def register_client_async(
+def register_client(
     url: str,
     app_name: str,
     instance_id: str,
