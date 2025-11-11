@@ -1,28 +1,23 @@
 import json
-from datetime import datetime, timezone
-from platform import python_implementation, python_version
 from typing import Optional, Tuple
 
 import requests
-import yggdrasil_engine
 from requests.adapters import HTTPAdapter
 from requests.exceptions import InvalidHeader, InvalidSchema, InvalidURL, MissingSchema
 from urllib3 import Retry
 
+from UnleashClient.api.packet_building import build_registration_packet
 from UnleashClient.constants import (
     APPLICATION_HEADERS,
-    CLIENT_SPEC_VERSION,
     FEATURES_URL,
     METRICS_URL,
     REGISTER_URL,
-    SDK_NAME,
-    SDK_VERSION,
 )
 from UnleashClient.utils import LOGGER, log_resp_info
 
 
 # pylint: disable=broad-except
-def register_client(
+def register_client_async(
     url: str,
     app_name: str,
     instance_id: str,
@@ -50,19 +45,10 @@ def register_client(
     :param request_timeout:
     :return: true if registration successful, false if registration unsuccessful or exception.
     """
-    registration_request = {
-        "appName": app_name,
-        "instanceId": instance_id,
-        "connectionId": connection_id,
-        "sdkVersion": f"{SDK_NAME}:{SDK_VERSION}",
-        "strategies": [*supported_strategies],
-        "started": datetime.now(timezone.utc).isoformat(),
-        "interval": metrics_interval,
-        "platformName": python_implementation(),
-        "platformVersion": python_version(),
-        "yggdrasilVersion": yggdrasil_engine.__yggdrasil_core_version__,
-        "specVersion": CLIENT_SPEC_VERSION,
-    }
+
+    registration_request = build_registration_packet(
+        app_name, instance_id, connection_id, metrics_interval, supported_strategies
+    )
 
     try:
         LOGGER.info("Registering unleash client with unleash @ %s", url)
