@@ -11,6 +11,7 @@ launchdarkly-eventsource
 
 # Development packages
 # - Testing
+aioresponses
 black
 coveralls
 isort
@@ -18,6 +19,7 @@ mimesis==4.1.3
 mypy
 pylint
 pytest
+pytest-asyncio
 pytest-cov
 pytest-html
 pytest-mock
