@@ -1,7 +1,8 @@
 import json
+
 import pytest
-from aioresponses import aioresponses
 from aiohttp import ClientConnectionError
+from aioresponses import aioresponses
 from yarl import URL as YURL
 
 from UnleashClient.api.async_api import send_metrics_async

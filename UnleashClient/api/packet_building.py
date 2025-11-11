@@ -1,6 +1,8 @@
 from datetime import datetime, timezone
 from platform import python_implementation, python_version
+
 import yggdrasil_engine
+
 from UnleashClient.constants import (
     CLIENT_SPEC_VERSION,
     SDK_NAME,

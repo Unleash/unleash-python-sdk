@@ -1,17 +1,17 @@
 import asyncio
+import json
 from typing import Any, Mapping, Optional, Tuple
+
 import aiohttp
 
-import json
 from UnleashClient.api.packet_building import build_registration_packet
 from UnleashClient.constants import (
     APPLICATION_HEADERS,
     FEATURES_URL,
-    REGISTER_URL,
     METRICS_URL,
+    REGISTER_URL,
 )
 from UnleashClient.utils import LOGGER
-
 
 _TRANSIENT_ERROR_CODES = {500, 502, 504}
 
