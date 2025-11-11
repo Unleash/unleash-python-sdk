@@ -4,7 +4,12 @@ import aiohttp
 
 import json
 from UnleashClient.api.packet_building import build_registration_packet
-from UnleashClient.constants import APPLICATION_HEADERS, FEATURES_URL, REGISTER_URL
+from UnleashClient.constants import (
+    APPLICATION_HEADERS,
+    FEATURES_URL,
+    REGISTER_URL,
+    METRICS_URL,
+)
 from UnleashClient.utils import LOGGER
 
 
@@ -94,11 +99,11 @@ async def send_metrics_async(
 
         async with aiohttp.ClientSession(timeout=timeout, **session_kwargs) as session:
             async with session.post(
-                url,
+                url + METRICS_URL,
                 data=json.dumps(request_body),
                 headers={**headers, **APPLICATION_HEADERS},
             ) as resp:
-                if resp.status == 200:
+                if resp.status == 202:
                     LOGGER.info("Unleash Client metrics successfully sent!")
                     return True
 
