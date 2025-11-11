@@ -193,6 +193,7 @@ async def get_feature_toggles_async(
                         "Unleash Client feature fetch failed due to exception: %s", exc
                     )
                     return None, ""
+            return None, ""
     except Exception as exc:
         LOGGER.exception(
             "Unleash Client feature fetch failed due to exception: %s", exc
