@@ -11,6 +11,7 @@ class BootstrapConnector(BaseConnector):
         engine: UnleashEngine,
         cache: BaseCache,
     ):
+        super().__init__(engine, cache)
         self.engine = engine
         self.cache = cache
         self.job = None
