@@ -20,8 +20,10 @@ class ImpactMetrics:
 
     def __init__(self, engine: UnleashEngine, app_name: str, environment: str):
         self._engine = engine
-        self._app_name = app_name
-        self._environment = environment
+        self._base_labels = {
+            "appName": app_name,
+            "environment": environment,
+        }
 
     def define_counter(self, name: str, help_text: str) -> None:
         self._engine.define_counter(name, help_text)
@@ -61,24 +63,24 @@ class ImpactMetrics:
         labels = self._resolve_labels(flag_context)
         self._engine.observe_histogram(name, value, labels)
 
+    def _variant_label(self, flag_name: str, context: Dict[str, Any]) -> str:
+        variant = self._engine.get_variant(flag_name, context)
+        if variant and variant.enabled:
+            return variant.name
+        if variant and variant.feature_enabled:
+            return "enabled"
+        return "disabled"
+
     def _resolve_labels(
         self, flag_context: Optional[MetricFlagContext]
     ) -> Dict[str, str]:
-        labels: Dict[str, str] = {
-            "appName": self._app_name,
-            "environment": self._environment,
+        if not flag_context:
+            return dict(self._base_labels)
+
+        return {
+            **self._base_labels,
+            **{
+                flag: self._variant_label(flag, flag_context.context)
+                for flag in flag_context.flag_names
+            },
         }
-
-        if flag_context is None:
-            return labels
-
-        for flag_name in flag_context.flag_names:
-            variant = self._engine.get_variant(flag_name, flag_context.context)
-            if variant and variant.enabled:
-                labels[flag_name] = variant.name
-            elif variant and variant.feature_enabled:
-                labels[flag_name] = "enabled"
-            else:
-                labels[flag_name] = "disabled"
-
-        return labels
