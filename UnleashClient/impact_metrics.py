@@ -41,7 +41,7 @@ class ImpactMetrics:
     def update_gauge(
         self,
         name: str,
-        value: int,
+        value: float,
         flag_context: Optional[MetricFlagContext] = None,
     ) -> None:
         labels = self._resolve_labels(flag_context)
@@ -63,14 +63,14 @@ class ImpactMetrics:
 
     def _resolve_labels(
         self, flag_context: Optional[MetricFlagContext]
-    ) -> Optional[Dict[str, str]]:
-        if flag_context is None:
-            return None
-
+    ) -> Dict[str, str]:
         labels: Dict[str, str] = {
             "appName": self._app_name,
             "environment": self._environment,
         }
+
+        if flag_context is None:
+            return labels
 
         for flag_name in flag_context.flag_names:
             variant = self._engine.get_variant(flag_name, flag_context.context)

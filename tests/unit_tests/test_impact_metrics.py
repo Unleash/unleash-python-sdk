@@ -63,22 +63,19 @@ def unleash_client():
 
 class TestSendMetricsViaClient:
     @responses.activate
-    def test_impact_metrics_with_labels_in_payload(self, unleash_client):
+    def test_impact_metrics_in_payload(self, unleash_client):
         responses.add(responses.POST, URL + METRICS_URL, json={}, status=202)
 
-        flag_context = MetricFlagContext(
-            flag_names=["feature-with-variant", "enabled-feature", "disabled-feature"],
-            context={"userId": "123"},
-        )
-
         unleash_client.impact_metrics.define_counter("purchases", "Number of purchases")
-        unleash_client.impact_metrics.increment_counter("purchases", 1, flag_context)
+        unleash_client.impact_metrics.increment_counter("purchases", 1)
 
         unleash_client.impact_metrics.define_gauge("active_users", "Active users")
-        unleash_client.impact_metrics.update_gauge("active_users", 42, flag_context)
+        unleash_client.impact_metrics.update_gauge("active_users", 42)
 
-        unleash_client.impact_metrics.define_histogram("latency", "Request latency", [0.1, 0.5, 1.0])
-        unleash_client.impact_metrics.observe_histogram("latency", 0.3, flag_context)
+        unleash_client.impact_metrics.define_histogram(
+            "latency", "Request latency", [0.1, 0.5, 1.0]
+        )
+        unleash_client.impact_metrics.observe_histogram("latency", 0.3)
 
         aggregate_and_send_metrics(
             url=URL,
@@ -94,13 +91,7 @@ class TestSendMetricsViaClient:
         request_body = json.loads(responses.calls[0].request.body)
         metrics = {m["name"]: m for m in request_body["impactMetrics"]}
 
-        expected_labels = {
-            "appName": APP_NAME,
-            "environment": ENVIRONMENT,
-            "feature-with-variant": "treatment",
-            "enabled-feature": "enabled",
-            "disabled-feature": "disabled",
-        }
+        expected_labels = {"appName": APP_NAME, "environment": ENVIRONMENT}
 
         assert metrics == {
             "purchases": {
@@ -133,6 +124,40 @@ class TestSendMetricsViaClient:
                     }
                 ],
             },
+        }
+
+    @responses.activate
+    def test_impact_metrics_with_flag_context(self, unleash_client):
+        responses.add(responses.POST, URL + METRICS_URL, json={}, status=202)
+
+        flag_context = MetricFlagContext(
+            flag_names=["feature-with-variant", "enabled-feature", "disabled-feature"],
+            context={"userId": "123"},
+        )
+
+        unleash_client.impact_metrics.define_counter("purchases", "Number of purchases")
+        unleash_client.impact_metrics.increment_counter("purchases", 1, flag_context)
+
+        aggregate_and_send_metrics(
+            url=URL,
+            app_name=APP_NAME,
+            instance_id=INSTANCE_ID,
+            connection_id="test-connection",
+            headers={},
+            custom_options={},
+            request_timeout=30,
+            engine=unleash_client.engine,
+        )
+
+        request_body = json.loads(responses.calls[0].request.body)
+        labels = request_body["impactMetrics"][0]["samples"][0]["labels"]
+
+        assert labels == {
+            "appName": APP_NAME,
+            "environment": ENVIRONMENT,
+            "feature-with-variant": "treatment",
+            "enabled-feature": "enabled",
+            "disabled-feature": "disabled",
         }
 
     @responses.activate
