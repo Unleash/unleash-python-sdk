@@ -19,6 +19,7 @@ def aggregate_and_send_metrics(
     engine: UnleashEngine,
 ) -> None:
     metrics_bucket = engine.get_metrics()
+    impact_metrics = engine.collect_impact_metrics()
 
     metrics_request = {
         "appName": app_name,
@@ -31,7 +32,14 @@ def aggregate_and_send_metrics(
         "specVersion": CLIENT_SPEC_VERSION,
     }
 
-    if metrics_bucket:
-        send_metrics(url, metrics_request, headers, custom_options, request_timeout)
+    if impact_metrics:
+        metrics_request["impactMetrics"] = impact_metrics
+
+    if metrics_bucket or impact_metrics:
+        success = send_metrics(
+            url, metrics_request, headers, custom_options, request_timeout
+        )
+        if not success and impact_metrics:
+            engine.restore_impact_metrics(impact_metrics)
     else:
         LOGGER.debug("No feature flags with metrics, skipping metrics submission.")

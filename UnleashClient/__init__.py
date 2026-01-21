@@ -41,6 +41,8 @@ from UnleashClient.events import (
     UnleashEventType,
     UnleashReadyEvent,
 )
+from UnleashClient.impact_metrics import ImpactMetrics
+from UnleashClient.impact_metrics import MetricFlagContext as MetricFlagContext
 from UnleashClient.periodic_tasks import (
     aggregate_and_send_metrics,
 )
@@ -205,6 +207,9 @@ class UnleashClient:
         self.fl_job: Job = None
         self.metric_job: Job = None
         self.engine = UnleashEngine()
+        self._impact_metrics = ImpactMetrics(
+            self.engine, self.unleash_app_name, self.unleash_environment
+        )
 
         self.cache = cache or FileCache(
             self.unleash_app_name, directory=cache_directory
@@ -272,6 +277,11 @@ class UnleashClient:
     @property
     def is_initialized(self):
         return self._run_state == _RunState.INITIALIZED
+
+    @property
+    def impact_metrics(self) -> ImpactMetrics:
+        """Access impact metrics functionality for recording custom metrics with flag context."""
+        return self._impact_metrics
 
     def initialize_client(self, fetch_toggles: bool = True) -> None:
         """
