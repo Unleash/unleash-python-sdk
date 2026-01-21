@@ -19,7 +19,12 @@ def aggregate_and_send_metrics(
     engine: UnleashEngine,
 ) -> None:
     metrics_bucket = engine.get_metrics()
-    impact_metrics = engine.collect_impact_metrics()
+
+    try:
+        impact_metrics = engine.collect_impact_metrics()
+    except Exception as exc:
+        LOGGER.warning("Failed to collect impact metrics: %s", exc)
+        impact_metrics = None
 
     metrics_request = {
         "appName": app_name,
