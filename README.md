@@ -363,7 +363,8 @@ Histograms measure value distribution (request duration, response size):
 ```python
 client.impact_metrics.define_histogram(
     "request_time_ms",
-    "Time taken to process a request in milliseconds"
+    "Time taken to process a request in milliseconds",
+    [50, 100, 200, 500, 1000]
 )
 
 client.impact_metrics.observe_histogram("request_time_ms", 125)
