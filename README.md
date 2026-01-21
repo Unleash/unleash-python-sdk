@@ -342,18 +342,15 @@ client.impact_metrics.increment_counter("request_count")
 
 #### Gauges
 
-Use gauges for fluctuating values like memory usage or active connections:
+Use gauges for point-in-time values that can go up or down:
 
 ```python
-import psutil
-
 client.impact_metrics.define_gauge(
-    "memory_usage",
-    "Current memory usage in bytes"
+    "total_users",
+    "Total number of registered users"
 )
 
-current_memory = psutil.Process().memory_info().rss
-client.impact_metrics.update_gauge("memory_usage", current_memory)
+client.impact_metrics.update_gauge("total_users", user_count)
 ```
 
 #### Histograms
