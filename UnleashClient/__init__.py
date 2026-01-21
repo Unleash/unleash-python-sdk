@@ -213,7 +213,7 @@ class UnleashClient:
         if extracted_env:
             impact_metrics_environment = extracted_env
 
-        self._impact_metrics = ImpactMetrics(
+        self.impact_metrics = ImpactMetrics(
             self.engine, self.unleash_app_name, impact_metrics_environment
         )
 
@@ -284,9 +284,6 @@ class UnleashClient:
     def is_initialized(self):
         return self._run_state == _RunState.INITIALIZED
 
-    @property
-    def impact_metrics(self) -> ImpactMetrics:
-        return self._impact_metrics
 
     def initialize_client(self, fetch_toggles: bool = True) -> None:
         """
