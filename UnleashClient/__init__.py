@@ -42,7 +42,6 @@ from UnleashClient.events import (
     UnleashReadyEvent,
 )
 from UnleashClient.impact_metrics import ImpactMetrics
-from UnleashClient.impact_metrics import MetricFlagContext as MetricFlagContext
 from UnleashClient.periodic_tasks import (
     aggregate_and_send_metrics,
 )
@@ -280,7 +279,6 @@ class UnleashClient:
 
     @property
     def impact_metrics(self) -> ImpactMetrics:
-        """Access impact metrics functionality for recording custom metrics with flag context."""
         return self._impact_metrics
 
     def initialize_client(self, fetch_toggles: bool = True) -> None:
