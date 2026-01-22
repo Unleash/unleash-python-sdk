@@ -284,7 +284,6 @@ class UnleashClient:
     def is_initialized(self):
         return self._run_state == _RunState.INITIALIZED
 
-
     def initialize_client(self, fetch_toggles: bool = True) -> None:
         """
         Initializes client and starts communication with central unleash server(s).
