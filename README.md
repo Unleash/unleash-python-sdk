@@ -319,6 +319,56 @@ client.is_enabled("testFlag")
 
 ```
 
+### Impact metrics
+
+Impact metrics are lightweight, application-level time-series metrics stored and visualized directly inside Unleash. They allow you to connect specific application data, such as request counts, error rates, or latency, to your feature flags and release plans.
+
+These metrics help validate feature impact and automate release processes. For instance, you can monitor usage patterns or performance to determine if a feature meets its goals.
+
+The SDK automatically attaches context labels to metrics: `appName` and `environment`.
+
+#### Counters
+
+Use counters for cumulative values that only increase (total requests, errors):
+
+```python
+client.impact_metrics.define_counter(
+    "request_count",
+    "Total number of HTTP requests processed"
+)
+
+client.impact_metrics.increment_counter("request_count")
+```
+
+#### Gauges
+
+Use gauges for point-in-time values that can go up or down:
+
+```python
+client.impact_metrics.define_gauge(
+    "total_users",
+    "Total number of registered users"
+)
+
+client.impact_metrics.update_gauge("total_users", user_count)
+```
+
+#### Histograms
+
+Histograms measure value distribution (request duration, response size):
+
+```python
+client.impact_metrics.define_histogram(
+    "request_time_ms",
+    "Time taken to process a request in milliseconds",
+    [50, 100, 200, 500, 1000]
+)
+
+client.impact_metrics.observe_histogram("request_time_ms", 125)
+```
+
+Impact metrics are batched and sent using the same interval as standard SDK metrics.
+
 ### Custom cache
 
 By default, the Python SDK stores feature flags in an on-disk cache using fcache. If you need a different storage backend, for example, Redis, memory-only, or a custom database, you can provide your own cache implementation.

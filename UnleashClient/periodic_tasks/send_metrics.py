@@ -20,6 +20,12 @@ def aggregate_and_send_metrics(
 ) -> None:
     metrics_bucket = engine.get_metrics()
 
+    try:
+        impact_metrics = engine.collect_impact_metrics()
+    except Exception as exc:
+        LOGGER.warning("Failed to collect impact metrics: %s", exc)
+        impact_metrics = None
+
     metrics_request = {
         "appName": app_name,
         "instanceId": instance_id,
@@ -31,7 +37,14 @@ def aggregate_and_send_metrics(
         "specVersion": CLIENT_SPEC_VERSION,
     }
 
-    if metrics_bucket:
-        send_metrics(url, metrics_request, headers, custom_options, request_timeout)
+    if impact_metrics:
+        metrics_request["impactMetrics"] = impact_metrics
+
+    if metrics_bucket or impact_metrics:
+        success = send_metrics(
+            url, metrics_request, headers, custom_options, request_timeout
+        )
+        if not success and impact_metrics:
+            engine.restore_impact_metrics(impact_metrics)
     else:
         LOGGER.debug("No feature flags with metrics, skipping metrics submission.")
