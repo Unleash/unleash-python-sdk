@@ -6,7 +6,7 @@ mmhash3
 python-dateutil
 requests
 semver
-yggdrasil-engine>=1.2.1
+yggdrasil-engine>=1.2.2
 launchdarkly-eventsource
 
 # Development packages
