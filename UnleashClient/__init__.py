@@ -487,6 +487,14 @@ class UnleashClient:
             except Exception as exc:
                 LOGGER.warning("Exception during scheduler teardown: %s", exc)
 
+            # Disk-backed FileCache instances can be shared across processes.
+            # Avoid deleting them during shutdown to prevent cache races.
+            if not isinstance(self.cache, FileCache):
+                try:
+                    self.cache.destroy()
+                except Exception as exc:
+                    LOGGER.warning("Exception during cache teardown: %s", exc)
+
     @staticmethod
     def _get_fallback_value(
         fallback_function: Callable, feature_name: str, context: dict
