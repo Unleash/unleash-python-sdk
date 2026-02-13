@@ -487,10 +487,14 @@ class UnleashClient:
             except Exception as exc:
                 LOGGER.warning("Exception during scheduler teardown: %s", exc)
 
-            try:
-                self.cache.destroy()
-            except Exception as exc:
-                LOGGER.warning("Exception during cache teardown: %s", exc)
+            # The default SDK FileCache is disk-backed and can be shared by
+            # multiple processes for the same app name. Avoid deleting it
+            # during shutdown to prevent cross-process cache races.
+            if not isinstance(self.cache, FileCache):
+                try:
+                    self.cache.destroy()
+                except Exception as exc:
+                    LOGGER.warning("Exception during cache teardown: %s", exc)
 
     @staticmethod
     def _get_fallback_value(
