@@ -169,7 +169,11 @@ etc.</p>
 <dl class="py method">
 <dt class="sig sig-object py" id="UnleashClient.UnleashClient.destroy">
 <span class="sig-name descname"><span class="pre">destroy</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#UnleashClient.UnleashClient.destroy" title="Link to this definition"></a></dt>
-<dd><p>Gracefully shuts down the Unleash client by stopping jobs, stopping the scheduler, and deleting the cache.</p>
+<dd><p>Gracefully shuts down the Unleash client by stopping jobs and stopping
+the scheduler.</p>
+<p>For cache teardown:
+- Default disk-backed FileCache instances are preserved on disk.
+- Custom non-FileCache implementations will have destroy() called.</p>
 <p>You shouldn’t need this too much!</p>
 </dd></dl>
 
