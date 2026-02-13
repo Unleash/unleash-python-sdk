@@ -487,7 +487,6 @@ class UnleashClient:
             except Exception as exc:
                 LOGGER.warning("Exception during scheduler teardown: %s", exc)
 
-
     @staticmethod
     def _get_fallback_value(
         fallback_function: Callable, feature_name: str, context: dict
