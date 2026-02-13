@@ -451,7 +451,12 @@ class UnleashClient:
 
     def destroy(self) -> None:
         """
-        Gracefully shuts down the Unleash client by stopping jobs, stopping the scheduler, and deleting the cache.
+        Gracefully shuts down the Unleash client by stopping jobs and stopping
+        the scheduler.
+
+        For cache teardown:
+        - Default disk-backed FileCache instances are preserved on disk.
+        - Custom non-FileCache implementations will have destroy() called.
 
         You shouldn't need this too much!
         """
