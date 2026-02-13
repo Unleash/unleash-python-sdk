@@ -43,7 +43,7 @@ from tests.utilities.testing_constants import (
     URL,
 )
 from UnleashClient import INSTANCES, UnleashClient
-from UnleashClient.cache import FileCache
+from UnleashClient.cache import BaseCache, FileCache
 from UnleashClient.constants import FEATURES_URL, METRICS_URL, REGISTER_URL
 from UnleashClient.events import BaseEvent, UnleashEvent, UnleashEventType
 from UnleashClient.utils import InstanceAllowType
@@ -93,7 +93,8 @@ def before_each():
 
 @pytest.fixture
 def cache(tmpdir):
-    return FileCache(APP_NAME, directory=tmpdir.dirname)
+    # Keep cache isolated per test; client.destroy() no longer clears FileCache.
+    return FileCache(APP_NAME, directory=tmpdir.strpath)
 
 
 @pytest.fixture()
@@ -1545,3 +1546,51 @@ def test_shutdown_calls_scheduler_at_most_once():
     unleash_client.destroy()
 
     assert scheduler.shutdown_called == 1
+
+
+def test_destroy_skips_default_file_cache_destroy(monkeypatch):
+    unleash_client = UnleashClient(
+        URL, APP_NAME, disable_metrics=True, disable_registration=True
+    )
+    destroy_calls = 0
+
+    def count_destroy():
+        nonlocal destroy_calls
+        destroy_calls += 1
+
+    monkeypatch.setattr(unleash_client.cache, "destroy", count_destroy)
+
+    unleash_client.destroy()
+
+    assert destroy_calls == 0
+
+
+def test_destroy_calls_custom_cache_destroy():
+    class CustomCache(BaseCache):
+        def __init__(self):
+            self.destroy_calls = 0
+            self.store = {}
+
+        def set(self, key: str, value):
+            self.store[key] = value
+
+        def mset(self, data: dict):
+            self.store.update(data)
+
+        def get(self, key: str, default=None):
+            return self.store.get(key, default)
+
+        def exists(self, key: str):
+            return key in self.store
+
+        def destroy(self):
+            self.destroy_calls += 1
+
+    cache = CustomCache()
+    unleash_client = UnleashClient(
+        URL, APP_NAME, cache=cache, disable_metrics=True, disable_registration=True
+    )
+
+    unleash_client.destroy()
+
+    assert cache.destroy_calls == 1

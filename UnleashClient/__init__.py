@@ -451,7 +451,12 @@ class UnleashClient:
 
     def destroy(self) -> None:
         """
-        Gracefully shuts down the Unleash client by stopping jobs, stopping the scheduler, and deleting the cache.
+        Gracefully shuts down the Unleash client by stopping jobs and stopping
+        the scheduler.
+
+        For cache teardown:
+        - Default disk-backed FileCache instances are preserved on disk.
+        - Custom non-FileCache implementations will have destroy() called.
 
         You shouldn't need this too much!
         """
@@ -487,10 +492,13 @@ class UnleashClient:
             except Exception as exc:
                 LOGGER.warning("Exception during scheduler teardown: %s", exc)
 
-            try:
-                self.cache.destroy()
-            except Exception as exc:
-                LOGGER.warning("Exception during cache teardown: %s", exc)
+            # Disk-backed FileCache instances can be shared across processes.
+            # Avoid deleting them during shutdown to prevent cache races.
+            if not isinstance(self.cache, FileCache):
+                try:
+                    self.cache.destroy()
+                except Exception as exc:
+                    LOGGER.warning("Exception during cache teardown: %s", exc)
 
     @staticmethod
     def _get_fallback_value(
