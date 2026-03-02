@@ -1,3 +1,15 @@
+## v6.6.0
+* (Minor): Support for regex constraints
+
+## v6.5.1
+* (Minor): Reject negative values in impact metrics
+
+## v6.5.0
+* (Minor): Impact metrics
+
+## v6.4.1
+* (Bugfix) Fix client initialization error with bootstrapped cache
+
 ## v6.4.0
 * (Minor) Added experimental streaming support.
 * (Bugfix) The SDK should shutdown gracefully in a threaded environment, rather than raising an error.
