@@ -1,3 +1,6 @@
+## v6.7.0
+* (Minor): Support for CIDR, Semver GTE and LTE constraints
+
 ## v6.6.0
 * (Minor): Support for regex constraints
 
