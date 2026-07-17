@@ -67,3 +67,51 @@ def test_metrics_metadata_is_sent():
     assert request["specVersion"] == CLIENT_SPEC_VERSION
     assert request["platformName"] is not None
     assert request["platformVersion"] is not None
+
+
+@responses.activate
+def test_metrics_includes_sdk_flavor_when_set():
+    responses.add(responses.POST, FULL_METRICS_URL, json={}, status=200)
+
+    engine = UnleashEngine()
+    engine.count_toggle("something-to-make-sure-metrics-get-sent", True)
+
+    aggregate_and_send_metrics(
+        URL,
+        APP_NAME,
+        INSTANCE_ID,
+        CONNECTION_ID,
+        CUSTOM_HEADERS,
+        CUSTOM_OPTIONS,
+        REQUEST_TIMEOUT,
+        engine,
+        sdk_flavor="unleash-openfeature-python-provider",
+        sdk_flavor_version="1.2.3",
+    )
+
+    request = json.loads(responses.calls[0].request.body)
+    assert request["sdkFlavor"] == "unleash-openfeature-python-provider"
+    assert request["sdkFlavorVersion"] == "1.2.3"
+
+
+@responses.activate
+def test_metrics_omits_sdk_flavor_when_unset():
+    responses.add(responses.POST, FULL_METRICS_URL, json={}, status=200)
+
+    engine = UnleashEngine()
+    engine.count_toggle("something-to-make-sure-metrics-get-sent", True)
+
+    aggregate_and_send_metrics(
+        URL,
+        APP_NAME,
+        INSTANCE_ID,
+        CONNECTION_ID,
+        CUSTOM_HEADERS,
+        CUSTOM_OPTIONS,
+        REQUEST_TIMEOUT,
+        engine,
+    )
+
+    request = json.loads(responses.calls[0].request.body)
+    assert "sdkFlavor" not in request
+    assert "sdkFlavorVersion" not in request
