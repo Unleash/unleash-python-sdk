@@ -9,9 +9,7 @@ from requests import Response
 LOGGER = logging.getLogger("UnleashClient")
 
 
-def sdk_flavor_fields(
-    sdk_flavor: Any = None, sdk_flavor_version: Any = None
-) -> dict:
+def sdk_flavor_fields(sdk_flavor: Any = None, sdk_flavor_version: Any = None) -> dict:
     fields = {}
     if sdk_flavor:
         fields["sdkFlavor"] = sdk_flavor
