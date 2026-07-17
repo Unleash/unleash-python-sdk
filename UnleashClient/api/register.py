@@ -13,7 +13,7 @@ from UnleashClient.constants import (
     SDK_NAME,
     SDK_VERSION,
 )
-from UnleashClient.utils import LOGGER, log_resp_info
+from UnleashClient.utils import LOGGER, log_resp_info, sdk_flavor_fields
 
 
 # pylint: disable=broad-except
@@ -27,6 +27,8 @@ def register_client(
     custom_options: dict,
     supported_strategies: dict,
     request_timeout: int,
+    sdk_flavor: str = None,
+    sdk_flavor_version: str = None,
 ) -> bool:
     """
     Attempts to register client with unleash server.
@@ -57,6 +59,7 @@ def register_client(
         "platformVersion": python_version(),
         "yggdrasilVersion": yggdrasil_engine.__yggdrasil_core_version__,
         "specVersion": CLIENT_SPEC_VERSION,
+        **sdk_flavor_fields(sdk_flavor, sdk_flavor_version),
     }
 
     try:
