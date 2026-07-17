@@ -136,6 +136,8 @@ class UnleashClient:
     :param multiple_instance_mode: Determines how multiple instances being instantiated is handled by the SDK, when set to InstanceAllowType.BLOCK, the client constructor will fail when more than one instance is detected, when set to InstanceAllowType.WARN, multiple instances will be allowed but log a warning, when set to InstanceAllowType.SILENTLY_ALLOW, no warning or failure will be raised when instantiating multiple instances of the client. Defaults to InstanceAllowType.WARN
     :param event_callback: Function to call if impression events are enabled.  WARNING: Depending on your event library, this may have performance implications!
     :param experimental_mode: Optional dict to configure mode. Use {"type": "streaming"} to enable streaming or {"type": "polling"} (default).
+    :param sdk_flavor: Optional identifier of an integration built on top of this SDK (e.g. an OpenFeature provider). Sent in the register + metrics payloads alongside sdkVersion so adoption of the integration can be tracked. Leave unset for plain SDK usage.
+    :param sdk_flavor_version: Optional version of the integration named by sdk_flavor.
     """
 
     def __init__(
@@ -164,6 +166,8 @@ class UnleashClient:
         multiple_instance_mode: InstanceAllowType = InstanceAllowType.WARN,
         event_callback: Optional[Callable[[BaseEvent], None]] = None,
         experimental_mode: Optional[ExperimentalMode] = None,
+        sdk_flavor: Optional[str] = None,
+        sdk_flavor_version: Optional[str] = None,
     ) -> None:
         custom_headers = custom_headers or {}
         custom_options = custom_options or {}
@@ -187,6 +191,8 @@ class UnleashClient:
         )
         self.unleash_disable_metrics = disable_metrics
         self.unleash_disable_registration = disable_registration
+        self.unleash_sdk_flavor = sdk_flavor
+        self.unleash_sdk_flavor_version = sdk_flavor_version
         self.unleash_custom_headers = custom_headers
         self.unleash_custom_options = custom_options
         self.unleash_static_context = {
@@ -340,6 +346,8 @@ class UnleashClient:
                         self.unleash_custom_options,
                         self.strategy_mapping,
                         self.unleash_request_timeout,
+                        self.unleash_sdk_flavor,
+                        self.unleash_sdk_flavor_version,
                     )
                 mode = self.connector_mode.get("type", "polling")
 
@@ -404,6 +412,8 @@ class UnleashClient:
                         "custom_options": self.unleash_custom_options,
                         "request_timeout": self.unleash_request_timeout,
                         "engine": self.engine,
+                        "sdk_flavor": self.unleash_sdk_flavor,
+                        "sdk_flavor_version": self.unleash_sdk_flavor_version,
                     }
 
                     self.metric_job = self.unleash_scheduler.add_job(
