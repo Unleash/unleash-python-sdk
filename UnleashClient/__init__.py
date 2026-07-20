@@ -140,7 +140,7 @@ class UnleashClient:
     :param sdk_flavor_version: Optional version of the integration named by sdk_flavor.
     """
 
-    def __init__(
+    def __init__(  # noqa: PLR0913 - configuration-heavy public constructor
         self,
         url: str,
         app_name: str,
