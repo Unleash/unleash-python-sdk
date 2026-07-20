@@ -1,11 +1,12 @@
 from platform import python_implementation, python_version
+from typing import Optional
 
 import yggdrasil_engine
 from yggdrasil_engine.engine import UnleashEngine
 
 from UnleashClient.api import send_metrics
 from UnleashClient.constants import CLIENT_SPEC_VERSION
-from UnleashClient.utils import LOGGER, sdk_flavor_fields
+from UnleashClient.utils import LOGGER
 
 
 def aggregate_and_send_metrics(
@@ -17,8 +18,8 @@ def aggregate_and_send_metrics(
     custom_options: dict,
     request_timeout: int,
     engine: UnleashEngine,
-    sdk_flavor: str = None,
-    sdk_flavor_version: str = None,
+    sdk_flavor: Optional[str] = None,
+    sdk_flavor_version: Optional[str] = None,
 ) -> None:
     metrics_bucket = engine.get_metrics()
 
@@ -37,8 +38,12 @@ def aggregate_and_send_metrics(
         "platformVersion": python_version(),
         "yggdrasilVersion": yggdrasil_engine.__yggdrasil_core_version__,
         "specVersion": CLIENT_SPEC_VERSION,
-        **sdk_flavor_fields(sdk_flavor, sdk_flavor_version),
     }
+    # Only sent when the client was configured with an integration flavor
+    if sdk_flavor:
+        metrics_request["sdkFlavor"] = sdk_flavor
+    if sdk_flavor_version:
+        metrics_request["sdkFlavorVersion"] = sdk_flavor_version
 
     if impact_metrics:
         metrics_request["impactMetrics"] = impact_metrics
