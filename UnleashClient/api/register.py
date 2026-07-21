@@ -1,6 +1,7 @@
 import json
 from datetime import datetime, timezone
 from platform import python_implementation, python_version
+from typing import Optional
 
 import requests
 import yggdrasil_engine
@@ -27,6 +28,8 @@ def register_client(
     custom_options: dict,
     supported_strategies: dict,
     request_timeout: int,
+    sdk_flavor: Optional[str] = None,
+    sdk_flavor_version: Optional[str] = None,
 ) -> bool:
     """
     Attempts to register client with unleash server.
@@ -58,6 +61,11 @@ def register_client(
         "yggdrasilVersion": yggdrasil_engine.__yggdrasil_core_version__,
         "specVersion": CLIENT_SPEC_VERSION,
     }
+    # Only sent when the client was configured with an integration flavor
+    if sdk_flavor:
+        registration_request["sdkFlavor"] = sdk_flavor
+    if sdk_flavor_version:
+        registration_request["sdkFlavorVersion"] = sdk_flavor_version
 
     try:
         LOGGER.info("Registering unleash client with unleash @ %s", url)

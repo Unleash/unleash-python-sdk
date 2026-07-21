@@ -6,10 +6,9 @@ Unleash is a private, secure, and scalable [feature management platform](https:/
 
 You can use this client with [Unleash Enterprise](https://www.getunleash.io/pricing?utm_source=readme&utm_medium=python) or [Unleash Open Source](https://github.com/Unleash/unleash).
 
->  **Migrating to v6**
+> **Migrating to v6**
 >
 > If you use custom strategies or access the `features` property on the Unleash Client, read the complete [migration guide](./v6_MIGRATION_GUIDE.md) before upgrading to v6.
-
 
 ## Getting Started
 
@@ -112,30 +111,30 @@ The client will evaluate the fallback function if the feature flag is not found 
 
 The UnleashClient constructor supports the following configuration options:
 
-| Parameter 	            | Description	                                                                                                                                    | Default                   |
-| ------------ 	            | ------------                      	                                                                                                            | ------------              |
-| url 	                    | URL of your Unleash server. E.g. `https://app.unleash-hosted.com/demo/api/` Required.                                                             | None                      |
-| app_name 	                | Name of the application using the client. Required.	                                                                                            | None                      |
-| environment               | Logical environment name (deprecated).	                                                                                                        | "default"                 |
-| instance_id               | Unique identifier for this client instance.	                                                                                                    | "unleash-client-python"   |
-| refresh_interval  	    | How often to fetch feature flags (seconds).	                                                                                                    | 15                        |
-| refresh_jitter            | Jitter to add to refresh interval (seconds).	                                                                                                    | None                      |
-| metrics_interval  	    | How often to send metrics to Unleash (seconds).	                                                                                                | 60                        |
-| metrics_jitter            | Jitter to add to metrics interval (seconds).	                                                                                                    | None                      |
-| disable_metrics           | Disable sending usage metrics.	                                                                                                                | False                     |
-| disable_registration      | Disable client registration.	                                                                                                                    | False                     |
-| custom_headers            | Additional HTTP headers (e.g. Authorization).	                                                                                                    | None                      |
+| Parameter              | Description                                                                                                                                     | Default                   |
+| ------------              | ------------                                                                                                                                   | ------------              |
+| url                      | URL of your Unleash server. E.g. `https://app.unleash-hosted.com/demo/api/` Required.                                                             | None                      |
+| app_name                  | Name of the application using the client. Required.                                                                                             | None                      |
+| environment               | Logical environment name (deprecated).                                                                                                         | "default"                 |
+| instance_id               | Unique identifier for this client instance.                                                                                                     | "unleash-client-python"   |
+| refresh_interval       | How often to fetch feature flags (seconds).                                                                                                     | 15                        |
+| refresh_jitter            | Jitter to add to refresh interval (seconds).                                                                                                     | None                      |
+| metrics_interval       | How often to send metrics to Unleash (seconds).                                                                                                 | 60                        |
+| metrics_jitter            | Jitter to add to metrics interval (seconds).                                                                                                     | None                      |
+| disable_metrics           | Disable sending usage metrics.                                                                                                                 | False                     |
+| disable_registration      | Disable client registration.                                                                                                                     | False                     |
+| custom_headers            | Additional HTTP headers (e.g. Authorization).                                                                                                     | None                      |
 | custom_options            | Extra options for [HTTP requests](https://requests.readthedocs.io/en/latest/api/#main-interface).                                                 | None                      |
-| request_timeout           | HTTP request timeout (seconds).	                                                                                                                | 30                        |
-| request_retries           | HTTP request retry count.	                                                                                                                        | 3                         |
-| custom_strategies 	    | Dict of `{name: strategy}` for custom activation strategies. See [custom strategies](#custom-strategies) for more information.                      | None                      |
-| cache_directory 	        | Location for the on-disk cache. Auto-determined.                                                                                                  | None                      |
-| cache 	                | Custom cache implementation (must extend BaseCache). See [custom cache](#custom-cache) for more information                                       | BaseCache                 |
-| scheduler 	            | Custom APScheduler instance.	Auto-created.                                                                                                       | BaseScheduler             |
-| verbose_log_level 	    | Python logging level for debugging feature flag failures. See https://docs.python.org/3/library/logging.html#logging-levels for more information.	| 30                        |
-| scheduler_executor 	    | APScheduler executor name to use.	                                                                                                                | None                      |
-| multiple_instance_mode    | How to handle multiple client instances (BLOCK, WARN, SILENTLY_ALLOW).	                                                                        | WARN                      |
-| event_callback 	        | Function to handle impression events. See [impression data](#impression-data) for more information.                                               | None                      |
+| request_timeout           | HTTP request timeout (seconds).                                                                                                                 | 30                        |
+| request_retries           | HTTP request retry count.                                                                                                                         | 3                         |
+| custom_strategies      | Dict of `{name: strategy}` for custom activation strategies. See [custom strategies](#custom-strategies) for more information.                      | None                      |
+| cache_directory          | Location for the on-disk cache. Auto-determined.                                                                                                  | None                      |
+| cache                  | Custom cache implementation (must extend BaseCache). See [custom cache](#custom-cache) for more information                                       | BaseCache                 |
+| scheduler              | Custom APScheduler instance. Auto-created.                                                                                                       | BaseScheduler             |
+| verbose_log_level      | Python logging level for debugging feature flag failures. See <https://docs.python.org/3/library/logging.html#logging-levels> for more information. | 30                        |
+| scheduler_executor      | APScheduler executor name to use.                                                                                                                 | None                      |
+| multiple_instance_mode    | How to handle multiple client instances (BLOCK, WARN, SILENTLY_ALLOW).                                                                         | WARN                      |
+| event_callback          | Function to handle impression events. See [impression data](#impression-data) for more information.                                               | None                      |
 
 ### Bootstrap
 
@@ -252,6 +251,7 @@ The Python SDK lets you tap into its behavior through [impression data](https://
 #### Impression events
 
 To use impression data:
+
 - Enable impression data on your feature flags in the Unleash UI.
 - Provide an event_callback function when you initialize the client.
 
@@ -287,6 +287,7 @@ Impression callbacks run in-process — keep them fast to avoid blocking your ap
 #### Lifecycle events
 
 The same event_callback also delivers lifecycle events:
+
 - FETCHED: triggered when a new version of feature flags is pulled from the Unleash server. (Does not trigger on 304 Not Modified). The FETCHED event includes a features property containing all the feature flags returned by that fetch.
 - READY: triggered once when the SDK first loads feature flags from the Unleash server or a local backup.
 
@@ -402,6 +403,7 @@ class CustomCache(BaseCache):
     def destroy(self):
         return self._cache.delete()
 ```
+
 Pass your cache instance to the client with the cache argument:
 
 ```python
