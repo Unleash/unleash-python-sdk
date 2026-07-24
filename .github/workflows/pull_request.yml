@@ -11,6 +11,9 @@ on:
 jobs:
   main:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      statuses: write
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python 3.8
@@ -27,10 +30,34 @@ jobs:
         run: |
           make test
       - name: Send coverage to Coveralls
+        id: coveralls
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           coveralls --service=github
+      - name: Report Coveralls status
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COVERALLS_OUTCOME: ${{ steps.coveralls.outcome }}
+          COVERALLS_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          COVERALLS_URL: https://coveralls.io/github/${{ github.repository }}?branch=${{ github.head_ref || github.ref_name }}
+        run: |
+          state="success"
+          description="Coverage uploaded to Coveralls"
+
+          if [ "$COVERALLS_OUTCOME" != "success" ]; then
+            state="failure"
+            description="Coveralls upload failed"
+          fi
+
+          gh api \
+            --method POST \
+            repos/${{ github.repository }}/statuses/$COVERALLS_SHA \
+            -f state="$state" \
+            -f context="coverage/coveralls" \
+            -f target_url="$COVERALLS_URL" \
+            -f description="$description"
 
   tox:
     runs-on: ${{ matrix.os }}
