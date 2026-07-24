@@ -158,3 +158,29 @@ def test_get_feature_toggle_retries():
     assert len(responses.calls) == 2
     assert len(json.loads(result)["features"]) == 1
     assert etag == ETAG_VALUE
+
+
+@responses.activate
+def test_get_feature_toggle_strips_trailing_slash_from_url():
+    responses.add(
+        responses.GET,
+        FULL_FEATURE_URL,
+        json=MOCK_FEATURE_RESPONSE,
+        status=200,
+        headers={"etag": ETAG_VALUE},
+    )
+
+    (result, etag) = get_feature_toggles(
+        f"{URL}/",
+        APP_NAME,
+        INSTANCE_ID,
+        CUSTOM_HEADERS,
+        CUSTOM_OPTIONS,
+        REQUEST_TIMEOUT,
+        REQUEST_RETRIES,
+    )
+
+    assert len(responses.calls) == 1
+    assert responses.calls[0].request.url == FULL_FEATURE_URL
+    assert json.loads(result)["version"] == 1
+    assert etag == ETAG_VALUE

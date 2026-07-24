@@ -123,3 +123,24 @@ def test_register_omits_sdk_flavor_when_unset():
     request = json.loads(responses.calls[0].request.body)
     assert "sdkFlavor" not in request
     assert "sdkFlavorVersion" not in request
+
+
+@responses.activate
+def test_register_client_strips_trailing_slash_from_url():
+    responses.add(responses.POST, FULL_REGISTER_URL, json={}, status=202)
+
+    result = register_client(
+        f"{URL}/",
+        APP_NAME,
+        INSTANCE_ID,
+        CONNECTION_ID,
+        METRICS_INTERVAL,
+        CUSTOM_HEADERS,
+        CUSTOM_OPTIONS,
+        {},
+        REQUEST_TIMEOUT,
+    )
+
+    assert len(responses.calls) == 1
+    assert responses.calls[0].request.url == FULL_REGISTER_URL
+    assert result is True

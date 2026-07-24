@@ -4,6 +4,7 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3 import Retry
 
+from UnleashClient.api.urls import get_url
 from UnleashClient.constants import FEATURES_URL
 from UnleashClient.utils import LOGGER, log_resp_info
 
@@ -49,7 +50,7 @@ def get_feature_toggles(
         if cached_etag:
             request_specific_headers["If-None-Match"] = cached_etag
 
-        base_url = f"{url}{FEATURES_URL}"
+        base_url = get_url(url, FEATURES_URL)
         base_params = {}
 
         if project:

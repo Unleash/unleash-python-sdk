@@ -7,6 +7,7 @@ import requests
 import yggdrasil_engine
 from requests.exceptions import InvalidHeader, InvalidSchema, InvalidURL, MissingSchema
 
+from UnleashClient.api.urls import get_url
 from UnleashClient.constants import (
     APPLICATION_HEADERS,
     CLIENT_SPEC_VERSION,
@@ -72,7 +73,7 @@ def register_client(
         LOGGER.info("Registration request information: %s", registration_request)
 
         resp = requests.post(
-            url + REGISTER_URL,
+            get_url(url, REGISTER_URL),
             data=json.dumps(registration_request),
             headers={**headers, **APPLICATION_HEADERS},
             timeout=request_timeout,
