@@ -49,7 +49,7 @@ def test_get_feature_toggle(response, status, calls, expected):
         headers={"etag": ETAG_VALUE},
     )
 
-    (result, etag) = get_feature_toggles(
+    result, etag = get_feature_toggles(
         URL,
         APP_NAME,
         INSTANCE_ID,
@@ -73,7 +73,7 @@ def test_get_feature_toggle_project():
         headers={"etag": ETAG_VALUE},
     )
 
-    (result, etag) = get_feature_toggles(
+    result, etag = get_feature_toggles(
         URL,
         APP_NAME,
         INSTANCE_ID,
@@ -95,7 +95,7 @@ def test_get_feature_toggle_failed_etag():
         responses.GET, PROJECT_URL, json={}, status=500, headers={"etag": ETAG_VALUE}
     )
 
-    (result, etag) = get_feature_toggles(
+    result, etag = get_feature_toggles(
         URL,
         APP_NAME,
         INSTANCE_ID,
@@ -114,7 +114,7 @@ def test_get_feature_toggle_failed_etag():
 def test_get_feature_toggle_etag_present():
     responses.add(responses.GET, PROJECT_URL, status=304, headers={"etag": ETAG_VALUE})
 
-    (result, etag) = get_feature_toggles(
+    result, etag = get_feature_toggles(
         URL,
         APP_NAME,
         INSTANCE_ID,
@@ -143,7 +143,7 @@ def test_get_feature_toggle_retries():
         headers={"etag": ETAG_VALUE},
     )
 
-    (result, etag) = get_feature_toggles(
+    result, etag = get_feature_toggles(
         URL,
         APP_NAME,
         INSTANCE_ID,
