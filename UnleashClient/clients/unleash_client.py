@@ -517,7 +517,9 @@ class UnleashClient:
     def _redact_to_print_safely(value: Optional[str]) -> Optional[str]:
         if not value:
             return value
-        return f"{value[:6]}...{value[-3:]}"
+        prefix, separator, secret = value.rpartition(":")
+        redacted_secret = f"{secret[:6]}...{secret[-3:]}"
+        return f"{prefix}{separator}{redacted_secret}"
 
     @staticmethod
     def _get_fallback_value(
