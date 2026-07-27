@@ -35,7 +35,6 @@ from UnleashClient.constants import (
     SDK_NAME,
     SDK_VERSION,
 )
-from UnleashClient.environment_resolver import extract_environment_from_headers
 from UnleashClient.events import (
     BaseEvent,
     UnleashEvent,
@@ -48,7 +47,12 @@ from UnleashClient.periodic_tasks import (
 )
 
 from .cache import BaseCache, FileCache
-from .utils import LOGGER, InstanceAllowType, InstanceCounter
+from .utils import (
+    LOGGER,
+    InstanceAllowType,
+    InstanceCounter,
+    extract_environment_from_headers,
+)
 
 try:
     from typing import Literal, TypedDict

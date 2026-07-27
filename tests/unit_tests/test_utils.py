@@ -1,4 +1,4 @@
-from UnleashClient.environment_resolver import extract_environment_from_headers
+from UnleashClient.utils import extract_environment_from_headers
 
 
 def test_valid_headers():
