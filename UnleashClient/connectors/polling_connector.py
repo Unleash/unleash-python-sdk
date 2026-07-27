@@ -53,7 +53,7 @@ class PollingConnector(BaseConnector):
         self.job = None
 
     def _fetch_and_load(self):
-        (state, etag) = get_feature_toggles(
+        state, etag = get_feature_toggles(
             url=self.url,
             app_name=self.app_name,
             instance_id=self.instance_id,
