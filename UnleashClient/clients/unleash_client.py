@@ -514,6 +514,12 @@ class UnleashClient:
                     LOGGER.warning("Exception during cache teardown: %s", exc)
 
     @staticmethod
+    def _redact_to_print_safely(value: Optional[str]) -> Optional[str]:
+        if not value:
+            return value
+        return f"{value[:6]}...{value[-3:]}"
+
+    @staticmethod
     def _get_fallback_value(
         fallback_function: Callable, feature_name: str, context: dict
     ) -> bool:
@@ -687,7 +693,7 @@ class UnleashClient:
             if self.unleash_custom_headers is not None
             else None
         )
-        return f"apiKey:{api_key} appName:{self.unleash_app_name} instanceId:{self.unleash_instance_id}"
+        return f"apiKey:{self._redact_to_print_safely(api_key)} appName:{self.unleash_app_name} instanceId:{self.unleash_instance_id}"
 
     def __enter__(self) -> "UnleashClient":
         self.initialize_client()
