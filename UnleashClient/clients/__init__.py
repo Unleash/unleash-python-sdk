@@ -1,5 +1,5 @@
 # ruff: noqa: F401
-from .clients import (
+from .unleash_client import (
     _BASE_CONTEXT_FIELDS,
     INSTANCES,
     ExperimentalMode,

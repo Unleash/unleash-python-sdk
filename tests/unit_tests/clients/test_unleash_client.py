@@ -860,6 +860,7 @@ def test_uc_cache_bootstrap_file(cache):
     test_file = Path(
         Path(__file__).parent.resolve(),
         "..",
+        "..",
         "utilities",
         "mocks",
         "mock_bootstrap.json",
