@@ -1049,8 +1049,15 @@ def test_redact_to_print_safely_truncates_middle():
     assert api_key not in redacted
 
 
+def test_redact_to_print_safely_keeps_environment_and_project_visible():
+    api_key = "production:default:abcdef1234567890ghijklmnop"
+    redacted = UnleashClient._redact_to_print_safely(api_key)
+    assert redacted == "production:default:abcdef...nop"
+    assert "abcdef1234567890ghijklmnop" not in redacted
+
+
 def test_api_key_is_not_logged_in_plain_text_in_multiple_instances_warning(caplog):
-    api_key = "abcdef1234567890ghijklmnop"
+    api_key = "production:default:abcdef1234567890ghijklmnop"
     client1 = UnleashClient(
         URL,
         APP_NAME,
@@ -1064,7 +1071,7 @@ def test_api_key_is_not_logged_in_plain_text_in_multiple_instances_warning(caplo
 
     log_text = " ".join(str(r.msg) for r in caplog.records)
     assert api_key not in log_text
-    assert "abcdef...nop" in log_text
+    assert "production:default:abcdef...nop" in log_text
 
     client1.destroy()
     client2.destroy()
