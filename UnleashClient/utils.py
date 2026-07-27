@@ -1,7 +1,7 @@
 import logging
 from enum import Enum
 from threading import RLock
-from typing import Any
+from typing import Any, Dict, Optional
 
 import mmh3  # pylint: disable=import-error
 from requests import Response
@@ -67,3 +67,28 @@ def log_resp_info(resp: Response) -> None:
     LOGGER.debug("HTTP status code: %s", resp.status_code)
     LOGGER.debug("HTTP headers: %s", resp.headers)
     LOGGER.debug("HTTP content: %s", resp.text)
+
+
+def extract_environment_from_headers(
+    headers: Optional[Dict[str, str]],
+) -> Optional[str]:
+    if not headers:
+        return None
+
+    auth_key = next(
+        (key for key in headers if key.lower() == "authorization"),
+        None,
+    )
+    if not auth_key:
+        return None
+
+    auth_value = headers.get(auth_key)
+    if not auth_value:
+        return None
+
+    _, sep, after_colon = auth_value.partition(":")
+    if not sep:
+        return None
+
+    environment, _, _ = after_colon.partition(".")
+    return environment or None

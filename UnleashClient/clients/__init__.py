@@ -1,5 +1,5 @@
 # ruff: noqa: F401
-from .clients import (
+from .unleash_client import (
     INSTANCES,
     ExperimentalMode,
     UnleashClient,
