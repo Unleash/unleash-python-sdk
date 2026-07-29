@@ -2,7 +2,7 @@ import json
 
 import requests
 
-from UnleashClient.api.urls import get_url
+from UnleashClient.api.urls import build_normalized_url
 from UnleashClient.constants import APPLICATION_HEADERS, METRICS_URL
 from UnleashClient.utils import LOGGER, log_resp_info
 
@@ -33,7 +33,7 @@ def send_metrics(
         LOGGER.info("unleash metrics information: %s", request_body)
 
         resp = requests.post(
-            get_url(url, METRICS_URL),
+            build_normalized_url(url, METRICS_URL),
             data=json.dumps(request_body),
             headers={**headers, **APPLICATION_HEADERS},
             timeout=request_timeout,
