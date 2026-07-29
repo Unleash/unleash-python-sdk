@@ -44,3 +44,20 @@ def test_send_metrics(payload, status, expected):
     assert expected(result)
 
     assert request["connectionId"] == MOCK_METRICS_REQUEST.get("connectionId")
+
+
+@responses.activate
+def test_send_metrics_strips_trailing_slash_from_url():
+    responses.add(responses.POST, FULL_METRICS_URL, json={}, status=202)
+
+    result = send_metrics(
+        f"{URL}/",
+        MOCK_METRICS_REQUEST,
+        CUSTOM_HEADERS,
+        CUSTOM_OPTIONS,
+        REQUEST_TIMEOUT,
+    )
+
+    assert len(responses.calls) == 1
+    assert responses.calls[0].request.url == FULL_METRICS_URL
+    assert result is True
