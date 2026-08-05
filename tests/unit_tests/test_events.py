@@ -2,6 +2,8 @@ import json
 import threading
 import time
 import uuid
+from collections.abc import Iterator
+from typing import Callable
 
 import pytest
 
@@ -55,12 +57,12 @@ def fetched_event() -> UnleashFetchedEvent:
 
 
 @pytest.fixture()
-def dispatcher_factory():
+def dispatcher_factory() -> Iterator[Callable[..., EventDispatcher]]:
     """
     Builds dispatchers and guarantees they're torn down, so a wedged worker thread
     can't leak into the next test.
     """
-    created = []
+    created: list[EventDispatcher] = []
 
     def _build(*args, **kwargs) -> EventDispatcher:
         dispatcher = EventDispatcher(*args, **kwargs)
@@ -73,14 +75,16 @@ def dispatcher_factory():
         dispatcher.close(timeout=1)
 
 
-def test_emit_event_does_not_block_the_caller(dispatcher_factory):
+def test_emit_event_does_not_block_the_caller(
+    dispatcher_factory: Callable[..., EventDispatcher],
+):
     entered = threading.Event()
     release = threading.Event()
-    received = []
+    received: list[UnleashEvent] = []
 
-    def callback(event):
+    def callback(event: UnleashEvent):
         entered.set()
-        release.wait(timeout=WAIT_TIMEOUT)
+        _ = release.wait(timeout=WAIT_TIMEOUT)
         received.append(event)
 
     dispatcher = dispatcher_factory(callback)
@@ -101,8 +105,10 @@ def test_emit_event_does_not_block_the_caller(dispatcher_factory):
     assert len(received) == 101
 
 
-def test_events_are_delivered_in_order(dispatcher_factory):
-    received = []
+def test_events_are_delivered_in_order(
+    dispatcher_factory: Callable[..., EventDispatcher],
+):
+    received: list[UnleashEvent] = []
     dispatcher = dispatcher_factory(received.append)
 
     dispatcher.emit_event(flag_event("one"))
@@ -113,8 +119,10 @@ def test_events_are_delivered_in_order(dispatcher_factory):
     assert [event.feature_name for event in received] == ["one", "two", "three"]
 
 
-def test_every_event_type_reaches_the_callback(dispatcher_factory):
-    received = []
+def test_every_event_type_reaches_the_callback(
+    dispatcher_factory: Callable[..., EventDispatcher],
+):
+    received: list[UnleashEvent] = []
     dispatcher = dispatcher_factory(received.append)
 
     dispatcher.emit_event(ready_event())
@@ -131,15 +139,17 @@ def test_every_event_type_reaches_the_callback(dispatcher_factory):
     ]
 
 
-def test_ready_event_is_emitted_at_most_once(dispatcher_factory):
-    received = []
+def test_ready_event_is_emitted_at_most_once(
+    dispatcher_factory: Callable[..., EventDispatcher],
+):
+    received: list[UnleashEvent] = []
     dispatcher = dispatcher_factory(received.append)
 
     thread_count = 8
     start_line = threading.Barrier(thread_count)
 
     def hammer():
-        start_line.wait(timeout=WAIT_TIMEOUT)
+        _ = start_line.wait(timeout=WAIT_TIMEOUT)
         for _ in range(50):
             dispatcher.emit_event(ready_event())
 
@@ -154,10 +164,12 @@ def test_ready_event_is_emitted_at_most_once(dispatcher_factory):
     assert received[0].event_type is UnleashEventType.READY
 
 
-def test_callback_exception_does_not_kill_the_worker(dispatcher_factory):
-    received = []
+def test_callback_exception_does_not_kill_the_worker(
+    dispatcher_factory: Callable[..., EventDispatcher],
+):
+    received: list[UnleashEvent] = []
 
-    def callback(event):
+    def callback(event: UnleashEvent):
         if event.feature_name == "boom":
             raise ValueError("callback blew up")
         received.append(event)
@@ -171,13 +183,15 @@ def test_callback_exception_does_not_kill_the_worker(dispatcher_factory):
     assert [event.feature_name for event in received] == ["survivor"]
 
 
-def test_events_are_dropped_when_the_queue_is_full(dispatcher_factory):
+def test_events_are_dropped_when_the_queue_is_full(
+    dispatcher_factory: Callable[..., EventDispatcher],
+):
     entered = threading.Event()
     release = threading.Event()
 
-    def callback(event):
+    def callback(_event: UnleashEvent):
         entered.set()
-        release.wait(timeout=WAIT_TIMEOUT)
+        _ = release.wait(timeout=WAIT_TIMEOUT)
 
     dispatcher = dispatcher_factory(callback, max_size=2)
 
@@ -193,13 +207,15 @@ def test_events_are_dropped_when_the_queue_is_full(dispatcher_factory):
     release.set()
 
 
-def test_flush_times_out_when_the_callback_hangs(dispatcher_factory):
+def test_flush_times_out_when_the_callback_hangs(
+    dispatcher_factory: Callable[..., EventDispatcher],
+):
     entered = threading.Event()
     release = threading.Event()
 
-    def callback(event):
+    def callback(event: UnleashEvent):
         entered.set()
-        release.wait(timeout=WAIT_TIMEOUT)
+        _ = release.wait(timeout=WAIT_TIMEOUT)
 
     dispatcher = dispatcher_factory(callback)
 
@@ -211,7 +227,9 @@ def test_flush_times_out_when_the_callback_hangs(dispatcher_factory):
     release.set()
 
 
-def test_flush_is_a_no_op_before_the_first_event(dispatcher_factory):
+def test_flush_is_a_no_op_before_the_first_event(
+    dispatcher_factory: Callable[..., EventDispatcher],
+):
     dispatcher = dispatcher_factory(lambda event: None)
 
     assert dispatcher._thread is None
@@ -222,12 +240,14 @@ def test_flush_is_a_no_op_before_the_first_event(dispatcher_factory):
     assert dispatcher._thread is not None
 
 
-def test_close_drains_pending_events(dispatcher_factory):
+def test_close_drains_pending_events(
+    dispatcher_factory: Callable[..., EventDispatcher],
+):
     received = []
     gate = threading.Event()
 
-    def callback(event):
-        gate.wait(timeout=WAIT_TIMEOUT)
+    def callback(event: UnleashEvent):
+        _ = gate.wait(timeout=WAIT_TIMEOUT)
         received.append(event)
 
     dispatcher = dispatcher_factory(callback)
@@ -241,8 +261,8 @@ def test_close_drains_pending_events(dispatcher_factory):
     assert [event.feature_name for event in received] == ["0", "1", "2", "3", "4"]
 
 
-def test_close_is_idempotent(dispatcher_factory):
-    received = []
+def test_close_is_idempotent(dispatcher_factory: Callable[..., EventDispatcher]):
+    received: list[UnleashEvent] = []
     dispatcher = dispatcher_factory(received.append)
 
     dispatcher.emit_event(flag_event())
@@ -252,13 +272,15 @@ def test_close_is_idempotent(dispatcher_factory):
     assert len(received) == 1
 
 
-def test_close_returns_even_when_the_callback_hangs(dispatcher_factory):
+def test_close_returns_even_when_the_callback_hangs(
+    dispatcher_factory: Callable[..., EventDispatcher],
+):
     entered = threading.Event()
     release = threading.Event()
 
-    def callback(event):
+    def callback(_event: UnleashEvent):
         entered.set()
-        release.wait(timeout=WAIT_TIMEOUT)
+        _ = release.wait(timeout=WAIT_TIMEOUT)
 
     dispatcher = dispatcher_factory(callback, max_size=1)
 
@@ -275,8 +297,10 @@ def test_close_returns_even_when_the_callback_hangs(dispatcher_factory):
     release.set()
 
 
-def test_emit_event_after_close_is_a_no_op(dispatcher_factory):
-    received = []
+def test_emit_event_after_close_is_a_no_op(
+    dispatcher_factory: Callable[..., EventDispatcher],
+):
+    received: list[UnleashEvent] = []
     dispatcher = dispatcher_factory(received.append)
 
     dispatcher.emit_event(flag_event("before"))
