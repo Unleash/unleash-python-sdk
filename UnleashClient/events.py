@@ -81,13 +81,6 @@ class _FlushMarker:
         self.done = threading.Event()
 
 
-@dataclass
-class EventDispatcherOptions:
-    """
-    Configuration for the event dispatcher.  Intentionally empty for now.
-    """
-
-
 DEFAULT_MAX_QUEUE_SIZE = 10_000
 DEFAULT_TIMEOUT = 2.0
 
@@ -104,18 +97,15 @@ class EventDispatcher:
     delivered once, no matter how many connectors emit it or from which thread.
 
     :param callback: Function to hand events to.
-    :param options: Optional configuration object.
     :param max_size: Maximum number of events to hold before dropping.
     """
 
     def __init__(
         self,
         callback: Callable[[BaseEvent], None],
-        options: Optional[EventDispatcherOptions] = None,
         max_size: int = DEFAULT_MAX_QUEUE_SIZE,
     ) -> None:
         self._callback = callback
-        self._options = options or EventDispatcherOptions()
         self._queue: queue.Queue = queue.Queue(maxsize=max_size)
         self._lock = threading.Lock()
         self._thread: Optional[threading.Thread] = None

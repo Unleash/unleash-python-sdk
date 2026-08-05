@@ -7,7 +7,6 @@ import pytest
 
 from UnleashClient.events import (
     EventDispatcher,
-    EventDispatcherOptions,
     UnleashEvent,
     UnleashEventType,
     UnleashFetchedEvent,
@@ -116,7 +115,7 @@ def test_events_are_delivered_in_order(dispatcher_factory):
 
 def test_every_event_type_reaches_the_callback(dispatcher_factory):
     received = []
-    dispatcher = dispatcher_factory(received.append, EventDispatcherOptions())
+    dispatcher = dispatcher_factory(received.append)
 
     dispatcher.emit_event(ready_event())
     dispatcher.emit_event(fetched_event())
