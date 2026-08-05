@@ -67,9 +67,6 @@ class UnleashFetchedEvent(BaseEvent):
         return self._parsed_payload
 
 
-DEFAULT_MAX_QUEUE_SIZE = 10_000
-DEFAULT_TIMEOUT = 2.0
-
 _SHUTDOWN = object()
 
 
@@ -89,6 +86,10 @@ class EventDispatcherOptions:
     """
     Configuration for the event dispatcher.  Intentionally empty for now.
     """
+
+
+DEFAULT_MAX_QUEUE_SIZE = 10_000
+DEFAULT_TIMEOUT = 2.0
 
 
 class EventDispatcher:
@@ -203,8 +204,7 @@ class EventDispatcher:
 
             if should_warn:
                 LOGGER.warning(
-                    "Unleash event queue is full, events are being dropped. "
-                    "This usually means the event callback is too slow."
+                    "Unleash event queue is full, events are being dropped. This usually means the event callback is too slow."
                 )
             else:
                 LOGGER.debug("Event was dropped because queue is full.")
