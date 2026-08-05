@@ -1,5 +1,5 @@
 import uuid
-from typing import Callable, Optional
+from typing import Optional
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
@@ -8,7 +8,7 @@ from yggdrasil_engine.engine import UnleashEngine
 from UnleashClient.api import get_feature_toggles
 from UnleashClient.cache import BaseCache
 from UnleashClient.constants import ETAG, FEATURES_URL
-from UnleashClient.events import UnleashEventType, UnleashFetchedEvent
+from UnleashClient.events import EventDispatcher, UnleashEventType, UnleashFetchedEvent
 from UnleashClient.utils import LOGGER
 
 from .base_connector import BaseConnector
@@ -31,11 +31,9 @@ class PollingConnector(BaseConnector):
         scheduler_executor: str = "default",
         refresh_interval: int = 15,
         refresh_jitter: int = None,
-        event_callback: Optional[Callable] = None,
-        ready_callback: Optional[Callable] = None,
+        events: Optional[EventDispatcher] = None,
     ):
-        self.engine = engine
-        self.cache = cache
+        super().__init__(engine, cache, events)
         self.scheduler = scheduler
         self.url = url
         self.app_name = app_name
@@ -48,8 +46,6 @@ class PollingConnector(BaseConnector):
         self.scheduler_executor = scheduler_executor
         self.refresh_interval = refresh_interval
         self.refresh_jitter = refresh_jitter
-        self.event_callback = event_callback
-        self.ready_callback = ready_callback
         self.job = None
 
     def _fetch_and_load(self):
@@ -81,15 +77,14 @@ class PollingConnector(BaseConnector):
         self.load_features()
 
         if state:
-            if self.event_callback:
-                event = UnleashFetchedEvent(
+            self.emit(
+                UnleashFetchedEvent(
                     event_type=UnleashEventType.FETCHED,
                     event_id=uuid.uuid4(),
                     raw_features=state,
                 )
-                self.event_callback(event)
-            if self.ready_callback:
-                self.ready_callback()
+            )
+            self.emit_ready()
 
     def start(self):
         self._fetch_and_load()

@@ -12,10 +12,14 @@ class BootstrapConnector(BaseConnector):
         cache: BaseCache,
     ):
         super().__init__(engine, cache)
-        self.engine = engine
-        self.cache = cache
         self.job = None
 
+    # TODO: this connector is never given an EventDispatcher, so bootstrapping
+    # does not emit a READY event. Bootstrapped clients only see READY once
+    # initialize_client() builds a polling, streaming or offline connector.
+    #
+    # This call to start() might need to be moved from ``UnleashClient``'s
+    # constructor to ``initialize_client``.
     def start(self):
         self.load_features()
 

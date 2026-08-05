@@ -1,5 +1,5 @@
 import threading
-from typing import Callable, Optional
+from typing import Optional
 
 from ld_eventsource import SSEClient
 from ld_eventsource.config import ConnectStrategy, ErrorStrategy, RetryDelayStrategy
@@ -8,6 +8,7 @@ from yggdrasil_engine.engine import UnleashEngine
 from UnleashClient.cache import BaseCache
 from UnleashClient.connectors.base_connector import BaseConnector
 from UnleashClient.constants import APPLICATION_HEADERS, FEATURES_URL, STREAMING_URL
+from UnleashClient.events import EventDispatcher
 from UnleashClient.utils import LOGGER
 
 
@@ -19,14 +20,14 @@ class StreamingConnector(BaseConnector):
         url: str,
         headers: dict,
         request_timeout: int,
-        ready_callback: Optional[Callable] = None,
+        events: Optional[EventDispatcher] = None,
         backoff_initial: float = 2.0,
         backoff_max: float = 30.0,
         backoff_multiplier: float = 2.0,
         backoff_jitter: Optional[float] = 0.5,
         custom_options: Optional[dict] = None,
     ) -> None:
-        super().__init__(engine=engine, cache=cache, ready_callback=ready_callback)
+        super().__init__(engine=engine, cache=cache, events=events)
         self._base_url = url.rstrip("/") + STREAMING_URL
         self._headers = {
             **headers,
@@ -102,11 +103,8 @@ class StreamingConnector(BaseConnector):
                         self.engine.take_state(event.data)
                         self.cache.set(FEATURES_URL, self.engine.get_state())
 
-                        if event.event == "unleash-connected" and self.ready_callback:
-                            try:
-                                self.ready_callback()
-                            except Exception:
-                                LOGGER.debug("Ready callback failed", exc_info=True)
+                        if event.event == "unleash-connected":
+                            self.emit_ready()
                     except Exception:
                         LOGGER.error("Error applying streaming state", exc_info=True)
                         self.load_features()

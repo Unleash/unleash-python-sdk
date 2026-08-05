@@ -3,9 +3,11 @@ import json
 from apscheduler.schedulers.background import BackgroundScheduler
 from yggdrasil_engine.engine import UnleashEngine
 
+from tests.utilities.events import WAIT_TIMEOUT, EventRecorder
 from tests.utilities.mocks.mock_features import MOCK_FEATURE_RESPONSE
 from UnleashClient.connectors import OfflineConnector
 from UnleashClient.constants import FEATURES_URL
+from UnleashClient.events import EventDispatcher, UnleashEventType
 
 
 def test_offline_connector_load_features(cache_empty):
@@ -49,25 +51,43 @@ def test_offline_connector_start_stop(cache_empty):
     scheduler.shutdown()
 
 
-def test_offline_connector_ready_callback(cache_empty):
+def test_offline_connector_emits_ready_event(
+    cache_empty, dispatcher: EventDispatcher, recorder: EventRecorder
+):
     engine = UnleashEngine()
     scheduler = BackgroundScheduler()
     temp_cache = cache_empty
     temp_cache.set(FEATURES_URL, json.dumps(MOCK_FEATURE_RESPONSE))
 
-    callback_called = False
+    connector = OfflineConnector(
+        engine=engine,
+        cache=temp_cache,
+        scheduler=scheduler,
+        events=dispatcher,
+    )
 
-    def ready_callback():
-        nonlocal callback_called
-        callback_called = True
+    connector.start()
+    assert dispatcher.flush(timeout=WAIT_TIMEOUT)
+    connector.stop()
+
+    # start() emits once via load_features() and once directly; the dispatcher
+    # collapses those into a single delivery.
+    assert len(recorder.of_type(UnleashEventType.READY)) == 1
+
+
+def test_offline_connector_without_a_dispatcher_does_not_emit(cache_empty):
+    engine = UnleashEngine()
+    scheduler = BackgroundScheduler()
+    temp_cache = cache_empty
+    temp_cache.set(FEATURES_URL, json.dumps(MOCK_FEATURE_RESPONSE))
 
     connector = OfflineConnector(
         engine=engine,
         cache=temp_cache,
         scheduler=scheduler,
-        ready_callback=ready_callback,
     )
 
     connector.start()
-    assert callback_called
+    assert connector._events is None
+    assert engine.is_enabled("testFlag", {})
     connector.stop()
