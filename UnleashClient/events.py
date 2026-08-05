@@ -4,7 +4,7 @@ import time
 from dataclasses import dataclass
 from enum import Enum
 from json import loads
-from typing import Any, Callable, Optional
+from typing import Callable, Optional, Union
 from uuid import UUID
 
 from UnleashClient.utils import LOGGER
@@ -67,7 +67,18 @@ class UnleashFetchedEvent(BaseEvent):
         return self._parsed_payload
 
 
-_SHUTDOWN = object()
+class _Shutdown:
+    """
+    Sentinel that tells the worker to stop draining and exit.
+    """
+
+    __slots__ = ()
+
+    def __repr__(self) -> str:
+        return "<_SHUTDOWN>"
+
+
+_SHUTDOWN = _Shutdown()
 
 
 class _FlushMarker:
@@ -80,6 +91,8 @@ class _FlushMarker:
     def __init__(self) -> None:
         self.done = threading.Event()
 
+
+_QueueItem = Union[BaseEvent, _Shutdown, _FlushMarker]
 
 DEFAULT_MAX_QUEUE_SIZE = 10_000
 DEFAULT_TIMEOUT = 2.0
@@ -106,7 +119,7 @@ class EventDispatcher:
         max_size: int = DEFAULT_MAX_QUEUE_SIZE,
     ) -> None:
         self._callback = callback
-        self._queue: queue.Queue = queue.Queue(maxsize=max_size)
+        self._queue: queue.Queue[_QueueItem] = queue.Queue(maxsize=max_size)
         self._lock = threading.Lock()
         self._thread: Optional[threading.Thread] = None
         self._dropped = 0
@@ -181,7 +194,7 @@ class EventDispatcher:
 
         thread.join(max(0.0, deadline - time.monotonic()))
 
-    def _enqueue(self, item: Any) -> None:
+    def _enqueue(self, item: _QueueItem) -> None:
         self._ensure_worker()
 
         try:
@@ -219,12 +232,12 @@ class EventDispatcher:
         while True:
             item = self._queue.get()
 
-            if item is _SHUTDOWN:
-                return
-
             if isinstance(item, _FlushMarker):
                 item.done.set()
                 continue
+
+            if isinstance(item, _Shutdown):
+                return
 
             try:
                 self._callback(item)
