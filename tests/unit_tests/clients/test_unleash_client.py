@@ -11,8 +11,8 @@ import pytest
 import responses
 from apscheduler.executors.pool import ThreadPoolExecutor
 from apscheduler.schedulers.background import BackgroundScheduler
-from blinker import Signal, signal
 
+from tests.utilities.events import WAIT_TIMEOUT, EventRecorder, wait_until
 from tests.utilities.mocks.mock_all_features import MOCK_ALL_FEATURES
 from tests.utilities.mocks.mock_features import (
     MOCK_FEATURE_ENABLED_NO_VARIANTS_RESPONSE,
@@ -45,7 +45,7 @@ from tests.utilities.testing_constants import (
 from UnleashClient import INSTANCES, UnleashClient
 from UnleashClient.cache import BaseCache, FileCache
 from UnleashClient.constants import FEATURES_URL, METRICS_URL, REGISTER_URL
-from UnleashClient.events import BaseEvent, UnleashEvent, UnleashEventType
+from UnleashClient.events import UnleashEventType
 from UnleashClient.utils import InstanceAllowType
 
 
@@ -69,21 +69,8 @@ class EnvironmentStrategy:
 
 
 def build_event_handlers():
-    send_data = Signal()
-    ready_signal = threading.Event()
-    fetch_signal = threading.Event()
-
-    @send_data.connect
-    def handle_event(sender, **kw):
-        if kw["data"].event_type == UnleashEventType.READY:
-            ready_signal.set()
-        if kw["data"].event_type == UnleashEventType.FETCHED:
-            fetch_signal.set()
-
-    def event_handler(event: BaseEvent):
-        send_data.send("anonymous", data=event)
-
-    return event_handler, ready_signal, fetch_signal
+    recorder = EventRecorder()
+    return recorder, recorder.ready, recorder.fetched
 
 
 @pytest.fixture(autouse=True)
@@ -99,19 +86,7 @@ def cache(tmpdir):
 
 @pytest.fixture()
 def readyable_unleash_client(cache):
-    send_data = Signal()
-    ready_signal = threading.Event()
-    fetch_signal = threading.Event()
-
-    @send_data.connect
-    def handle_event(sender, **kw):
-        if kw["data"].event_type == UnleashEventType.READY:
-            ready_signal.set()
-        if kw["data"].event_type == UnleashEventType.FETCHED:
-            fetch_signal.set()
-
-    def event_handler(event: BaseEvent):
-        send_data.send("anonymous", data=event)
+    event_handler, ready_signal, fetch_signal = build_event_handlers()
 
     unleash_client = UnleashClient(
         URL,
@@ -127,19 +102,7 @@ def readyable_unleash_client(cache):
 
 @pytest.fixture()
 def readyable_unleash_client_project(cache):
-    send_data = Signal()
-    ready_signal = threading.Event()
-    fetch_signal = threading.Event()
-
-    @send_data.connect
-    def handle_event(sender, **kw):
-        if kw["data"].event_type == UnleashEventType.READY:
-            ready_signal.set()
-        if kw["data"].event_type == UnleashEventType.FETCHED:
-            fetch_signal.set()
-
-    def event_handler(event: BaseEvent):
-        send_data.send("anonymous", data=event)
+    event_handler, ready_signal, fetch_signal = build_event_handlers()
 
     unleash_client = UnleashClient(
         URL,
@@ -156,19 +119,7 @@ def readyable_unleash_client_project(cache):
 
 @pytest.fixture()
 def readyable_unleash_client_nodestroy(cache):
-    send_data = Signal()
-    ready_signal = threading.Event()
-    fetch_signal = threading.Event()
-
-    @send_data.connect
-    def handle_event(sender, **kw):
-        if kw["data"].event_type == UnleashEventType.READY:
-            ready_signal.set()
-        if kw["data"].event_type == UnleashEventType.FETCHED:
-            fetch_signal.set()
-
-    def event_handler(event: BaseEvent):
-        send_data.send("anonymous", data=event)
+    event_handler, ready_signal, fetch_signal = build_event_handlers()
 
     unleash_client = UnleashClient(
         URL,
@@ -183,19 +134,7 @@ def readyable_unleash_client_nodestroy(cache):
 
 @pytest.fixture()
 def readyable_unleash_client_toggle_only(cache):
-    send_data = Signal()
-    ready_signal = threading.Event()
-    fetch_signal = threading.Event()
-
-    @send_data.connect
-    def handle_event(sender, **kw):
-        if kw["data"].event_type == UnleashEventType.READY:
-            ready_signal.set()
-        if kw["data"].event_type == UnleashEventType.FETCHED:
-            fetch_signal.set()
-
-    def event_handler(event: BaseEvent):
-        send_data.send("anonymous", data=event)
+    event_handler, ready_signal, fetch_signal = build_event_handlers()
 
     unleash_client = UnleashClient(
         URL,
@@ -288,7 +227,7 @@ def test_uc_lifecycle(readyable_unleash_client):
 
     # Create Unleash client and check initial load
     unleash_client.initialize_client()
-    ready_signal.wait()
+    assert ready_signal.wait(timeout=WAIT_TIMEOUT)
     assert unleash_client.is_initialized
     assert len(unleash_client.feature_definitions()) >= 4
 
@@ -309,9 +248,13 @@ def test_uc_lifecycle(readyable_unleash_client):
         status=200,
         headers={"etag": "W/somethingelse"},
     )
+    # Waiting on fetch_signal would race: a FETCHED queued before the clear can
+    # be delivered after it.  Wait on the provisioning itself instead.
     fetch_signal.clear()
-    fetch_signal.wait(timeout=REFRESH_INTERVAL * 3)
-    assert len(unleash_client.feature_definitions()) >= 9
+    assert wait_until(
+        lambda: len(unleash_client.feature_definitions()) >= 9,
+        timeout=REFRESH_INTERVAL * 3,
+    )
 
 
 @responses.activate
@@ -326,7 +269,7 @@ def test_uc_is_enabled_basic(readyable_unleash_client):
 
     # Create Unleash client and check initial load
     unleash_client.initialize_client()
-    ready_signal.wait(timeout=1)
+    assert ready_signal.wait(timeout=WAIT_TIMEOUT)
 
     assert unleash_client.is_enabled("testFlag")
 
@@ -368,7 +311,7 @@ def test_uc_project(readyable_unleash_client_project):
 
     # Create Unleash client and check initial load
     unleash_client.initialize_client()
-    ready_signal.wait(timeout=1)
+    assert ready_signal.wait(timeout=WAIT_TIMEOUT)
     assert unleash_client.is_enabled("ivan-project")
 
 
@@ -395,7 +338,7 @@ def test_uc_fallbackfunction(readyable_unleash_client, mocker):
 
     # Create Unleash client and check initial load
     unleash_client.initialize_client()
-    ready_signal.wait(timeout=1)
+    assert ready_signal.wait(timeout=WAIT_TIMEOUT)
     # Non-existent feature flag, fallback_function
     assert unleash_client.is_enabled("notFoundTestFlag", fallback_function=fallback_spy)
     assert fallback_spy.call_count == 1
@@ -424,13 +367,13 @@ def test_uc_dirty_cache(readyable_unleash_client_nodestroy):
 
     # Create Unleash client and check initial load
     unleash_client.initialize_client()
-    ready_signal.wait(timeout=1)
+    assert ready_signal.wait(timeout=WAIT_TIMEOUT)
     assert unleash_client.is_enabled("testFlag")
     unleash_client.unleash_scheduler.shutdown()
 
     # Check that everything works if previous cache exists.
     unleash_client.initialize_client()
-    ready_signal.wait(timeout=1)
+    assert ready_signal.wait(timeout=WAIT_TIMEOUT)
     assert unleash_client.is_enabled("testFlag")
 
 
@@ -457,7 +400,7 @@ def test_uc_is_enabled_with_context():
     # Create Unleash client and check initial load
     unleash_client.initialize_client()
 
-    ready_signal.wait(timeout=1)
+    assert ready_signal.wait(timeout=WAIT_TIMEOUT)
     assert unleash_client.is_enabled("testContextFlag")
     unleash_client.destroy()
 
@@ -474,7 +417,7 @@ def test_uc_is_enabled_error_states(readyable_unleash_client):
 
     # Create Unleash client and check initial load
     unleash_client.initialize_client()
-    ready_signal.wait(timeout=1)
+    assert ready_signal.wait(timeout=WAIT_TIMEOUT)
     assert not unleash_client.is_enabled("ThisFlagDoesn'tExist")
     assert unleash_client.is_enabled(
         "ThisFlagDoesn'tExist", fallback_function=lambda x, y: True
@@ -536,7 +479,7 @@ def test_uc_get_variant():
     # Create Unleash client and check initial load
     unleash_client.initialize_client()
 
-    ready_signal.wait(timeout=1)
+    assert ready_signal.wait(timeout=WAIT_TIMEOUT)
     # If feature flag is on.
     variant = unleash_client.get_variant("testVariations", context={"userId": "2"})
     assert variant["name"] == "VarA"
@@ -597,7 +540,7 @@ def test_uc_metrics(readyable_unleash_client):
 
     # Create Unleash client and check initial load
     unleash_client.initialize_client()
-    ready_signal.wait(timeout=1)
+    assert ready_signal.wait(timeout=WAIT_TIMEOUT)
     assert unleash_client.is_enabled("testFlag")
 
     metrics = unleash_client.engine.get_metrics()["toggles"]
@@ -615,7 +558,7 @@ def test_uc_registers_metrics_for_nonexistent_features(readyable_unleash_client)
 
     # Create Unleash client and check initial load
     unleash_client.initialize_client()
-    ready_signal.wait(timeout=1)
+    assert ready_signal.wait(timeout=WAIT_TIMEOUT)
 
     # Check a flag that doesn't exist
     unleash_client.is_enabled("nonexistent-flag")
@@ -637,7 +580,7 @@ def test_uc_metrics_dependencies(readyable_unleash_client):
     )
 
     unleash_client.initialize_client()
-    ready_signal.wait(timeout=1)
+    assert ready_signal.wait(timeout=WAIT_TIMEOUT)
     assert unleash_client.is_enabled("Child")
 
     metrics = unleash_client.engine.get_metrics()["toggles"]
@@ -658,7 +601,7 @@ def test_uc_registers_variant_metrics_for_nonexistent_features(
 
     # Create Unleash client and check initial load
     unleash_client.initialize_client()
-    ready_signal.wait(timeout=1)
+    assert ready_signal.wait(timeout=WAIT_TIMEOUT)
 
     # Check a flag that doesn't exist
     unleash_client.get_variant("nonexistent-flag")
@@ -682,7 +625,7 @@ def test_uc_doesnt_count_metrics_for_dependency_parents(readyable_unleash_client
 
     # Create Unleash client and check initial load
     unleash_client.initialize_client()
-    ready_signal.wait(timeout=1)
+    assert ready_signal.wait(timeout=WAIT_TIMEOUT)
 
     child = "ChildWithVariant"
     parent = "Parent"
@@ -713,7 +656,7 @@ def test_uc_counts_metrics_for_child_even_if_parent_is_disabled(
 
     # Create Unleash client and check initial load
     unleash_client.initialize_client()
-    ready_signal.wait(timeout=1)
+    assert ready_signal.wait(timeout=WAIT_TIMEOUT)
 
     child = "WithDisabledDependency"
     parent = "Disabled"
@@ -740,7 +683,7 @@ def test_uc_disabled_registration(readyable_unleash_client_toggle_only):
 
     unleash_client.initialize_client()
     unleash_client.is_enabled("testFlag")
-    ready_signal.wait(timeout=1)
+    assert ready_signal.wait(timeout=WAIT_TIMEOUT)
     assert unleash_client.is_enabled("testFlag")
 
     for api_call in responses.calls:
@@ -763,7 +706,7 @@ def test_uc_server_error(readyable_unleash_client):
     responses.add(
         responses.GET, URL + FEATURES_URL, json=MOCK_FEATURE_RESPONSE, status=200
     )
-    ready_signal.wait(REFRESH_INTERVAL * 2)
+    assert ready_signal.wait(REFRESH_INTERVAL * 3)
     assert unleash_client.is_enabled("testFlag")
 
 
@@ -805,7 +748,7 @@ def test_uc_multiple_initializations(readyable_unleash_client):
 
     # Create Unleash client and check initial load
     unleash_client.initialize_client()
-    ready_signal.wait(timeout=1)
+    assert ready_signal.wait(timeout=WAIT_TIMEOUT)
     assert unleash_client.is_initialized
     assert len(unleash_client.feature_definitions()) >= 4
 
@@ -848,7 +791,7 @@ def test_uc_cache_bootstrap_dict(cache):
 
     # Create Unleash client and check initial load
     unleash_client.initialize_client()
-    ready_signal.wait(timeout=1)
+    assert ready_signal.wait(timeout=WAIT_TIMEOUT)
     assert unleash_client.is_initialized
     assert len(unleash_client.feature_definitions()) >= 4
     assert unleash_client.is_enabled("testFlag")
@@ -936,7 +879,7 @@ def test_uc_custom_scheduler():
 
     # Create Unleash client and check initial load
     unleash_client.initialize_client()
-    ready_signal.wait(timeout=1)
+    assert ready_signal.wait(timeout=WAIT_TIMEOUT)
     assert unleash_client.is_initialized
     assert len(unleash_client.feature_definitions()) >= 4
 
@@ -957,8 +900,10 @@ def test_uc_custom_scheduler():
         status=200,
         headers={"etag": "W/somethingelse"},
     )
-    fetch_signal.wait(timeout=REFRESH_INTERVAL * 3)
-    assert len(unleash_client.feature_definitions()) >= 9
+    assert wait_until(
+        lambda: len(unleash_client.feature_definitions()) >= 9,
+        timeout=REFRESH_INTERVAL * 3,
+    )
     unleash_client.destroy()
 
 
@@ -1083,27 +1028,7 @@ def test_signals_feature_flag(cache):
     responses.add(
         responses.GET, URL + FEATURES_URL, json=MOCK_FEATURE_RESPONSE, status=200
     )
-    flag_event = None
-    variant_event = None
-
-    # Set up signals
-    send_data = signal("send-data")
-    ready_signal = threading.Event()
-
-    @send_data.connect
-    def receive_data(sender, **kw):
-        #  variant_event
-        if kw["data"].event_type == UnleashEventType.FEATURE_FLAG:
-            nonlocal flag_event
-            flag_event = kw["data"]
-        elif kw["data"].event_type == UnleashEventType.VARIANT:
-            nonlocal variant_event
-            variant_event = kw["data"]
-        elif kw["data"].event_type == UnleashEventType.READY:
-            ready_signal.set()
-
-    def example_callback(event: UnleashEvent):
-        send_data.send("anonymous", data=event)
+    recorder = EventRecorder()
 
     # Set up Unleash
     unleash_client = UnleashClient(
@@ -1113,23 +1038,30 @@ def test_signals_feature_flag(cache):
         disable_registration=True,
         disable_metrics=True,
         cache=cache,
-        event_callback=example_callback,
+        event_callback=recorder,
     )
 
     # Create Unleash client and check initial load
     unleash_client.initialize_client()
-    ready_signal.wait(timeout=1)
+    assert recorder.ready.wait(timeout=WAIT_TIMEOUT)
 
     assert unleash_client.is_enabled("testFlag")
     variant = unleash_client.get_variant("testVariations", context={"userId": "2"})
     assert variant["name"] == "VarA"
 
-    assert flag_event.feature_name == "testFlag"
-    assert flag_event.enabled
+    # Impression events are delivered by the dispatcher, so they arrive after
+    # the call that produced them has already returned.
+    flag_events = recorder.wait_for(UnleashEventType.FEATURE_FLAG)
+    variant_events = recorder.wait_for(UnleashEventType.VARIANT)
+    assert flag_events is not None
+    assert variant_events is not None
 
-    assert variant_event.feature_name == "testVariations"
-    assert variant_event.enabled
-    assert variant_event.variant == "VarA"
+    assert flag_events[0].feature_name == "testFlag"
+    assert flag_events[0].enabled
+
+    assert variant_events[0].feature_name == "testVariations"
+    assert variant_events[0].enabled
+    assert variant_events[0].variant == "VarA"
     unleash_client.destroy()
 
 
@@ -1141,22 +1073,7 @@ def test_fetch_signal(cache):
         responses.GET, URL + FEATURES_URL, json=MOCK_FEATURE_RESPONSE, status=200
     )
     responses.add(responses.POST, URL + METRICS_URL, json={}, status=202)
-    trapped_event = None
-
-    # Set up signals
-    send_data = signal("send-data")
-    fetch_signal = threading.Event()
-
-    @send_data.connect
-    def receive_data(sender, **kw):
-
-        if kw["data"].event_type == UnleashEventType.FETCHED:
-            nonlocal trapped_event
-            trapped_event = kw["data"]
-            fetch_signal.set()
-
-    def example_callback(event: UnleashEvent):
-        send_data.send("anonymous", data=event)
+    recorder = EventRecorder()
 
     # Set up Unleash
     unleash_client = UnleashClient(
@@ -1165,14 +1082,16 @@ def test_fetch_signal(cache):
         refresh_interval=REFRESH_INTERVAL,
         metrics_interval=METRICS_INTERVAL,
         cache=cache,
-        event_callback=example_callback,
+        event_callback=recorder,
     )
 
     # Create Unleash client and check initial load
     unleash_client.initialize_client()
-    fetch_signal.wait(timeout=1)
+    fetched = recorder.wait_for(UnleashEventType.FETCHED)
+    assert fetched is not None
 
-    assert trapped_event.features[0]["name"] == "testFlag"
+    assert fetched[0].features[0]["name"] == "testFlag"
+    unleash_client.destroy()
 
 
 @responses.activate
@@ -1180,21 +1099,7 @@ def test_ready_signal(cache):
     responses.add(
         responses.GET, URL + FEATURES_URL, json=MOCK_FEATURE_RESPONSE, status=200
     )
-    trapped_events = 0
-
-    # Set up signals
-    send_data = signal("send-data")
-    ready_signal = threading.Event()
-
-    @send_data.connect
-    def receive_data(sender, **kw):
-        if kw["data"].event_type == UnleashEventType.READY:
-            nonlocal trapped_events
-            trapped_events += 1
-            ready_signal.set()
-
-    def example_callback(event: UnleashEvent):
-        send_data.send("anonymous", data=event)
+    recorder = EventRecorder()
 
     unleash_client = UnleashClient(
         URL,
@@ -1203,34 +1108,24 @@ def test_ready_signal(cache):
         disable_metrics=True,
         disable_registration=True,
         cache=cache,
-        event_callback=example_callback,
+        event_callback=recorder,
     )
 
     unleash_client.initialize_client()
-    ready_signal.wait(timeout=1)
+    assert recorder.ready.wait(timeout=WAIT_TIMEOUT)
 
-    assert trapped_events == 1
+    # Every poll emits READY again; destroy() drains whatever is still queued.
+    time.sleep(REFRESH_INTERVAL * 2)
     unleash_client.destroy()
+
+    assert len(recorder.of_type(UnleashEventType.READY)) == 1
 
 
 def test_ready_signal_works_with_bootstrapping():
     cache = FileCache("MOCK_CACHE")
     cache.bootstrap_from_dict(MOCK_FEATURE_WITH_DEPENDENCIES_RESPONSE)
 
-    trapped_events = 0
-
-    # Set up signals
-    send_data = signal("send-data")
-    ready_signal = threading.Event()
-
-    @send_data.connect
-    def receive_data(sender, **kw):
-        if kw["data"].event_type == UnleashEventType.READY:
-            nonlocal trapped_events
-            trapped_events += 1
-
-    def example_callback(event: UnleashEvent):
-        send_data.send("anonymous", data=event)
+    recorder = EventRecorder()
 
     unleash_client = UnleashClient(
         url=URL,
@@ -1238,13 +1133,13 @@ def test_ready_signal_works_with_bootstrapping():
         cache=cache,
         disable_metrics=True,
         disable_registration=True,
-        event_callback=example_callback,
+        event_callback=recorder,
     )
 
     unleash_client.initialize_client(fetch_toggles=False)
-    ready_signal.wait(timeout=1)
+    assert recorder.ready.wait(timeout=WAIT_TIMEOUT)
 
-    assert trapped_events == 1
+    assert len(recorder.of_type(UnleashEventType.READY)) == 1
 
     unleash_client.destroy()
 
@@ -1630,3 +1525,121 @@ def test_destroy_calls_custom_cache_destroy():
     unleash_client.destroy()
 
     assert cache.destroy_calls == 1
+
+
+def bootstrapped_client(recorder, **kwargs):
+    cache = FileCache("MOCK_CACHE")
+    cache.bootstrap_from_dict(MOCK_FEATURE_RESPONSE)
+    return UnleashClient(
+        URL,
+        APP_NAME,
+        cache=cache,
+        disable_metrics=True,
+        disable_registration=True,
+        event_callback=recorder,
+        **kwargs,
+    )
+
+
+def test_impression_events_are_delivered_off_the_calling_thread():
+    calling_thread = threading.current_thread()
+    callback_threads = []
+
+    def record_thread(event):
+        callback_threads.append(threading.current_thread())
+
+    unleash_client = bootstrapped_client(record_thread)
+    unleash_client.initialize_client(fetch_toggles=False)
+
+    assert unleash_client.is_enabled("testFlag")
+    unleash_client.destroy()
+
+    assert callback_threads
+    assert all(thread is not calling_thread for thread in callback_threads)
+    assert all(thread.name == "UnleashEventDispatcher" for thread in callback_threads)
+
+
+def test_is_enabled_does_not_block_on_a_slow_callback():
+    release = threading.Event()
+    recorder = EventRecorder()
+
+    def wedged_callback(event):
+        release.wait(timeout=WAIT_TIMEOUT)
+        recorder(event)
+
+    unleash_client = bootstrapped_client(wedged_callback)
+    unleash_client.initialize_client(fetch_toggles=False)
+
+    try:
+        start = time.monotonic()
+        for _ in range(50):
+            assert unleash_client.is_enabled("testFlag")
+        elapsed = time.monotonic() - start
+    finally:
+        release.set()
+
+    # The callback is wedged for the whole loop, so anything close to a second
+    # means it's being called on the hot path again.
+    assert elapsed < 1
+
+    unleash_client.destroy()
+    # Guards against the timing assertion passing because nothing was emitted.
+    assert recorder.of_type(UnleashEventType.FEATURE_FLAG)
+
+
+def test_destroy_drains_queued_events():
+    release = threading.Event()
+    recorder = EventRecorder()
+
+    def gated_callback(event):
+        release.wait(timeout=WAIT_TIMEOUT)
+        recorder(event)
+
+    unleash_client = bootstrapped_client(gated_callback)
+    unleash_client.initialize_client(fetch_toggles=False)
+
+    for _ in range(5):
+        unleash_client.is_enabled("testFlag")
+
+    release.set()
+    unleash_client.destroy()
+
+    assert len(recorder.of_type(UnleashEventType.FEATURE_FLAG)) == 5
+
+
+def test_callback_exception_does_not_break_is_enabled_or_get_variant():
+    recorder = EventRecorder()
+    first_call = True
+
+    def exploding_callback(event):
+        nonlocal first_call
+        if first_call:
+            first_call = False
+            raise ValueError("callbacks can misbehave")
+        recorder(event)
+
+    unleash_client = bootstrapped_client(exploding_callback)
+    unleash_client.initialize_client(fetch_toggles=False)
+
+    assert unleash_client.is_enabled("testFlag")
+    variant = unleash_client.get_variant("testVariations", context={"userId": "2"})
+    assert variant["name"] == "VarA"
+
+    unleash_client.destroy()
+
+    # The first event blew up; the worker survived to deliver the rest.
+    assert recorder.events
+
+
+def test_events_emitted_after_destroy_are_dropped():
+    recorder = EventRecorder()
+
+    unleash_client = bootstrapped_client(recorder)
+    unleash_client.initialize_client(fetch_toggles=False)
+    unleash_client.destroy()
+
+    delivered_before = len(recorder.events)
+    assert delivered_before, "expected destroy() to have drained the queued events"
+
+    assert unleash_client.is_enabled("testFlag")
+    assert len(recorder.events) == delivered_before
