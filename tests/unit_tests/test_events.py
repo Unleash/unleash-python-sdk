@@ -15,8 +15,6 @@ from UnleashClient.events import (
     UnleashReadyEvent,
 )
 
-# Generous enough to never trip on a loaded CI box, short enough that a genuine
-# hang fails the test instead of the suite.
 WAIT_TIMEOUT = 5
 
 
