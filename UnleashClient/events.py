@@ -140,6 +140,10 @@ class EventDispatcher:
         """
         Queues an event for delivery.  Never blocks the caller.  READY events after
         the first one are ignored.
+
+        The closed check and the enqueue happen under one lock, so an event that gets
+        past the check is always queued ahead of a concurrent ``close``, never behind
+        its shutdown sentinel where the worker would never see it.
         """
         with self._lock:
             if self._closed:
@@ -150,7 +154,22 @@ class EventDispatcher:
                     return
                 self._ready_fired = True
 
-        self._enqueue(event)
+            self._start_worker()
+
+            try:
+                self._queue.put_nowait(event)
+                return
+            except queue.Full:
+                self._dropped += 1
+                should_warn = not self._warned_about_full_queue
+                self._warned_about_full_queue = True
+
+        if should_warn:
+            LOGGER.warning(
+                "Unleash event queue is full, events are being dropped. This usually means the event callback is too slow."
+            )
+        else:
+            LOGGER.debug("Event was dropped because queue is full.")
 
     def flush(self, timeout: float = DEFAULT_TIMEOUT) -> bool:
         """
@@ -194,36 +213,15 @@ class EventDispatcher:
 
         thread.join(max(0.0, deadline - time.monotonic()))
 
-    def _enqueue(self, item: _QueueItem) -> None:
-        self._ensure_worker()
-
-        try:
-            self._queue.put_nowait(item)
-        except queue.Full:
-            with self._lock:
-                self._dropped += 1
-                should_warn = not self._warned_about_full_queue
-                self._warned_about_full_queue = True
-
-            if should_warn:
-                LOGGER.warning(
-                    "Unleash event queue is full, events are being dropped. This usually means the event callback is too slow."
-                )
-            else:
-                LOGGER.debug("Event was dropped because queue is full.")
-
-    def _ensure_worker(self) -> None:
-        """Initializes a worker if one is not started. Further calls to _ensure_worker are no-ops."""
+    def _start_worker(self) -> None:
+        """Starts a worker if one is not running.  Caller must hold ``self._lock``."""
         if self._thread is not None:
             return
 
-        with self._lock:
-            if self._thread is not None or self._closed:
-                return
-            self._thread = threading.Thread(
-                target=self._run, name="UnleashEventDispatcher", daemon=True
-            )
-            self._thread.start()
+        self._thread = threading.Thread(
+            target=self._run, name="UnleashEventDispatcher", daemon=True
+        )
+        self._thread.start()
 
     def _run(self) -> None:
         """_run is the inifinite loop that drains the queue of events.
@@ -237,9 +235,25 @@ class EventDispatcher:
                 continue
 
             if isinstance(item, _Shutdown):
+                self._release_flush_markers()
                 return
 
             try:
                 self._callback(item)
             except Exception as exc:
                 LOGGER.warning("Error in event callback: %s", exc)
+
+    def _release_flush_markers(self) -> None:
+        """
+        Wakes anything that raced close() and landed behind the shutdown sentinel,
+        rather than leaving it blocked for its full timeout.  Events found back there
+        are discarded: close() only promises to deliver what was queued before it.
+        """
+        while True:
+            try:
+                item = self._queue.get_nowait()
+            except queue.Empty:
+                return
+
+            if isinstance(item, _FlushMarker):
+                item.done.set()
