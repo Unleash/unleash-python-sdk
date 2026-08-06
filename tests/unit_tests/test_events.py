@@ -306,3 +306,94 @@ def test_emit_event_after_close_is_a_no_op(
     dispatcher.emit_event(ready_event())
 
     assert [event.feature_name for event in received] == ["before"]
+
+
+def test_event_accepted_while_closing_is_still_delivered(
+    dispatcher_factory: Callable[..., EventDispatcher],
+):
+    """
+    This test is dense. What the test does is to manufacture the
+    race condition between emit_event() and close(). In other words, the window between 
+    emit_event accepting an event and queueing it is nanoseconds
+    wide, too narrow to hit by chance. The gate below widens it by freezing the
+    emitter between those two steps.
+
+    close() then runs on another thread while the emitter is frozen.  If it can take
+    the lock, it queues its shutdown sentinel ahead of the event, the worker exits on
+    the sentinel, and the event is never delivered.  Holding the lock across the whole
+    enqueue blocks close() until the event is queued.
+    """
+    received: list[UnleashEvent] = []
+    dispatcher = dispatcher_factory(received.append)
+
+    dispatcher.emit_event(flag_event("warmup")) # First emission lazily creates worked thread.
+    assert dispatcher.flush(timeout=WAIT_TIMEOUT)
+
+    inside_put = threading.Event()
+    release = threading.Event()
+    real_put_nowait = dispatcher._queue.put_nowait
+
+    def gated_put_nowait(item):
+        # emit_event has accepted the event but not queued it yet.
+        inside_put.set()
+        _ = release.wait(timeout=WAIT_TIMEOUT)
+        real_put_nowait(item)
+
+    dispatcher._queue.put_nowait = gated_put_nowait # "manufacture" a slow "put_nowait"
+
+    emitter = threading.Thread(target=lambda: dispatcher.emit_event(flag_event("racy")))
+    emitter.start()
+    assert inside_put.wait(timeout=WAIT_TIMEOUT)
+
+    closer = threading.Thread(target=lambda: dispatcher.close(timeout=WAIT_TIMEOUT))
+    closer.start()
+    time.sleep(0.1)  # ample time for an unsynchronized close() to queue the sentinel
+
+    release.set()
+    emitter.join(timeout=WAIT_TIMEOUT)
+    closer.join(timeout=WAIT_TIMEOUT)
+
+    # assert that "racy" was not queued after _Shutdown
+    assert [event.feature_name for event in received] == ["warmup", "racy"]
+
+
+def test_flush_queued_behind_shutdown_is_released(
+    dispatcher_factory: Callable[..., EventDispatcher],
+):
+    """
+    [_SHUTDOWN, marker] is a genuinely reachable queue state during a concurrent close() + flush().
+
+    This test exercises that case, ensuring that anyone waiting for marker to be released
+    is not left hanging.
+
+    A flush that raced close() and landed behind the sentinel must be woken when the
+    worker exits, instead of blocking for its whole timeout.
+    """
+    entered = threading.Event()
+    release = threading.Event()
+
+    def callback(_event: UnleashEvent):
+        entered.set()
+        _ = release.wait(timeout=WAIT_TIMEOUT)
+
+    dispatcher = dispatcher_factory(callback)
+
+    dispatcher.emit_event(flag_event())
+    assert entered.wait(timeout=WAIT_TIMEOUT)
+
+    closer = threading.Thread(target=lambda: dispatcher.close(timeout=WAIT_TIMEOUT))
+    closer.start()
+    time.sleep(0.1)  # let the sentinel land behind the wedged event
+
+    flushed: list[bool] = []
+    flusher = threading.Thread(
+        target=lambda: flushed.append(dispatcher.flush(timeout=WAIT_TIMEOUT))
+    )
+    flusher.start()
+    time.sleep(0.1)  # ...and the flush marker land behind the sentinel
+
+    release.set()
+    flusher.join(timeout=WAIT_TIMEOUT)
+    closer.join(timeout=WAIT_TIMEOUT)
+
+    assert flushed == [True]
