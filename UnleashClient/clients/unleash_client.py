@@ -28,7 +28,6 @@ from UnleashClient.connectors import (
 )
 from UnleashClient.constants import (
     APPLICATION_HEADERS,
-    DISABLED_VARIATION,
     ETAG,
     METRIC_LAST_SENT_TIME,
     REQUEST_RETRIES,
@@ -535,17 +534,6 @@ class UnleashClient:
         redacted_secret = f"{secret[:6]}...{secret[-3:]}"
         return f"{prefix}{separator}{redacted_secret}"
 
-    @staticmethod
-    def _get_fallback_value(
-        fallback_function: Callable, feature_name: str, context: dict
-    ) -> bool:
-        if fallback_function:
-            fallback_value = fallback_function(feature_name, context)
-        else:
-            fallback_value = False
-
-        return fallback_value
-
     # pylint: disable=broad-except
     def is_enabled(
         self,
@@ -566,22 +554,18 @@ class UnleashClient:
         :return: Feature flag result
         """
         context = self._safe_context(context)
-        feature_enabled = self.engine.is_enabled(feature_name, context)
+        result = self.engine.is_enabled(
+            feature_name, context, fallback_function=fallback_function
+        )
 
-        if feature_enabled is None:
-            feature_enabled = self._get_fallback_value(
-                fallback_function, feature_name, context
-            )
-
-        self.engine.count_toggle(feature_name, feature_enabled)
         try:
-            if self.__events and self.engine.should_emit_impression_event(feature_name):
+            if self.__events and result.requires_impression_event_emission:
                 self.__events.emit_event(
                     UnleashEvent(
                         event_type=UnleashEventType.FEATURE_FLAG,
                         event_id=uuid.uuid4(),
                         context=context,
-                        enabled=feature_enabled,
+                        enabled=result.is_enabled,
                         feature_name=feature_name,
                     )
                 )
@@ -592,7 +576,7 @@ class UnleashClient:
                 excep,
             )
 
-        return feature_enabled
+        return result.is_enabled
 
     # pylint: disable=broad-except
     def get_variant(self, feature_name: str, context: Optional[dict] = None) -> dict:
@@ -608,30 +592,25 @@ class UnleashClient:
         :return: Variant and feature flag status.
         """
         context = self._safe_context(context)
-        variant = self._resolve_variant(feature_name, context)
+        result = self.engine.get_variant(feature_name, context)
 
-        if not variant:
-            if self.unleash_bootstrapped or self.is_initialized:
-                LOGGER.log(
-                    self.unleash_verbose_log_level,
-                    "Attempted to get feature flag/variation %s, but client wasn't initialized!",
-                    feature_name,
-                )
-            variant = DISABLED_VARIATION
-
-        self.engine.count_variant(feature_name, variant["name"])
-        self.engine.count_toggle(feature_name, variant["feature_enabled"])
+        if not result.is_found and (self.unleash_bootstrapped or self.is_initialized):
+            LOGGER.log(
+                self.unleash_verbose_log_level,
+                "Attempted to get feature flag/variation %s, but client wasn't initialized!",
+                feature_name,
+            )
 
         try:
-            if self.__events and self.engine.should_emit_impression_event(feature_name):
+            if self.__events and result.requires_impression_event_emission:
                 self.__events.emit_event(
                     UnleashEvent(
                         event_type=UnleashEventType.VARIANT,
                         event_id=uuid.uuid4(),
                         context=context,
-                        enabled=bool(variant["enabled"]),
+                        enabled=bool(result.variant.enabled),
                         feature_name=feature_name,
-                        variant=str(variant["name"]),
+                        variant=str(result.variant.name),
                     )
                 )
         except Exception as excep:
@@ -641,6 +620,8 @@ class UnleashClient:
                 excep,
             )
 
+        # This can probably become a to_dict method of the Variant type.
+        variant = {k: v for k, v in asdict(result.variant).items() if v is not None}
         return variant
 
     def _safe_context(self, context) -> dict:
@@ -678,15 +659,6 @@ class UnleashClient:
         if isinstance(value, (int, float)):
             return str(value)
         return str(value)
-
-    def _resolve_variant(self, feature_name: str, context: dict) -> dict:
-        """
-        Resolves a feature variant.
-        """
-        variant = self.engine.get_variant(feature_name, context)
-        if variant:
-            return {k: v for k, v in asdict(variant).items() if v is not None}
-        return None
 
     def _do_instance_check(self, multiple_instance_mode):
         identifier = self.__get_identifier()

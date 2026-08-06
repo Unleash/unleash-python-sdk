@@ -24,7 +24,7 @@ def test_offline_connector_load_features(cache_empty):
     )
 
     connector.load_features()
-    assert engine.is_enabled("testFlag", {})
+    assert engine.is_enabled("testFlag", {}).is_enabled
 
 
 def test_offline_connector_start_stop(cache_empty):
@@ -89,5 +89,5 @@ def test_offline_connector_without_a_dispatcher_does_not_emit(cache_empty):
 
     connector.start()
     assert connector._events is None
-    assert engine.is_enabled("testFlag", {})
+    assert engine.is_enabled("testFlag", {}).is_enabled
     connector.stop()

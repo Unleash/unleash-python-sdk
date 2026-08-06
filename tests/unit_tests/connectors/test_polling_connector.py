@@ -54,7 +54,7 @@ def test_polling_connector_fetch_and_load(cache_empty):
 
     connector._fetch_and_load()
 
-    assert engine.is_enabled("testFlag", {})
+    assert engine.is_enabled("testFlag", {}).is_enabled
     assert temp_cache.get(ETAG) == ETAG_VALUE
 
 
@@ -83,7 +83,7 @@ def test_polling_connector_fetch_and_load_project(cache_empty):
 
     connector._fetch_and_load()
 
-    assert engine.is_enabled("ivan-project", {})
+    assert engine.is_enabled("ivan-project", {}).is_enabled
 
 
 @responses.activate
@@ -115,7 +115,7 @@ def test_polling_connector_fetch_and_load_failure(cache_empty):
 
     connector._fetch_and_load()
 
-    assert engine.is_enabled("testFlag", {})
+    assert engine.is_enabled("testFlag", {}).is_enabled
 
 
 @responses.activate
