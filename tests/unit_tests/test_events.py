@@ -313,7 +313,7 @@ def test_event_accepted_while_closing_is_still_delivered(
 ):
     """
     This test is dense. What the test does is to manufacture the
-    race condition between emit_event() and close(). In other words, the window between 
+    race condition between emit_event() and close(). In other words, the window between
     emit_event accepting an event and queueing it is nanoseconds
     wide, too narrow to hit by chance. The gate below widens it by freezing the
     emitter between those two steps.
@@ -326,7 +326,9 @@ def test_event_accepted_while_closing_is_still_delivered(
     received: list[UnleashEvent] = []
     dispatcher = dispatcher_factory(received.append)
 
-    dispatcher.emit_event(flag_event("warmup")) # First emission lazily creates worked thread.
+    dispatcher.emit_event(
+        flag_event("warmup")
+    )  # First emission lazily creates worked thread.
     assert dispatcher.flush(timeout=WAIT_TIMEOUT)
 
     inside_put = threading.Event()
@@ -339,7 +341,7 @@ def test_event_accepted_while_closing_is_still_delivered(
         _ = release.wait(timeout=WAIT_TIMEOUT)
         real_put_nowait(item)
 
-    dispatcher._queue.put_nowait = gated_put_nowait # "manufacture" a slow "put_nowait"
+    dispatcher._queue.put_nowait = gated_put_nowait  # "manufacture" a slow "put_nowait"
 
     emitter = threading.Thread(target=lambda: dispatcher.emit_event(flag_event("racy")))
     emitter.start()
