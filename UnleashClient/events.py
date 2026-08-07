@@ -94,7 +94,7 @@ class _FlushMarker:
 
 _QueueItem = Union[BaseEvent, _Shutdown, _FlushMarker]
 
-DEFAULT_MAX_QUEUE_SIZE = 10_000
+DEFAULT_MAX_QUEUE_SIZE = 100
 DEFAULT_TIMEOUT = 2.0
 
 
