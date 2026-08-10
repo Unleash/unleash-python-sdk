@@ -118,7 +118,7 @@ class EventDispatcher:
 
     def __del__(self):
         self.close()
-    
+
     @property
     def dropped_events(self) -> int:
         """
@@ -151,8 +151,11 @@ class EventDispatcher:
 
     def close(self, timeout: float = DEFAULT_TIMEOUT) -> None:
         """
-        Stops the dispatcher.  Events already queued are delivered first, but only
-        for as long as the timeout allows.  Calling this more than once is a no-op.
+        close() signals the dispatcher to stop. It enqueues a Shutdown sentinel to the queue, and waits
+        for its signal to be set. The worker thread will eventually get to the sentinal, set its ``done``
+        signal, which will wake this thread and allow it to join the worker thread.
+
+        Even if the Shutdown sentinel cannot be enqueued, the worker thread will still be stopped and the dispatcher marked as closed.
         """
         with self._lock:
             if self._closed:
