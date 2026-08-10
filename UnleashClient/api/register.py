@@ -70,7 +70,15 @@ def register_client(
 
     try:
         LOGGER.info("Registering unleash client with unleash @ %s", url)
-        LOGGER.info("Registration request information: %s", {**registration_request, "instanceId": redact_to_print_safely(registration_request.get("instanceId"))})
+        LOGGER.info(
+            "Registration request information: %s",
+            {
+                **registration_request,
+                "instanceId": redact_to_print_safely(
+                    registration_request.get("instanceId")
+                ),
+            },
+        )
 
         resp = requests.post(
             build_normalized_url(url, REGISTER_URL),

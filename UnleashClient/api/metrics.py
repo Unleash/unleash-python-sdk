@@ -30,7 +30,13 @@ def send_metrics(
     """
     try:
         LOGGER.info("Sending messages to with unleash @ %s", url)
-        LOGGER.info("unleash metrics information: %s", {**request_body, "instanceId": redact_to_print_safely(request_body.get("instanceId"))})
+        LOGGER.info(
+            "unleash metrics information: %s",
+            {
+                **request_body,
+                "instanceId": redact_to_print_safely(request_body.get("instanceId")),
+            },
+        )
 
         resp = requests.post(
             build_normalized_url(url, METRICS_URL),
