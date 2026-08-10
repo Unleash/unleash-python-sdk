@@ -78,7 +78,7 @@ def test_events_are_dropped_when_the_queue_is_full(
 def test_close_drains_pending_events(
     dispatcher_factory: Callable[..., EventDispatcher],
 ):
-    received = []
+    received: list[UnleashEvent] = []
     gate = threading.Event()
 
     def callback(event: UnleashEvent):

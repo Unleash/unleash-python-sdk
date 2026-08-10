@@ -1,12 +1,10 @@
-from threading import Event
-
-
 import queue
 import threading
 import time
 from dataclasses import dataclass
 from enum import Enum
 from json import loads
+from threading import Event
 from typing import Callable, Optional, Union
 from uuid import UUID
 
@@ -118,6 +116,9 @@ class EventDispatcher:
         self._ready_fired = False
         self._closed = False
 
+    def __del__(self):
+        self.close()
+    
     @property
     def dropped_events(self) -> int:
         """
@@ -131,12 +132,11 @@ class EventDispatcher:
         self, event: BaseEvent, timeout: float = DEFAULT_PUT_TIMEOUT
     ) -> None:
         """
-        Queues an event for delivery.  Never blocks the caller.  READY events after
-        the first one are ignored.
+        Enqueues an event to be delivered to the callback.  If the queue is full, the
+        event is dropped and counted.  If the dispatcher has been closed, the event is
+        ignored.  This method is thread safe.
 
-        The closed check and the enqueue happen under one lock, so an event that gets
-        past the check is always queued ahead of a concurrent ``close``, never behind
-        its shutdown sentinel where the worker would never see it.
+        The caller will wait for at most ``DEFAULT_PUT_TIMEOUT`` seconds to enqueue the event.
         """
         with self._lock:
             if self._closed:
@@ -157,6 +157,7 @@ class EventDispatcher:
         with self._lock:
             if self._closed:
                 return
+
             self._closed = True
 
             start_time = time.monotonic()
