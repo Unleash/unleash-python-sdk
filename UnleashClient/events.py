@@ -81,18 +81,7 @@ class _Shutdown:
 _SHUTDOWN = _Shutdown()
 
 
-class _FlushMarker:
-    """
-    Sentinel that lets a caller wait until everything queued ahead of it has been delivered.
-    """
-
-    __slots__ = ("done",)
-
-    def __init__(self) -> None:
-        self.done = threading.Event()
-
-
-_QueueItem = Union[BaseEvent, _Shutdown, _FlushMarker]
+_QueueItem = Union[BaseEvent, _Shutdown]
 
 DEFAULT_MAX_QUEUE_SIZE = 100
 DEFAULT_TIMEOUT = 2.0
@@ -171,25 +160,6 @@ class EventDispatcher:
         else:
             LOGGER.debug("Event was dropped because queue is full.")
 
-    def flush(self, timeout: float = DEFAULT_TIMEOUT) -> bool:
-        """
-        Blocks until every event queued so far has been handed to the callback.
-
-        :return: True if the queue drained in time, False otherwise.
-        """
-        thread = self._thread
-        if thread is None or not thread.is_alive():
-            return True
-
-        deadline = time.monotonic() + timeout
-        marker = _FlushMarker()
-        try:
-            self._queue.put(marker, timeout=timeout)
-        except queue.Full:
-            return False
-
-        return marker.done.wait(max(0.0, deadline - time.monotonic()))
-
     def close(self, timeout: float = DEFAULT_TIMEOUT) -> None:
         """
         Stops the dispatcher.  Events already queued are delivered first, but only
@@ -230,30 +200,10 @@ class EventDispatcher:
         while True:
             item = self._queue.get()
 
-            if isinstance(item, _FlushMarker):
-                item.done.set()
-                continue
-
             if isinstance(item, _Shutdown):
-                self._release_flush_markers()
                 return
 
             try:
                 self._callback(item)
             except Exception as exc:
                 LOGGER.warning("Error in event callback: %s", exc)
-
-    def _release_flush_markers(self) -> None:
-        """
-        Wakes anything that raced close() and landed behind the shutdown sentinel,
-        rather than leaving it blocked for its full timeout.  Events found back there
-        are discarded: close() only promises to deliver what was queued before it.
-        """
-        while True:
-            try:
-                item = self._queue.get_nowait()
-            except queue.Empty:
-                return
-
-            if isinstance(item, _FlushMarker):
-                item.done.set()
