@@ -51,6 +51,7 @@ from UnleashClient.utils import (
     InstanceAllowType,
     InstanceCounter,
     extract_environment_from_headers,
+    redact_to_print_safely,
 )
 
 try:
@@ -515,11 +516,7 @@ class UnleashClient:
 
     @staticmethod
     def _redact_to_print_safely(value: Optional[str]) -> Optional[str]:
-        if not value:
-            return value
-        prefix, separator, secret = value.rpartition(":")
-        redacted_secret = f"{secret[:6]}...{secret[-3:]}"
-        return f"{prefix}{separator}{redacted_secret}"
+        return redact_to_print_safely(value)
 
     @staticmethod
     def _get_fallback_value(
@@ -695,7 +692,7 @@ class UnleashClient:
             if self.unleash_custom_headers is not None
             else None
         )
-        return f"apiKey:{self._redact_to_print_safely(api_key)} appName:{self.unleash_app_name} instanceId:{self.unleash_instance_id}"
+        return f"apiKey:{self._redact_to_print_safely(api_key)} appName:{self.unleash_app_name} instanceId:{self._redact_to_print_safely(self.unleash_instance_id)}"
 
     def __enter__(self) -> "UnleashClient":
         self.initialize_client()
