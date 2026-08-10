@@ -170,7 +170,7 @@ class EventDispatcher:
                 )
                 _ = shutdown_signal.done.wait(timeout=_remaining(start_time, timeout))
             except queue.Full:
-                # Even if Shutdown could not be queued, we'll still stop the worker thread and mark as _closed.
+                # Even if Shutdown could not be queued, we'll still stop the worker thread and mark as ``_closed``.
                 # Not much we can do about it, but at least we won't leave the thread running.
                 pass
             finally:
@@ -206,6 +206,13 @@ class EventDispatcher:
     def _enqueue_event(
         self, event: Union[BaseEvent, _Shutdown], timeout: float
     ) -> None:
+        """Enqueues an event to be delivered to the callback.  If the queue is full, the
+        event is dropped and counted.  If the dispatcher has been closed, the event is
+        ignored.
+
+        The caller will wait for at most ``timeout`` seconds to enqueue the event.
+        Caller must hold ``self._lock``.
+        """
         if (
             isinstance(event, UnleashEvent)
             and event.event_type is UnleashEventType.READY
@@ -230,7 +237,7 @@ class EventDispatcher:
 
         It blocks until an element is available."""
         while True:
-            item = self._queue.get()
+            item: _QueueItem = self._queue.get()
 
             if isinstance(item, _Shutdown):
                 item.done.set()
