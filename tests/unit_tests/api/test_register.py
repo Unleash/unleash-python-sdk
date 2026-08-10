@@ -126,6 +126,30 @@ def test_register_omits_sdk_flavor_when_unset():
 
 
 @responses.activate
+def test_instance_id_is_not_logged_in_plain_text_in_registration(caplog):
+    responses.add(responses.POST, FULL_REGISTER_URL, json={}, status=202)
+    instance_id = "abcdef1234567890ghijklmnop"
+
+    register_client(
+        URL,
+        APP_NAME,
+        instance_id,
+        CONNECTION_ID,
+        METRICS_INTERVAL,
+        CUSTOM_HEADERS,
+        CUSTOM_OPTIONS,
+        {},
+        REQUEST_TIMEOUT,
+    )
+
+    assert instance_id not in caplog.text
+    assert "abcdef...nop" in caplog.text
+
+    actual_payload = json.loads(responses.calls[0].request.body)
+    assert actual_payload["instanceId"] == instance_id
+
+
+@responses.activate
 def test_register_client_strips_trailing_slash_from_url():
     responses.add(responses.POST, FULL_REGISTER_URL, json={}, status=202)
 
