@@ -147,7 +147,7 @@ def test_polling_connector_emits_fetched_and_ready(
     )
 
     connector._fetch_and_load()
-    assert dispatcher.flush(timeout=WAIT_TIMEOUT)
+    dispatcher.close(timeout=WAIT_TIMEOUT)
 
     fetched = recorder.of_type(UnleashEventType.FETCHED)
     assert len(fetched) == 1
@@ -182,7 +182,7 @@ def test_polling_connector_emits_ready_once_across_polls(
     # Every poll emits READY twice, once from load_features() and once directly.
     connector._fetch_and_load()
     connector._fetch_and_load()
-    assert dispatcher.flush(timeout=WAIT_TIMEOUT)
+    dispatcher.close(timeout=WAIT_TIMEOUT)
 
     assert len(recorder.of_type(UnleashEventType.READY)) == 1
     assert len(recorder.of_type(UnleashEventType.FETCHED)) == 2

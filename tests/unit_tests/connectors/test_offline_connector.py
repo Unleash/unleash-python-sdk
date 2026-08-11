@@ -67,7 +67,7 @@ def test_offline_connector_emits_ready_event(
     )
 
     connector.start()
-    assert dispatcher.flush(timeout=WAIT_TIMEOUT)
+    dispatcher.close(timeout=WAIT_TIMEOUT)
     connector.stop()
 
     # start() emits once via load_features() and once directly; the dispatcher
