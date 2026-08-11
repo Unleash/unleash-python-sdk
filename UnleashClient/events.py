@@ -116,9 +116,6 @@ class EventDispatcher:
         self._ready_fired = False
         self._closed = False
 
-    def __del__(self):
-        self.close()
-
     @property
     def dropped_events(self) -> int:
         """
