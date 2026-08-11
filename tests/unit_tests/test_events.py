@@ -591,6 +591,19 @@ class TestClose:
 
         assert elapsed < NON_BLOCKING_BUDGET
 
+    def test_close_returns_promptly_when_nothing_was_ever_emitted(  # line 594
+        self, dispatcher_factory: Callable[..., EventDispatcher]
+    ):
+        dispatcher = dispatcher_factory(RecorderCallback())
+
+        start = time.monotonic()
+        dispatcher.close()  # the default timeout, which is what callers get
+        elapsed = time.monotonic() - start
+
+        # No event was ever emitted, so no worker was ever started and there is nothing
+        # for close() to wait on.
+        assert elapsed < NON_BLOCKING_BUDGET
+
     def test_emit_after_close_is_a_no_op(
         self, dispatcher_factory: Callable[..., EventDispatcher]
     ):

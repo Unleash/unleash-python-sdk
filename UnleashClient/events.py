@@ -165,10 +165,13 @@ class EventDispatcher:
 
             start_time = time.monotonic()
             try:
-                shutdown_signal = self._signal_shutdown(
-                    timeout=_remaining(start_time, timeout)
-                )
-                _ = shutdown_signal.done.wait(timeout=_remaining(start_time, timeout))
+                if self._thread:
+                    shutdown_signal = self._signal_shutdown(
+                        timeout=_remaining(start_time, timeout)
+                    )
+                    _ = shutdown_signal.done.wait(
+                        timeout=_remaining(start_time, timeout)
+                    )
             except queue.Full:
                 # Even if Shutdown could not be queued, we'll still stop the worker thread and mark as ``_closed``.
                 # Not much we can do about it, but at least we won't leave the thread running.
