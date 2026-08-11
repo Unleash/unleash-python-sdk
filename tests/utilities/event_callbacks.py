@@ -136,21 +136,45 @@ class ReentrantCallback(RecorderCallback):
 
     ``build_event`` returns the follow-up, or None to stop.  Without a stopping condition the
     dispatcher would feed itself forever.
+
+    With ``gated``, the follow-up is held back until ``release()``, which lets a test line the
+    re-entrant emit up against work happening on another thread.  ``entered`` is set as soon as
+    the worker reaches the callback; ``emitted`` and ``emit_duration`` report on the follow-up
+    emit once it returns.
     """
 
-    def __init__(self, build_event: Callable[[BaseEvent], Optional[BaseEvent]]) -> None:
+    def __init__(
+        self,
+        build_event: Callable[[BaseEvent], Optional[BaseEvent]],
+        gated: bool = False,
+    ) -> None:
         super().__init__()
         self._build_event = build_event
         self._dispatcher: Optional[EventDispatcher] = None
+        self.entered = threading.Event()
+        self.emitted = threading.Event()
+        self.emit_duration: Optional[float] = None
+        self._released = threading.Event()
+        if not gated:
+            self._released.set()
 
     def bind(self, dispatcher: EventDispatcher) -> None:
         self._dispatcher = dispatcher
 
+    def release(self) -> None:
+        self._released.set()
+
     def __call__(self, event: BaseEvent) -> None:
         self.record(event)
+        self.entered.set()
+        _ = self._released.wait(timeout=WAIT_TIMEOUT)
+
         follow_up = self._build_event(event)
         if follow_up is not None and self._dispatcher is not None:
+            start = time.monotonic()
             self._dispatcher.emit_event(follow_up)
+            self.emit_duration = time.monotonic() - start
+            self.emitted.set()
 
 
 class ClosingCallback(RecorderCallback):

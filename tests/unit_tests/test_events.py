@@ -1,7 +1,7 @@
 import logging
 import threading
 import time
-from typing import Callable, Iterator, List, Tuple
+from typing import Callable, Iterator, List, Optional, Tuple
 
 import pytest
 
@@ -9,8 +9,10 @@ from tests.utilities.event_callbacks import (
     DISPATCHER_THREAD_NAME,
     WAIT_TIMEOUT,
     BlockingCallback,
+    ClosingCallback,
     RaisingCallback,
     RecorderCallback,
+    ReentrantCallback,
     SlowCallback,
     fetched_event,
     flag_event,
@@ -18,11 +20,15 @@ from tests.utilities.event_callbacks import (
     variant_event,
     worker_threads,
 )
-from UnleashClient.events import EventDispatcher
+from UnleashClient.events import BaseEvent, EventDispatcher, UnleashEvent
 
 # Budget for an operation that must not wait on the callback.  Generous enough to survive a
 # loaded CI box, tight enough to fail if the emitter ever starts blocking.
 NON_BLOCKING_BUDGET = 0.5
+
+# Timeout handed to close() when a test needs to tell "returned promptly" apart from "waited out
+# the whole timeout".  Several times NON_BLOCKING_BUDGET, so the two can't be confused.
+CLOSE_TIMEOUT = 2.0
 
 
 def sdk_warnings(caplog: pytest.LogCaptureFixture) -> List[str]:
@@ -648,6 +654,55 @@ class TestClose:
         dispatcher.emit_event(flag_event())
 
         assert len(worker_threads()) == before
+
+    def test_a_callback_that_emits_does_not_stall_a_concurrent_close(
+        self, dispatcher_factory: Callable[..., EventDispatcher]
+    ):
+        def follow_up_once(event: BaseEvent) -> Optional[BaseEvent]:
+            """One follow-up, for the first event only, so the dispatcher can't feed itself."""
+            if (
+                isinstance(event, UnleashEvent)
+                and event.feature_name == "pins the worker"
+            ):
+                return flag_event("from the callback")
+            return None
+
+        callback = ReentrantCallback(follow_up_once, gated=True)
+        dispatcher = dispatcher_factory(callback)
+        callback.bind(dispatcher)
+
+        dispatcher.emit_event(flag_event("pins the worker"))
+        assert callback.entered.wait(timeout=WAIT_TIMEOUT)
+
+        # close() gets to run first and is already waiting on its sentinel by the time the timer
+        # lets the callback emit, which is the ordering this test is about.
+        unblock = threading.Timer(0.1, callback.release)
+        unblock.start()
+
+        start = time.monotonic()
+        dispatcher.close(timeout=CLOSE_TIMEOUT)
+        elapsed = time.monotonic() - start
+        unblock.join()
+
+        assert elapsed < NON_BLOCKING_BUDGET
+        assert callback.emitted.wait(timeout=WAIT_TIMEOUT)
+        assert callback.emit_duration is not None
+        assert callback.emit_duration < NON_BLOCKING_BUDGET
+
+    def test_closing_from_inside_the_callback_does_not_blow_up(
+        self, dispatcher_factory: Callable[..., EventDispatcher]
+    ):
+        callback = ClosingCallback(timeout=CLOSE_TIMEOUT)
+        dispatcher = dispatcher_factory(callback)
+        callback.bind(dispatcher)
+
+        start = time.monotonic()
+        dispatcher.emit_event(flag_event())
+        assert callback.returned.wait(timeout=WAIT_TIMEOUT)
+        elapsed = time.monotonic() - start
+
+        assert callback.error is None
+        assert elapsed < NON_BLOCKING_BUDGET
 
     def test_two_threads_closing_at_once_both_return(
         self, dispatcher_factory: Callable[..., EventDispatcher]

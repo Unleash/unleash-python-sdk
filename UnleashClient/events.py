@@ -147,34 +147,43 @@ class EventDispatcher:
                 self._maybe_warn_about_full_queue()
 
     def close(self, timeout: float = DEFAULT_TIMEOUT) -> None:
-        """
-        close() signals the dispatcher to stop. It enqueues a Shutdown sentinel to the queue, and waits
-        for its signal to be set. The worker thread will eventually get to the sentinel, set its ``done``
-        signal, which will wake this thread and allow it to join the worker thread.
-
-        Even if the Shutdown sentinel cannot be enqueued, the worker thread will still be stopped and the dispatcher marked as closed.
-        """
+        thread: Optional[threading.Thread]
+        start_time = time.monotonic()
         with self._lock:
             if self._closed:
                 return
 
             self._closed = True
+            thread = self._thread
 
-            start_time = time.monotonic()
+        if thread is None:
+            return
+
+        if threading.current_thread() is thread:
             try:
-                if self._thread:
-                    shutdown_signal = self._signal_shutdown(
-                        timeout=_remaining(start_time, timeout)
-                    )
-                    _ = shutdown_signal.done.wait(
-                        timeout=_remaining(start_time, timeout)
-                    )
+                self._queue.put(item=_Shutdown(), timeout=0)
+                return
             except queue.Full:
                 # Even if Shutdown could not be queued, we'll still stop the worker thread and mark as ``_closed``.
                 # Not much we can do about it, but at least we won't leave the thread running.
                 pass
-            finally:
-                self._stop_worker(timeout=_remaining(start_time, timeout))
+
+        shutdown_signal: Optional[_Shutdown] = None
+        try:
+            try:
+                shutdown_signal = self._signal_shutdown(
+                    timeout=_remaining(start_time, timeout)
+                )
+            except queue.Full:
+                shutdown_signal = None
+
+            if shutdown_signal is not None:
+                _ = shutdown_signal.done.wait(timeout=_remaining(start_time, timeout))
+        finally:
+            thread.join(timeout=_remaining(start_time, timeout))
+            with self._lock:
+                if self._thread is thread and not thread.is_alive():
+                    self._thread = None
 
     def _signal_shutdown(self, timeout: float) -> _Shutdown:
         """Signals the worker to stop draining and exit.  Caller must hold ``self._lock``."""
