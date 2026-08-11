@@ -17,10 +17,16 @@ from tests.utilities.event_callbacks import (
     fetched_event,
     flag_event,
     ready_event,
+    ready_event_as_unleash_event,
     variant_event,
     worker_threads,
 )
-from UnleashClient.events import BaseEvent, EventDispatcher, UnleashEvent
+from UnleashClient.events import (
+    BaseEvent,
+    EventDispatcher,
+    UnleashEvent,
+    UnleashEventType,
+)
 
 # Budget for an operation that must not wait on the callback.  Generous enough to survive a
 # loaded CI box, tight enough to fail if the emitter ever starts blocking.
@@ -37,6 +43,13 @@ def sdk_warnings(caplog: pytest.LogCaptureFixture) -> List[str]:
         record.getMessage()
         for record in caplog.records
         if record.name == "UnleashClient" and record.levelno == logging.WARNING
+    ]
+
+
+def ready_deliveries(callback: RecorderCallback) -> List[BaseEvent]:
+    """READY events that reached the callback, in arrival order."""
+    return [
+        event for event in callback.events if event.event_type is UnleashEventType.READY
     ]
 
 
@@ -414,6 +427,69 @@ class TestBackpressure:
         dispatcher.close(timeout=WAIT_TIMEOUT)
 
         assert dispatcher.dropped_events == 1
+
+
+class TestReadyDeduplication:
+    """
+    The dispatcher promises READY is delivered once, however many connectors emit it.
+
+    close() is the synchronization point in these tests: the shutdown sentinel goes in at the
+    tail of a FIFO queue, so everything emitted before it has been handed to the callback by
+    the time close() returns.
+    """
+
+    def test_ready_is_delivered_once_however_many_connectors_emit_it(
+        self, dispatcher_factory: Callable[..., EventDispatcher]
+    ):
+        callback = RecorderCallback()
+        dispatcher = dispatcher_factory(callback)
+
+        # The shape build_ready_callback emits, which is what connectors actually hand over.
+        for _ in range(3):
+            dispatcher.emit_event(ready_event())
+
+        dispatcher.close(timeout=WAIT_TIMEOUT)
+
+        assert len(ready_deliveries(callback)) == 1
+
+    def test_ready_carried_on_an_unleash_event_is_deduplicated(
+        self, dispatcher_factory: Callable[..., EventDispatcher]
+    ):
+        callback = RecorderCallback()
+        dispatcher = dispatcher_factory(callback)
+
+        for _ in range(3):
+            dispatcher.emit_event(ready_event_as_unleash_event())
+
+        dispatcher.close(timeout=WAIT_TIMEOUT)
+
+        assert len(ready_deliveries(callback)) == 1
+
+    def test_a_ready_event_dropped_by_a_full_queue_is_still_delivered_later(
+        self, dispatcher_factory: Callable[..., EventDispatcher]
+    ):
+        callback = BlockingCallback()
+        dispatcher = dispatcher_factory(callback, max_size=1)
+
+        dispatcher.emit_event(flag_event("pins the worker"))
+        assert callback.entered.wait(timeout=WAIT_TIMEOUT)
+        dispatcher.emit_event(flag_event("fills the queue"))
+
+        # Nowhere to put it, so this READY never reaches the callback.
+        dispatcher.emit_event(ready_event_as_unleash_event(), timeout=0)
+        assert dispatcher.dropped_events == 1
+
+        callback.release()
+        assert callback.wait_for(2)
+
+        # The queue has drained, and this emit is willing to wait for room anyway.
+        dispatcher.emit_event(ready_event_as_unleash_event(), timeout=WAIT_TIMEOUT)
+        dispatcher.close(timeout=WAIT_TIMEOUT)
+
+        assert ready_deliveries(callback), (
+            "READY was dropped while the queue was full, and every later attempt was "
+            "suppressed, so it was never delivered at all"
+        )
 
 
 class TestFullQueueWarning:
