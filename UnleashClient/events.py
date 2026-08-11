@@ -149,7 +149,7 @@ class EventDispatcher:
     def close(self, timeout: float = DEFAULT_TIMEOUT) -> None:
         """
         close() signals the dispatcher to stop. It enqueues a Shutdown sentinel to the queue, and waits
-        for its signal to be set. The worker thread will eventually get to the sentinal, set its ``done``
+        for its signal to be set. The worker thread will eventually get to the sentinel, set its ``done``
         signal, which will wake this thread and allow it to join the worker thread.
 
         Even if the Shutdown sentinel cannot be enqueued, the worker thread will still be stopped and the dispatcher marked as closed.
