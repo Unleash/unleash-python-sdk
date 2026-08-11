@@ -222,15 +222,17 @@ class EventDispatcher:
         The caller will wait for at most ``timeout`` seconds to enqueue the event.
         Caller must hold ``self._lock``.
         """
-        if (
-            isinstance(event, UnleashEvent)
-            and event.event_type is UnleashEventType.READY
-        ):
-            if self._ready_fired:
-                return
-            self._ready_fired = True
+        is_ready_event = (
+            isinstance(event, BaseEvent) and event.event_type is UnleashEventType.READY
+        )
+
+        if is_ready_event and self._ready_fired:
+            return
 
         self._queue.put(item=event, timeout=timeout)
+
+        if is_ready_event:
+            self._ready_fired = True
 
     def _count_dropped_event(self) -> None:
         self._dropped += 1
