@@ -440,6 +440,21 @@ class TestFullQueueWarning:
             message for message in sdk_warnings(caplog) if "queue is full" in message
         ]
 
+    def test_a_full_queue_is_warned_about_only_once(  # line 443
+        self,
+        dispatcher_factory: Callable[..., EventDispatcher],
+        caplog: pytest.LogCaptureFixture,
+    ):
+        caplog.set_level(logging.WARNING, logger="UnleashClient")
+
+        self._drop_events(dispatcher_factory, count=5)
+
+        # One warning about a saturated queue, not one per dropped event.
+        warnings = [
+            message for message in sdk_warnings(caplog) if "queue is full" in message
+        ]
+        assert len(warnings) == 1
+
 
 class TestCallbackErrorLogging:
     def test_a_callback_exception_is_logged_with_its_message(

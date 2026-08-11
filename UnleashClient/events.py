@@ -234,6 +234,7 @@ class EventDispatcher:
             LOGGER.warning(
                 "Unleash event queue is full, events are being dropped. This usually means the event callback is too slow."
             )
+            self._warned_about_full_queue = True
 
     def _run(self) -> None:
         """_run is the inifinite loop that drains the queue of events.
