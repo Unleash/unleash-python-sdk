@@ -139,8 +139,7 @@ class ReentrantCallback(RecorderCallback):
 
     With ``gated``, the follow-up is held back until ``release()``, which lets a test line the
     re-entrant emit up against work happening on another thread.  ``entered`` is set as soon as
-    the worker reaches the callback; ``emitted`` and ``emit_duration`` report on the follow-up
-    emit once it returns.
+    the worker reaches the callback; ``emitted`` is set once the follow-up emit returns.
     """
 
     def __init__(
@@ -153,7 +152,6 @@ class ReentrantCallback(RecorderCallback):
         self._dispatcher: Optional[EventDispatcher] = None
         self.entered = threading.Event()
         self.emitted = threading.Event()
-        self.emit_duration: Optional[float] = None
         self._released = threading.Event()
         if not gated:
             self._released.set()
@@ -171,9 +169,7 @@ class ReentrantCallback(RecorderCallback):
 
         follow_up = self._build_event(event)
         if follow_up is not None and self._dispatcher is not None:
-            start = time.monotonic()
             self._dispatcher.emit_event(follow_up)
-            self.emit_duration = time.monotonic() - start
             self.emitted.set()
 
 

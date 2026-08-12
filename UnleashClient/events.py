@@ -1,10 +1,8 @@
 import queue
 import threading
-import time
 from dataclasses import dataclass
 from enum import Enum
 from json import loads
-from threading import Event
 from typing import Callable, Optional, Union
 from uuid import UUID
 
@@ -68,199 +66,108 @@ class UnleashFetchedEvent(BaseEvent):
         return self._parsed_payload
 
 
-class _Shutdown:
-    """
-    Sentinel that tells the worker to stop draining and exit.
-    """
-
-    def __init__(self):
-        self.done: Event = threading.Event()
-
-    def __repr__(self) -> str:
-        return "<_SHUTDOWN>"
-
-
-_QueueItem = Union[BaseEvent, _Shutdown]
-
 DEFAULT_MAX_QUEUE_SIZE = 100
 DEFAULT_TIMEOUT = 2.0
-DEFAULT_PUT_TIMEOUT = 0.1
+
+
+class _ShutdownMarker:
+    pass
+
+
+_SHUTDOWN_WAKER: _ShutdownMarker = _ShutdownMarker()
 
 
 class EventDispatcher:
-    """
-    Delivers events to a user supplied callback on a dedicated background thread.
-
-    ``emit_event`` only ever enqueues, so whoever emits an event is never blocked by
-    a slow callback, and callback exceptions stay contained to the worker thread.
-    Events are dropped, and counted, when the queue is saturated.
-
-    Every event, READY included, is handed to the same callback.  READY is only ever
-    delivered once, no matter how many connectors emit it or from which thread.
-
-    :param callback: Function to hand events to.
-    :param max_size: Maximum number of events to hold before dropping.
-    """
-
     def __init__(
         self,
         callback: Callable[[BaseEvent], None],
         max_size: int = DEFAULT_MAX_QUEUE_SIZE,
     ) -> None:
-        self._callback = callback
-        self._queue: queue.Queue[_QueueItem] = queue.Queue(maxsize=max_size)
+        self._callback: Callable[[BaseEvent], None] = callback
+        self._queue: queue.Queue[Union[_ShutdownMarker, BaseEvent]] = queue.Queue(
+            maxsize=max_size
+        )
         self._lock = threading.Lock()
         self._thread: Optional[threading.Thread] = None
+        self._closed = threading.Event()
         self._dropped = 0
-        self._warned_about_full_queue = False
-        self._ready_fired = False
-        self._closed = False
+        self._ready_delivered = False
+
+    def emit_event(self, event: BaseEvent) -> None:
+        with self._lock:
+            if self._closed.is_set():
+                return
+
+            self._start_worker()
+
+            is_ready_event = event.event_type == UnleashEventType.READY
+
+            if is_ready_event and self._ready_delivered:
+                return
+
+            try:
+                self._queue.put_nowait(event)
+                if is_ready_event:
+                    self._ready_delivered = True
+            except queue.Full:
+                self._dropped += 1
+                should_warn = self._dropped == 1
+            else:
+                return
+
+        if should_warn:
+            LOGGER.warning("Unleash event queue is full; events are being dropped.")
 
     @property
     def dropped_events(self) -> int:
-        """
-        Number of events that were never handed to the callback because the queue
-        was full.
-        """
         with self._lock:
             return self._dropped
 
-    def emit_event(
-        self, event: BaseEvent, timeout: float = DEFAULT_PUT_TIMEOUT
-    ) -> None:
-        """
-        Enqueues an event to be delivered to the callback.  If the queue is full, the
-        event is dropped and counted.  If the dispatcher has been closed, the event is
-        ignored.  This method is thread safe.
-
-        The caller will wait for at most ``DEFAULT_PUT_TIMEOUT`` seconds to enqueue the event.
-        """
-        with self._lock:
-            if self._closed:
-                return
-
-            try:
-                self._start_worker()
-                self._enqueue_event(event, timeout=timeout)
-            except queue.Full:
-                self._count_dropped_event()
-                self._maybe_warn_about_full_queue()
-
     def close(self, timeout: float = DEFAULT_TIMEOUT) -> None:
-        thread: Optional[threading.Thread]
-        start_time = time.monotonic()
         with self._lock:
-            if self._closed:
+            if self._closed.is_set():
                 return
 
-            self._closed = True
+            self._closed.set()
             thread = self._thread
 
-        if thread is None:
-            return
-
-        if threading.current_thread() is thread:
-            try:
-                self._queue.put(item=_Shutdown(), timeout=0)
+            if thread is None:
                 return
+
+            try:
+                self._queue.put_nowait(_SHUTDOWN_WAKER)
             except queue.Full:
-                # Even if Shutdown could not be queued, we'll still stop the worker thread and mark as ``_closed``.
-                # Not much we can do about it, but at least we won't leave the thread running.
                 pass
 
-        shutdown_signal: Optional[_Shutdown] = None
-        try:
-            try:
-                shutdown_signal = self._signal_shutdown(
-                    timeout=_remaining(start_time, timeout)
-                )
-            except queue.Full:
-                shutdown_signal = None
-
-            if shutdown_signal is not None:
-                _ = shutdown_signal.done.wait(timeout=_remaining(start_time, timeout))
-        finally:
-            thread.join(timeout=_remaining(start_time, timeout))
-            with self._lock:
-                if self._thread is thread and not thread.is_alive():
-                    self._thread = None
-
-    def _signal_shutdown(self, timeout: float) -> _Shutdown:
-        """Signals the worker to stop draining and exit.  Caller must hold ``self._lock``."""
-        signal = _Shutdown()
-        self._enqueue_event(signal, timeout=timeout)
-        return signal
-
-    def _stop_worker(self, timeout: float) -> None:
-        """Stops the worker thread.  Caller must hold ``self._lock``."""
-        if self._thread is None:
-            return
-
-        if not self._thread.is_alive():
-            self._thread = None
-            return
-
-        return self._thread.join(timeout=timeout)
+        if threading.current_thread() is not thread:
+            thread.join(timeout)
 
     def _start_worker(self) -> None:
-        """Starts a worker if one is not running.  Caller must hold ``self._lock``."""
         if self._thread is not None:
             return
 
         self._thread = threading.Thread(
-            target=self._run, name="UnleashEventDispatcher", daemon=True
+            target=self._run,
+            name="UnleashEventDispatcher",
+            daemon=True,
         )
         self._thread.start()
 
-    def _enqueue_event(
-        self, event: Union[BaseEvent, _Shutdown], timeout: float
-    ) -> None:
-        """Enqueues an event to be delivered to the callback.  If the queue is full, the
-        event is dropped and counted.  If the dispatcher has been closed, the event is
-        ignored.
-
-        The caller will wait for at most ``timeout`` seconds to enqueue the event.
-        Caller must hold ``self._lock``.
-        """
-        is_ready_event = (
-            isinstance(event, BaseEvent) and event.event_type is UnleashEventType.READY
-        )
-
-        if is_ready_event and self._ready_fired:
-            return
-
-        self._queue.put(item=event, timeout=timeout)
-
-        if is_ready_event:
-            self._ready_fired = True
-
-    def _count_dropped_event(self) -> None:
-        self._dropped += 1
-
-    def _maybe_warn_about_full_queue(self) -> None:
-        if not self._warned_about_full_queue:
-            LOGGER.warning(
-                "Unleash event queue is full, events are being dropped. This usually means the event callback is too slow."
-            )
-            self._warned_about_full_queue = True
-
     def _run(self) -> None:
-        """_run is the inifinite loop that drains the queue of events.
+        try:
+            while True:
+                item: Union[_ShutdownMarker, BaseEvent] = self._queue.get()
 
-        It blocks until an element is available."""
-        while True:
-            item: _QueueItem = self._queue.get()
+                if isinstance(item, _ShutdownMarker):
+                    return
 
-            if isinstance(item, _Shutdown):
-                item.done.set()
-                return
+                try:
+                    self._callback(item)
+                except Exception:
+                    LOGGER.exception("Error in event callback")
 
-            try:
-                self._callback(item)
-            except Exception as exc:
-                LOGGER.warning("Error in event callback: %s", exc)
-
-
-def _remaining(start_time: float, timeout: float) -> float:
-    """Returns the remaining time until the timeout expires."""
-    return max(0.0, timeout - (time.monotonic() - start_time))
+                if self._closed.is_set():
+                    return
+        finally:
+            with self._lock:
+                self._thread = None
