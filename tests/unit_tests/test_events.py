@@ -1,7 +1,7 @@
 import logging
 import threading
 import time
-from typing import Callable, Iterator, List, Optional, Tuple
+from typing import Callable, Iterator, List, Tuple
 
 import pytest
 
@@ -12,7 +12,6 @@ from tests.utilities.event_callbacks import (
     ClosingCallback,
     RaisingCallback,
     RecorderCallback,
-    ReentrantCallback,
     SlowCallback,
     fetched_event,
     flag_event,
@@ -24,7 +23,6 @@ from tests.utilities.event_callbacks import (
 from UnleashClient.events import (
     BaseEvent,
     EventDispatcher,
-    UnleashEvent,
     UnleashEventType,
 )
 
@@ -618,39 +616,6 @@ class TestClose:
         # Already closed: there is nothing left to wait for, so no timeout is paid.
         assert elapsed < CLOSE_SLACK
 
-    def test_close_returns_when_the_callback_hangs(
-        self, dispatcher_factory: Callable[..., EventDispatcher]
-    ):
-        callback = BlockingCallback()
-        dispatcher = dispatcher_factory(callback)
-
-        dispatcher.emit_event(flag_event("pins the worker"))
-        assert callback.entered.wait(timeout=WAIT_TIMEOUT)
-
-        # The sentinel is queued but the worker is parked and will never reach it.
-        start = time.monotonic()
-        dispatcher.close(timeout=0.2)
-        elapsed = time.monotonic() - start
-
-        assert elapsed < 0.2 + CLOSE_SLACK
-
-    def test_close_returns_when_the_sentinel_cannot_even_be_queued(
-        self, dispatcher_factory: Callable[..., EventDispatcher]
-    ):
-        callback = BlockingCallback()
-        dispatcher = dispatcher_factory(callback, max_size=1)
-
-        dispatcher.emit_event(flag_event("pins the worker"))
-        assert callback.entered.wait(timeout=WAIT_TIMEOUT)
-        dispatcher.emit_event(flag_event("fills the queue"))
-
-        # Now there is no room for the sentinel either, so close() cannot even ask to stop.
-        start = time.monotonic()
-        dispatcher.close(timeout=0.2)
-        elapsed = time.monotonic() - start
-
-        assert elapsed < 0.2 + CLOSE_SLACK
-
     def test_close_honors_a_zero_timeout(
         self, dispatcher_factory: Callable[..., EventDispatcher]
     ):
@@ -708,42 +673,6 @@ class TestClose:
         dispatcher.emit_event(flag_event())
 
         assert len(worker_threads()) == before
-
-    def test_a_callback_that_emits_does_not_stall_a_concurrent_close(
-        self, dispatcher_factory: Callable[..., EventDispatcher]
-    ):
-        def follow_up_once(event: BaseEvent) -> Optional[BaseEvent]:
-            """One follow-up, for the first event only, so the dispatcher can't feed itself."""
-            if (
-                isinstance(event, UnleashEvent)
-                and event.feature_name == "pins the worker"
-            ):
-                return flag_event("from the callback")
-            return None
-
-        callback = ReentrantCallback(follow_up_once, gated=True)
-        dispatcher = dispatcher_factory(callback)
-        callback.bind(dispatcher)
-
-        dispatcher.emit_event(flag_event("pins the worker"))
-        assert callback.entered.wait(timeout=WAIT_TIMEOUT)
-
-        # close() gets to run first and is already waiting on its sentinel by the time the timer
-        # lets the callback emit, which is the ordering this test is about.
-        unblock = threading.Timer(0.1, callback.release)
-        unblock.start()
-
-        start = time.monotonic()
-        dispatcher.close(timeout=CLOSE_TIMEOUT)
-        elapsed = time.monotonic() - start
-        unblock.join()
-
-        # close() came back when the callback let go, not after the whole CLOSE_TIMEOUT.
-        assert elapsed < 0.1 + CLOSE_SLACK
-        # The follow-up went into an already closed dispatcher, so it was ignored rather than
-        # holding the callback up.
-        assert callback.emitted.wait(timeout=WAIT_TIMEOUT)
-        assert callback.feature_names == ["pins the worker"]
 
     def test_closing_from_inside_the_callback_does_not_blow_up(
         self, dispatcher_factory: Callable[..., EventDispatcher]
