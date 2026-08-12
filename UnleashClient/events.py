@@ -1,10 +1,8 @@
 import queue
 import threading
-import time
 from dataclasses import dataclass
 from enum import Enum
 from json import loads
-from threading import Event
 from typing import Callable, Optional, Union
 from uuid import UUID
 
@@ -70,7 +68,14 @@ class UnleashFetchedEvent(BaseEvent):
 
 DEFAULT_MAX_QUEUE_SIZE = 100
 DEFAULT_TIMEOUT = 2.0
-_SHUTDOWN_WAKER = object()
+
+
+class _ShutdownMarker:
+    pass
+
+
+_SHUTDOWN_WAKER: _ShutdownMarker = _ShutdownMarker()
+
 
 class EventDispatcher:
     def __init__(
@@ -78,8 +83,10 @@ class EventDispatcher:
         callback: Callable[[BaseEvent], None],
         max_size: int = DEFAULT_MAX_QUEUE_SIZE,
     ) -> None:
-        self._callback = callback
-        self._queue: queue.Queue[object] = queue.Queue(maxsize=max_size)
+        self._callback: Callable[[BaseEvent], None] = callback
+        self._queue: queue.Queue[Union[_ShutdownMarker, BaseEvent]] = queue.Queue(
+            maxsize=max_size
+        )
         self._lock = threading.Lock()
         self._thread: Optional[threading.Thread] = None
         self._closed = threading.Event()
@@ -141,9 +148,9 @@ class EventDispatcher:
     def _run(self) -> None:
         try:
             while True:
-                item = self._queue.get()
+                item: Union[_ShutdownMarker, BaseEvent] = self._queue.get()
 
-                if item is _SHUTDOWN_WAKER:
+                if isinstance(item, _ShutdownMarker):
                     return
 
                 try:

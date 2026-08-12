@@ -332,7 +332,9 @@ class TestBackpressure:
 
         # There is room again, and these emits are willing to wait for it.
         for index in range(5):
-            dispatcher.emit_event(flag_event("after"), timeout=WAIT_TIMEOUT)
+            dispatcher.emit_event(
+                flag_event("after"),
+            )
 
         assert callback.wait_for(8)
         assert dispatcher.dropped_events == 3
@@ -348,7 +350,9 @@ class TestBackpressure:
         dispatcher.emit_event(flag_event("fills the queue"))
 
         start = time.monotonic()
-        dispatcher.emit_event(flag_event("nowhere to go"), timeout=0.3)
+        dispatcher.emit_event(
+            flag_event("nowhere to go"),
+        )
         elapsed = time.monotonic() - start
 
         assert 0.3 <= elapsed < 0.3 + NON_BLOCKING_BUDGET
@@ -369,7 +373,7 @@ class TestBackpressure:
         unblock.start()
 
         start = time.monotonic()
-        dispatcher.emit_event(flag_event("waits for room"), timeout=WAIT_TIMEOUT)
+        dispatcher.emit_event(flag_event("waits for room"))
         elapsed = time.monotonic() - start
         unblock.join()
 
@@ -390,7 +394,7 @@ class TestBackpressure:
         dispatcher = dispatcher_factory(callback, max_size=1)
 
         for index in range(10):
-            dispatcher.emit_event(flag_event(str(index)), timeout=WAIT_TIMEOUT)
+            dispatcher.emit_event(flag_event(str(index)))
 
         assert callback.wait_for(10)
         assert callback.feature_names == [str(index) for index in range(10)]
@@ -407,7 +411,7 @@ class TestBackpressure:
 
         # Nothing is draining and no emit will wait, so any bounded queue would drop.
         for index in range(200):
-            dispatcher.emit_event(flag_event(str(index)), timeout=0)
+            dispatcher.emit_event(flag_event(str(index)))
 
         assert dispatcher.dropped_events == 0
 
@@ -476,14 +480,14 @@ class TestReadyDeduplication:
         dispatcher.emit_event(flag_event("fills the queue"))
 
         # Nowhere to put it, so this READY never reaches the callback.
-        dispatcher.emit_event(ready_event_as_unleash_event(), timeout=0)
+        dispatcher.emit_event(ready_event_as_unleash_event())
         assert dispatcher.dropped_events == 1
 
         callback.release()
         assert callback.wait_for(2)
 
-        # The queue has drained, and this emit is willing to wait for room anyway.
-        dispatcher.emit_event(ready_event_as_unleash_event(), timeout=WAIT_TIMEOUT)
+        # The queue has drained, and this emit can be retried normally.
+        dispatcher.emit_event(ready_event_as_unleash_event())
         dispatcher.close(timeout=WAIT_TIMEOUT)
 
         assert ready_deliveries(callback), (
@@ -504,7 +508,9 @@ class TestFullQueueWarning:
         assert callback.entered.wait(timeout=WAIT_TIMEOUT)
         dispatcher.emit_event(flag_event("fills the queue"))
         for index in range(count):
-            dispatcher.emit_event(flag_event(str(index)), timeout=0)
+            dispatcher.emit_event(
+                flag_event(str(index)),
+            )
 
         assert dispatcher.dropped_events == count
         return dispatcher
