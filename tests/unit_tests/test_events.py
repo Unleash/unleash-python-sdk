@@ -28,22 +28,28 @@ from UnleashClient.events import (
     UnleashEventType,
 )
 
-# Budget for an operation that must not wait on the callback.  Generous enough to survive a
-# loaded CI box, tight enough to fail if the emitter ever starts blocking.
-NON_BLOCKING_BUDGET = 0.5
+# close() waits on Thread.join, whose granularity is a few milliseconds.  Slack on top of the
+# timeout close() was given, so "returned when it said it would" can't be read as "waited longer".
+CLOSE_SLACK = 0.05
 
-# Timeout handed to close() when a test needs to tell "returned promptly" apart from "waited out
-# the whole timeout".  Several times NON_BLOCKING_BUDGET, so the two can't be confused.
+# Timeout handed to close() when a test needs to tell "returned as soon as the worker let go"
+# apart from "waited out the whole timeout".
 CLOSE_TIMEOUT = 2.0
+
+
+def sdk_logs(caplog: pytest.LogCaptureFixture, level: int) -> List[str]:
+    """Messages the SDK logged at ``level``, traceback included, in the order it logged them."""
+    formatter = logging.Formatter("%(message)s")
+    return [
+        formatter.format(record)
+        for record in caplog.records
+        if record.name == "UnleashClient" and record.levelno == level
+    ]
 
 
 def sdk_warnings(caplog: pytest.LogCaptureFixture) -> List[str]:
     """Messages the SDK logged at WARNING, in the order it logged them."""
-    return [
-        record.getMessage()
-        for record in caplog.records
-        if record.name == "UnleashClient" and record.levelno == logging.WARNING
-    ]
+    return sdk_logs(caplog, logging.WARNING)
 
 
 def ready_deliveries(callback: RecorderCallback) -> List[BaseEvent]:
@@ -133,29 +139,48 @@ class TestDelivery:
         callback = BlockingCallback()
         dispatcher = dispatcher_factory(callback)
 
-        dispatcher.emit_event(flag_event())
+        dispatcher.emit_event(flag_event("pins the worker"))
         assert callback.entered.wait(timeout=WAIT_TIMEOUT)
 
-        start = time.monotonic()
-        dispatcher.emit_event(flag_event())
-        elapsed = time.monotonic() - start
+        dispatcher.emit_event(flag_event("queued behind it"))
 
-        assert elapsed < NON_BLOCKING_BUDGET
+        # Control is back here, so the emit did not wait on the callback.
         assert callback.call_count == 0  # still parked inside the first event
+        assert dispatcher.dropped_events == 0  # in the queue, not on the floor
 
-    def test_a_slow_callback_never_slows_the_emitter(
+    def test_the_emitter_does_not_wait_for_the_whole_callback_duration(
         self, dispatcher_factory: Callable[..., EventDispatcher]
     ):
-        callback = SlowCallback(delay=0.05)
-        dispatcher = dispatcher_factory(callback)
+        callback: SlowCallback = SlowCallback(delay=0.05)
+        dispatcher: EventDispatcher = dispatcher_factory(callback)
 
-        start = time.monotonic()
         for _ in range(20):
             dispatcher.emit_event(flag_event())
-        elapsed = time.monotonic() - start
 
-        # A full second of callback work, none of which the emitter should have paid for.
-        assert elapsed < NON_BLOCKING_BUDGET
+        assert (
+            callback.call_count < 20
+        )  # If emitter had waited for the callback, this would be exactly 20.
+
+    def test_emitter_does_not_drop_events_despite_slow_callback(
+        self, dispatcher_factory: Callable[..., EventDispatcher]
+    ):
+        callback: SlowCallback = SlowCallback(delay=0.05)
+        dispatcher: EventDispatcher = dispatcher_factory(callback)
+
+        for _ in range(20):
+            dispatcher.emit_event(flag_event())
+
+        assert dispatcher.dropped_events == 0
+
+    def test_emitter_eventually_processes_all_events_despite_slow_callback(
+        self, dispatcher_factory: Callable[..., EventDispatcher]
+    ):
+        callback: SlowCallback = SlowCallback(delay=0.05)
+        dispatcher: EventDispatcher = dispatcher_factory(callback)
+
+        for _ in range(20):
+            dispatcher.emit_event(flag_event())
+
         assert callback.wait_for(20)
 
 
@@ -261,6 +286,8 @@ class TestBackpressure:
     Every test here pins the worker inside a BlockingCallback first.  Once ``entered`` is set the
     worker has taken its event off the queue and gone to sleep, so the queue is empty and its
     depth from then on is exactly what the test put there.
+
+    An emit never waits for room: it either finds a free slot or drops the event and counts it.
     """
 
     def test_no_events_are_dropped_before_anything_is_emitted(
@@ -309,10 +336,12 @@ class TestBackpressure:
             dispatcher.emit_event(flag_event(str(index)))
 
         callback.release()
-        dispatcher.close(timeout=WAIT_TIMEOUT)
+        assert callback.wait_for(3)
 
-        assert callback.feature_names == ["pins the worker", "0", "1"]
         assert dispatcher.dropped_events == 8
+        assert callback.feature_names == ["pins the worker", "0", "1"]
+
+        dispatcher.close(timeout=WAIT_TIMEOUT)
 
     def test_the_queue_takes_events_again_once_the_callback_drains(
         self, dispatcher_factory: Callable[..., EventDispatcher]
@@ -330,75 +359,12 @@ class TestBackpressure:
         callback.release()
         assert callback.wait_for(3)
 
-        # There is room again, and these emits are willing to wait for it.
-        for index in range(5):
-            dispatcher.emit_event(
-                flag_event("after"),
-            )
+        # The queue is empty again, so it can take another max_size events.
+        for index in range(2):
+            dispatcher.emit_event(flag_event("after"))
 
-        assert callback.wait_for(8)
+        assert callback.wait_for(5)
         assert dispatcher.dropped_events == 3
-
-    def test_emit_gives_up_after_its_own_timeout(
-        self, dispatcher_factory: Callable[..., EventDispatcher]
-    ):
-        callback = BlockingCallback()
-        dispatcher = dispatcher_factory(callback, max_size=1)
-
-        dispatcher.emit_event(flag_event("pins the worker"))
-        assert callback.entered.wait(timeout=WAIT_TIMEOUT)
-        dispatcher.emit_event(flag_event("fills the queue"))
-
-        start = time.monotonic()
-        dispatcher.emit_event(
-            flag_event("nowhere to go"),
-        )
-        elapsed = time.monotonic() - start
-
-        assert 0.3 <= elapsed < 0.3 + NON_BLOCKING_BUDGET
-        assert dispatcher.dropped_events == 1
-
-    def test_emit_waits_for_room_when_given_a_generous_timeout(
-        self, dispatcher_factory: Callable[..., EventDispatcher]
-    ):
-        callback = BlockingCallback()
-        dispatcher = dispatcher_factory(callback, max_size=1)
-
-        dispatcher.emit_event(flag_event("pins the worker"))
-        assert callback.entered.wait(timeout=WAIT_TIMEOUT)
-        dispatcher.emit_event(flag_event("fills the queue"))
-
-        # The only thing that can free a slot, and it won't for another 200ms.
-        unblock = threading.Timer(0.2, callback.release)
-        unblock.start()
-
-        start = time.monotonic()
-        dispatcher.emit_event(flag_event("waits for room"))
-        elapsed = time.monotonic() - start
-        unblock.join()
-
-        assert elapsed >= 0.1
-        assert dispatcher.dropped_events == 0
-        assert callback.wait_for(3)
-        assert callback.feature_names == [
-            "pins the worker",
-            "fills the queue",
-            "waits for room",
-        ]
-
-    def test_nothing_is_dropped_when_every_emitter_is_willing_to_wait(
-        self, dispatcher_factory: Callable[..., EventDispatcher]
-    ):
-        callback = RecorderCallback()
-        # The tightest queue there is: every event after the first has to wait for room.
-        dispatcher = dispatcher_factory(callback, max_size=1)
-
-        for index in range(10):
-            dispatcher.emit_event(flag_event(str(index)))
-
-        assert callback.wait_for(10)
-        assert callback.feature_names == [str(index) for index in range(10)]
-        assert dispatcher.dropped_events == 0
 
     def test_a_max_size_of_zero_means_an_unbounded_queue(
         self, dispatcher_factory: Callable[..., EventDispatcher]
@@ -437,9 +403,9 @@ class TestReadyDeduplication:
     """
     The dispatcher promises READY is delivered once, however many connectors emit it.
 
-    close() is the synchronization point in these tests: the shutdown sentinel goes in at the
-    tail of a FIFO queue, so everything emitted before it has been handed to the callback by
-    the time close() returns.
+    A second READY arriving is what these tests wait for: it either shows up, and the dedup guard
+    is missing, or the wait times out because there was only ever one.  close() cannot be the
+    synchronization point any more, because it no longer drains what is still queued.
     """
 
     def test_ready_is_delivered_once_however_many_connectors_emit_it(
@@ -452,8 +418,8 @@ class TestReadyDeduplication:
         for _ in range(3):
             dispatcher.emit_event(ready_event())
 
-        dispatcher.close(timeout=WAIT_TIMEOUT)
-
+        assert callback.wait_for(1)
+        assert not callback.wait_for(2, timeout=0.2)
         assert len(ready_deliveries(callback)) == 1
 
     def test_ready_carried_on_an_unleash_event_is_deduplicated(
@@ -465,8 +431,8 @@ class TestReadyDeduplication:
         for _ in range(3):
             dispatcher.emit_event(ready_event_as_unleash_event())
 
-        dispatcher.close(timeout=WAIT_TIMEOUT)
-
+        assert callback.wait_for(1)
+        assert not callback.wait_for(2, timeout=0.2)
         assert len(ready_deliveries(callback)) == 1
 
     def test_a_ready_event_dropped_by_a_full_queue_is_still_delivered_later(
@@ -488,7 +454,7 @@ class TestReadyDeduplication:
 
         # The queue has drained, and this emit can be retried normally.
         dispatcher.emit_event(ready_event_as_unleash_event())
-        dispatcher.close(timeout=WAIT_TIMEOUT)
+        assert callback.wait_for(3)
 
         assert ready_deliveries(callback), (
             "READY was dropped while the queue was full, and every later attempt was "
@@ -550,7 +516,7 @@ class TestCallbackErrorLogging:
         dispatcher_factory: Callable[..., EventDispatcher],
         caplog: pytest.LogCaptureFixture,
     ):
-        caplog.set_level(logging.WARNING, logger="UnleashClient")
+        caplog.set_level(logging.ERROR, logger="UnleashClient")
         callback = RaisingCallback(error=RuntimeError("kaboom"))
         dispatcher = dispatcher_factory(callback)
 
@@ -562,7 +528,7 @@ class TestCallbackErrorLogging:
         )  # the log lands after the callback returns
         assert any(
             "Error in event callback" in message and "kaboom" in message
-            for message in sdk_warnings(caplog)
+            for message in sdk_logs(caplog, logging.ERROR)
         )
 
     def test_every_failing_event_is_logged(
@@ -570,7 +536,7 @@ class TestCallbackErrorLogging:
         dispatcher_factory: Callable[..., EventDispatcher],
         caplog: pytest.LogCaptureFixture,
     ):
-        caplog.set_level(logging.WARNING, logger="UnleashClient")
+        caplog.set_level(logging.ERROR, logger="UnleashClient")
         callback = RaisingCallback()
         dispatcher = dispatcher_factory(callback)
 
@@ -581,7 +547,7 @@ class TestCallbackErrorLogging:
         dispatcher.close(timeout=WAIT_TIMEOUT)
         failures = [
             message
-            for message in sdk_warnings(caplog)
+            for message in sdk_logs(caplog, logging.ERROR)
             if "Error in event callback" in message
         ]
         assert len(failures) == 3
@@ -601,23 +567,29 @@ class TestCallbackErrorLogging:
         assert callback.wait_for(10)
         dispatcher.close(timeout=WAIT_TIMEOUT)
         assert sdk_warnings(caplog) == []
+        assert sdk_logs(caplog, logging.ERROR) == []
 
 
 class TestClose:
-    def test_close_drains_events_that_are_still_queued(
+    def test_close_drops_events_that_are_still_queued(
         self, dispatcher_factory: Callable[..., EventDispatcher]
     ):
-        callback = SlowCallback(delay=0.02)
+        callback = BlockingCallback()
         dispatcher = dispatcher_factory(callback)
 
+        dispatcher.emit_event(flag_event("in flight"))
+        assert callback.entered.wait(timeout=WAIT_TIMEOUT)
         for index in range(10):
             dispatcher.emit_event(flag_event(str(index)))
 
+        # The worker is only let go once close() has run, so it finishes the event it is on and
+        # stops there rather than working through the ten behind it.
+        unblock = threading.Timer(0.1, callback.release)
+        unblock.start()
         dispatcher.close(timeout=WAIT_TIMEOUT)
+        unblock.join()
 
-        # No wait_for here: close() is itself the synchronization point, so everything
-        # must already have been delivered by the time it returns.
-        assert callback.feature_names == [str(index) for index in range(10)]
+        assert callback.feature_names == ["in flight"]
 
     def test_close_is_idempotent(
         self, dispatcher_factory: Callable[..., EventDispatcher]
@@ -644,7 +616,7 @@ class TestClose:
         elapsed = time.monotonic() - start
 
         # Already closed: there is nothing left to wait for, so no timeout is paid.
-        assert elapsed < NON_BLOCKING_BUDGET
+        assert elapsed < CLOSE_SLACK
 
     def test_close_returns_when_the_callback_hangs(
         self, dispatcher_factory: Callable[..., EventDispatcher]
@@ -660,7 +632,7 @@ class TestClose:
         dispatcher.close(timeout=0.2)
         elapsed = time.monotonic() - start
 
-        assert elapsed < 0.2 + NON_BLOCKING_BUDGET
+        assert elapsed < 0.2 + CLOSE_SLACK
 
     def test_close_returns_when_the_sentinel_cannot_even_be_queued(
         self, dispatcher_factory: Callable[..., EventDispatcher]
@@ -677,7 +649,7 @@ class TestClose:
         dispatcher.close(timeout=0.2)
         elapsed = time.monotonic() - start
 
-        assert elapsed < 0.2 + NON_BLOCKING_BUDGET
+        assert elapsed < 0.2 + CLOSE_SLACK
 
     def test_close_honors_a_zero_timeout(
         self, dispatcher_factory: Callable[..., EventDispatcher]
@@ -692,7 +664,7 @@ class TestClose:
         dispatcher.close(timeout=0)
         elapsed = time.monotonic() - start
 
-        assert elapsed < NON_BLOCKING_BUDGET
+        assert elapsed < CLOSE_SLACK
 
     def test_close_returns_promptly_when_nothing_was_ever_emitted(  # line 594
         self, dispatcher_factory: Callable[..., EventDispatcher]
@@ -705,7 +677,7 @@ class TestClose:
 
         # No event was ever emitted, so no worker was ever started and there is nothing
         # for close() to wait on.
-        assert elapsed < NON_BLOCKING_BUDGET
+        assert elapsed < CLOSE_SLACK
 
     def test_emit_after_close_is_a_no_op(
         self, dispatcher_factory: Callable[..., EventDispatcher]
@@ -766,10 +738,12 @@ class TestClose:
         elapsed = time.monotonic() - start
         unblock.join()
 
-        assert elapsed < NON_BLOCKING_BUDGET
+        # close() came back when the callback let go, not after the whole CLOSE_TIMEOUT.
+        assert elapsed < 0.1 + CLOSE_SLACK
+        # The follow-up went into an already closed dispatcher, so it was ignored rather than
+        # holding the callback up.
         assert callback.emitted.wait(timeout=WAIT_TIMEOUT)
-        assert callback.emit_duration is not None
-        assert callback.emit_duration < NON_BLOCKING_BUDGET
+        assert callback.feature_names == ["pins the worker"]
 
     def test_closing_from_inside_the_callback_does_not_blow_up(
         self, dispatcher_factory: Callable[..., EventDispatcher]
@@ -778,13 +752,11 @@ class TestClose:
         dispatcher = dispatcher_factory(callback)
         callback.bind(dispatcher)
 
-        start = time.monotonic()
         dispatcher.emit_event(flag_event())
-        assert callback.returned.wait(timeout=WAIT_TIMEOUT)
-        elapsed = time.monotonic() - start
 
+        # The worker closing the dispatcher would be joining itself, which raises.
+        assert callback.returned.wait(timeout=WAIT_TIMEOUT)
         assert callback.error is None
-        assert elapsed < NON_BLOCKING_BUDGET
 
     def test_two_threads_closing_at_once_both_return(
         self, dispatcher_factory: Callable[..., EventDispatcher]

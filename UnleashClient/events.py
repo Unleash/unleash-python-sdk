@@ -91,6 +91,7 @@ class EventDispatcher:
         self._thread: Optional[threading.Thread] = None
         self._closed = threading.Event()
         self._dropped = 0
+        self._ready_delivered = False
 
     def emit_event(self, event: BaseEvent) -> None:
         with self._lock:
@@ -99,8 +100,15 @@ class EventDispatcher:
 
             self._start_worker()
 
+            is_ready_event = event.event_type == UnleashEventType.READY
+
+            if is_ready_event and self._ready_delivered:
+                return
+
             try:
                 self._queue.put_nowait(event)
+                if is_ready_event:
+                    self._ready_delivered = True
             except queue.Full:
                 self._dropped += 1
                 should_warn = self._dropped == 1
