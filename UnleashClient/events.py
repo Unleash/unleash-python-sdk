@@ -90,12 +90,13 @@ class EventDispatcher:
         self._lock = threading.Lock()
         self._thread: Optional[threading.Thread] = None
         self._closed = threading.Event()
+        self._closing = threading.Event()
         self._dropped = 0
         self._ready_delivered = False
 
     def emit_event(self, event: BaseEvent) -> None:
         with self._lock:
-            if self._closed.is_set():
+            if self._closed.is_set() or self._closing.is_set():
                 return
 
             self._start_worker()
@@ -128,7 +129,8 @@ class EventDispatcher:
             if self._closed.is_set():
                 return
 
-            self._closed.set()
+            self._closing.set()
+
             thread = self._thread
 
             if thread is None:
@@ -141,6 +143,8 @@ class EventDispatcher:
 
         if threading.current_thread() is not thread:
             thread.join(timeout)
+
+        self._closed.set()
 
     def _start_worker(self) -> None:
         if self._thread is not None:
@@ -155,7 +159,7 @@ class EventDispatcher:
 
     def _run(self) -> None:
         try:
-            while True:
+            while not self._closing.is_set():
                 item: Union[_ShutdownMarker, BaseEvent] = self._queue.get()
 
                 if isinstance(item, _ShutdownMarker):
