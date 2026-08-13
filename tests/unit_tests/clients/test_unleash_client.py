@@ -1584,10 +1584,6 @@ def test_is_enabled_does_not_block_on_a_slow_callback():
 
     unleash_client.destroy()
 
-    # Because ``destroy`` is lossy, events won't be delivered. This assertion
-    # is more of a sanity check rather than a hard constraint.
-    assert not recorder.of_type(UnleashEventType.FEATURE_FLAG)
-
 
 def test_destroy_loses_queued_events():
     release = threading.Event()
