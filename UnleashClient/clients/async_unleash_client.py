@@ -1,9 +1,10 @@
 """
 Asynchronous Unleash client.
 
-Work in progress.  This class currently only builds the shared
-:class:`UnleashClient.config.UnleashConfig`; it performs no I/O and is not
-exported from the package root.  See ``docs/object-composition.md``.
+Work in progress.  This class currently only builds the collaborators it
+shares with :class:`UnleashClient.clients.unleash_client.UnleashClient`; it
+performs no I/O and is not exported from the package root.  See
+``docs/object-composition.md``.
 """
 
 from typing import Callable, Optional
@@ -11,6 +12,7 @@ from typing import Callable, Optional
 from UnleashClient.cache import BaseCache
 from UnleashClient.config import ExperimentalMode, UnleashConfig
 from UnleashClient.constants import REQUEST_RETRIES, REQUEST_TIMEOUT
+from UnleashClient.context import ContextEnricher
 from UnleashClient.events import BaseEvent
 
 _NOT_IMPLEMENTED = (
@@ -69,6 +71,7 @@ class AsyncUnleashClient:
             sdk_flavor_version=sdk_flavor_version,
             experimental_mode=experimental_mode,
         )
+        self._enricher = ContextEnricher(self._config)
 
     async def initialize_client(self) -> None:
         raise NotImplementedError(_NOT_IMPLEMENTED)
