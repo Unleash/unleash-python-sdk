@@ -3,6 +3,7 @@
 * (Minor): A `fallback_function` that raises now results in `False` and a logged warning, instead of the exception propagating out of `is_enabled()`. The toggle is not counted in that case.
 * (Minor): Event callbacks are now invoked on a dedicated background thread instead of on whichever thread produced the event. `is_enabled()` and `get_variant()` no longer wait for your callback, so a slow callback can't hold up flag evaluation. Three consequences worth knowing about: callbacks can no longer read thread local state from the caller (Flask `g`, the current Django request, contextvars); they return before the callback has run, so tests asserting straight after the call now need to wait; and reassigning `unleash_event_callback` after construction is no longer honoured.
 * (Minor): Connectors take an `EventDispatcher` instead of `ready_callback`/`event_callback`. These classes aren't part of the documented API, so this only affects code importing from `UnleashClient.connectors` directly.
+* (Minor): Constructor arguments are now normalized once into an internal `UnleashConfig` object rather than being copied onto the client attribute by attribute. The public `unleash_*` attributes keep their exact values and stay writable — they now read and write through that object — so nothing in calling code needs to change. This is groundwork for an asynchronous client that shares the same configuration handling.
 
 ## v6.7.0
 * (Minor): Support for CIDR, Semver GTE and LTE constraints
