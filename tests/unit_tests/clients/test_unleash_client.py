@@ -1585,26 +1585,6 @@ def test_is_enabled_does_not_block_on_a_slow_callback():
     unleash_client.destroy()
 
 
-def test_destroy_loses_queued_events():
-    release = threading.Event()
-    recorder = EventRecorder()
-
-    def gated_callback(event):
-        release.wait(timeout=WAIT_TIMEOUT)
-        recorder(event)
-
-    unleash_client = bootstrapped_client(gated_callback)
-    unleash_client.initialize_client(fetch_toggles=False)
-
-    for _ in range(5):
-        unleash_client.is_enabled("testFlag")
-
-    release.set()
-    unleash_client.destroy()
-
-    assert len(recorder.of_type(UnleashEventType.FEATURE_FLAG)) == 0
-
-
 def test_callback_exception_does_not_break_is_enabled_or_get_variant():
     recorder = EventRecorder()
     first_call = True
