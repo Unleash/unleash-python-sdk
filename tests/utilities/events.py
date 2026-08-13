@@ -1,5 +1,6 @@
 import threading
 import time
+from threading import Condition, Event
 from typing import List, Optional
 
 from UnleashClient.events import BaseEvent, UnleashEventType
@@ -17,9 +18,9 @@ class EventRecorder:
 
     def __init__(self) -> None:
         self.events: List[BaseEvent] = []
-        self.ready = threading.Event()
-        self.fetched = threading.Event()
-        self._condition = threading.Condition()
+        self.ready: Event = threading.Event()
+        self.fetched: Event = threading.Event()
+        self._condition: Condition = threading.Condition()
 
     def __call__(self, event: BaseEvent) -> None:
         with self._condition:

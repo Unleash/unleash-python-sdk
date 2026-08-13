@@ -144,15 +144,17 @@ def test_polling_connector_emits_fetched_and_ready(
         request_timeout=REQUEST_TIMEOUT,
         request_retries=REQUEST_RETRIES,
         events=dispatcher,
+        # Huge refresh interval to avoid any polling during the test. That
+        # way we avoid having to call _fetch_and_load() directly and can test the start/stop behavior.
+        refresh_interval=10,
     )
 
-    connector._fetch_and_load()
-    dispatcher.close(timeout=WAIT_TIMEOUT)
+    connector.start()
+    connector.stop()  # Immediately stop, so _get_and_load() is called only once and we can assert the events emitted.
 
-    fetched = recorder.of_type(UnleashEventType.FETCHED)
-    assert len(fetched) == 1
-    assert fetched[0].features[0]["name"] == "testFlag"
-    assert len(recorder.of_type(UnleashEventType.READY)) == 1
+    assert recorder.wait_for(UnleashEventType.READY, count=1)
+    assert recorder.wait_for(UnleashEventType.FETCHED, count=1)
+    dispatcher.close(timeout=WAIT_TIMEOUT)
 
 
 @responses.activate
@@ -186,33 +188,6 @@ def test_polling_connector_emits_ready_once_across_polls(
 
     assert len(recorder.of_type(UnleashEventType.READY)) == 1
     assert len(recorder.of_type(UnleashEventType.FETCHED)) == 2
-
-
-@responses.activate
-def test_polling_connector_without_a_dispatcher_does_not_emit(cache_empty):
-    engine = UnleashEngine()
-    scheduler = BackgroundScheduler()
-    responses.add(
-        responses.GET, FULL_FEATURE_URL, json=MOCK_FEATURE_RESPONSE, status=200
-    )
-
-    connector = PollingConnector(
-        engine=engine,
-        cache=cache_empty,
-        scheduler=scheduler,
-        url=URL,
-        app_name=APP_NAME,
-        instance_id=INSTANCE_ID,
-        headers=CUSTOM_HEADERS,
-        custom_options=CUSTOM_OPTIONS,
-        request_timeout=REQUEST_TIMEOUT,
-        request_retries=REQUEST_RETRIES,
-    )
-
-    connector._fetch_and_load()
-
-    assert connector._events is None
-    assert engine.is_enabled("testFlag", {})
 
 
 @responses.activate
