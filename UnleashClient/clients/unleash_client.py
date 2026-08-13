@@ -19,6 +19,11 @@ from yggdrasil_engine.engine import UnleashEngine
 
 from UnleashClient.api import register_client
 from UnleashClient.cache import BaseCache, FileCache
+from UnleashClient.config import (
+    ExperimentalMode,
+    UnleashConfig,
+    redact_to_print_safely,
+)
 from UnleashClient.connectors import (
     BaseConnector,
     BootstrapConnector,
@@ -50,13 +55,7 @@ from UnleashClient.utils import (
     LOGGER,
     InstanceAllowType,
     InstanceCounter,
-    extract_environment_from_headers,
 )
-
-try:
-    from typing import Literal, TypedDict
-except ImportError:
-    from typing_extensions import Literal, TypedDict  # type: ignore
 
 INSTANCES = InstanceCounter()
 _BASE_CONTEXT_FIELDS = [
@@ -74,10 +73,6 @@ class _RunState(IntEnum):
     UNINITIALIZED = 0
     INITIALIZED = 1
     SHUTDOWN = 2
-
-
-class ExperimentalMode(TypedDict, total=False):
-    type: Literal["streaming", "polling"]
 
 
 def build_ready_callback(
@@ -177,45 +172,35 @@ class UnleashClient:
         sdk_flavor: Optional[str] = None,
         sdk_flavor_version: Optional[str] = None,
     ) -> None:
-        custom_headers = custom_headers or {}
-        custom_options = custom_options or {}
         custom_strategies = custom_strategies or {}
 
-        # Configuration
-        self.unleash_url = url.rstrip("/")
-        self.unleash_app_name = app_name
-        self.unleash_environment = environment
-        self.unleash_instance_id = instance_id
-        self._connection_id = str(uuid.uuid4())
-        self.unleash_refresh_interval = refresh_interval
-        self.unleash_request_timeout = request_timeout
-        self.unleash_request_retries = request_retries
-        self.unleash_refresh_jitter = (
-            int(refresh_jitter) if refresh_jitter is not None else None
+        self._config = UnleashConfig(
+            url=url,
+            app_name=app_name,
+            environment=environment,
+            instance_id=instance_id,
+            refresh_interval=refresh_interval,
+            refresh_jitter=refresh_jitter,
+            metrics_interval=metrics_interval,
+            metrics_jitter=metrics_jitter,
+            disable_metrics=disable_metrics,
+            disable_registration=disable_registration,
+            custom_headers=custom_headers,
+            custom_options=custom_options,
+            request_timeout=request_timeout,
+            request_retries=request_retries,
+            project_name=project_name,
+            verbose_log_level=verbose_log_level,
+            sdk_flavor=sdk_flavor,
+            sdk_flavor_version=sdk_flavor_version,
+            experimental_mode=experimental_mode,
         )
-        self.unleash_metrics_interval = metrics_interval
-        self.unleash_metrics_jitter = (
-            int(metrics_jitter) if metrics_jitter is not None else None
-        )
-        self.unleash_disable_metrics = disable_metrics
-        self.unleash_disable_registration = disable_registration
-        self.unleash_sdk_flavor = sdk_flavor
-        self.unleash_sdk_flavor_version = sdk_flavor_version
-        self.unleash_custom_headers = custom_headers
-        self.unleash_custom_options = custom_options
-        self.unleash_static_context = {
-            "appName": self.unleash_app_name,
-            "environment": self.unleash_environment,
-        }
-        self.unleash_project_name = project_name
-        self.unleash_verbose_log_level = verbose_log_level
         self.unleash_event_callback = event_callback
         # Events are handed to the dispatcher, which delivers them to the user's
         # callback on its own thread.  The callback is never called from here.
         self.__events: Optional[EventDispatcher] = (
             EventDispatcher(event_callback) if event_callback is not None else None
         )
-        self.connector_mode: ExperimentalMode = experimental_mode or {"type": "polling"}
         self._lifecycle_lock = threading.RLock()
         self._closed = threading.Event()
 
@@ -226,13 +211,10 @@ class UnleashClient:
         self.metric_job: Job = None
         self.engine = UnleashEngine()
 
-        impact_metrics_environment = self.unleash_environment
-        extracted_env = extract_environment_from_headers(self.unleash_custom_headers)
-        if extracted_env:
-            impact_metrics_environment = extracted_env
-
         self.impact_metrics = ImpactMetrics(
-            self.engine, self.unleash_app_name, impact_metrics_environment
+            self.engine,
+            self._config.app_name,
+            self._config.impact_metrics_environment,
         )
 
         self.cache = cache or FileCache(
@@ -291,12 +273,172 @@ class UnleashClient:
             self.unleash_scheduler = BackgroundScheduler(executors=executors)
 
     @property
+    def unleash_url(self) -> str:
+        return self._config.url
+
+    @unleash_url.setter
+    def unleash_url(self, value: str) -> None:
+        self._config.url = value
+
+    @property
+    def unleash_app_name(self) -> str:
+        return self._config.app_name
+
+    @unleash_app_name.setter
+    def unleash_app_name(self, value: str) -> None:
+        self._config.app_name = value
+
+    @property
+    def unleash_environment(self) -> str:
+        return self._config.environment
+
+    @unleash_environment.setter
+    def unleash_environment(self, value: str) -> None:
+        self._config.environment = value
+
+    @property
+    def unleash_instance_id(self) -> str:
+        return self._config.instance_id
+
+    @unleash_instance_id.setter
+    def unleash_instance_id(self, value: str) -> None:
+        self._config.instance_id = value
+
+    @property
+    def unleash_refresh_interval(self) -> int:
+        return self._config.refresh_interval
+
+    @unleash_refresh_interval.setter
+    def unleash_refresh_interval(self, value: int) -> None:
+        self._config.refresh_interval = value
+
+    @property
+    def unleash_refresh_jitter(self) -> Optional[int]:
+        return self._config.refresh_jitter
+
+    @unleash_refresh_jitter.setter
+    def unleash_refresh_jitter(self, value: Optional[int]) -> None:
+        self._config.refresh_jitter = value
+
+    @property
+    def unleash_metrics_interval(self) -> int:
+        return self._config.metrics_interval
+
+    @unleash_metrics_interval.setter
+    def unleash_metrics_interval(self, value: int) -> None:
+        self._config.metrics_interval = value
+
+    @property
+    def unleash_metrics_jitter(self) -> Optional[int]:
+        return self._config.metrics_jitter
+
+    @unleash_metrics_jitter.setter
+    def unleash_metrics_jitter(self, value: Optional[int]) -> None:
+        self._config.metrics_jitter = value
+
+    @property
+    def unleash_request_timeout(self) -> int:
+        return self._config.request_timeout
+
+    @unleash_request_timeout.setter
+    def unleash_request_timeout(self, value: int) -> None:
+        self._config.request_timeout = value
+
+    @property
+    def unleash_request_retries(self) -> int:
+        return self._config.request_retries
+
+    @unleash_request_retries.setter
+    def unleash_request_retries(self, value: int) -> None:
+        self._config.request_retries = value
+
+    @property
+    def unleash_disable_metrics(self) -> bool:
+        return self._config.disable_metrics
+
+    @unleash_disable_metrics.setter
+    def unleash_disable_metrics(self, value: bool) -> None:
+        self._config.disable_metrics = value
+
+    @property
+    def unleash_disable_registration(self) -> bool:
+        return self._config.disable_registration
+
+    @unleash_disable_registration.setter
+    def unleash_disable_registration(self, value: bool) -> None:
+        self._config.disable_registration = value
+
+    @property
+    def unleash_custom_headers(self) -> dict:
+        return self._config.custom_headers
+
+    @unleash_custom_headers.setter
+    def unleash_custom_headers(self, value: dict) -> None:
+        self._config.custom_headers = value
+
+    @property
+    def unleash_custom_options(self) -> dict:
+        return self._config.custom_options
+
+    @unleash_custom_options.setter
+    def unleash_custom_options(self, value: dict) -> None:
+        self._config.custom_options = value
+
+    @property
+    def unleash_static_context(self) -> Dict[str, Any]:
+        return self._config.static_context
+
+    @unleash_static_context.setter
+    def unleash_static_context(self, value: Dict[str, Any]) -> None:
+        self._config.static_context = value
+
+    @property
+    def unleash_project_name(self) -> Optional[str]:
+        return self._config.project_name
+
+    @unleash_project_name.setter
+    def unleash_project_name(self, value: Optional[str]) -> None:
+        self._config.project_name = value
+
+    @property
+    def unleash_verbose_log_level(self) -> int:
+        return self._config.verbose_log_level
+
+    @unleash_verbose_log_level.setter
+    def unleash_verbose_log_level(self, value: int) -> None:
+        self._config.verbose_log_level = value
+
+    @property
+    def unleash_sdk_flavor(self) -> Optional[str]:
+        return self._config.sdk_flavor
+
+    @unleash_sdk_flavor.setter
+    def unleash_sdk_flavor(self, value: Optional[str]) -> None:
+        self._config.sdk_flavor = value
+
+    @property
+    def unleash_sdk_flavor_version(self) -> Optional[str]:
+        return self._config.sdk_flavor_version
+
+    @unleash_sdk_flavor_version.setter
+    def unleash_sdk_flavor_version(self, value: Optional[str]) -> None:
+        self._config.sdk_flavor_version = value
+
+    @property
+    def connector_mode(self) -> ExperimentalMode:
+        return self._config.experimental_mode
+
+    @connector_mode.setter
+    def connector_mode(self, value: ExperimentalMode) -> None:
+        self._config.experimental_mode = value
+
+    @property
     def unleash_metrics_interval_str_millis(self) -> str:
-        return str(self.unleash_metrics_interval * 1000)
+        return self._config.metrics_interval_str_millis
 
     @property
     def connection_id(self):
-        return self._connection_id
+        return self._config.connection_id
 
     @property
     def is_initialized(self):
@@ -528,11 +670,7 @@ class UnleashClient:
 
     @staticmethod
     def _redact_to_print_safely(value: Optional[str]) -> Optional[str]:
-        if not value:
-            return value
-        prefix, separator, secret = value.rpartition(":")
-        redacted_secret = f"{secret[:6]}...{secret[-3:]}"
-        return f"{prefix}{separator}{redacted_secret}"
+        return redact_to_print_safely(value)
 
     # pylint: disable=broad-except
     def is_enabled(
@@ -661,7 +799,7 @@ class UnleashClient:
         return str(value)
 
     def _do_instance_check(self, multiple_instance_mode):
-        identifier = self.__get_identifier()
+        identifier = self._config.instance_identifier
         if identifier in INSTANCES:
             msg = f"You already have {INSTANCES.count(identifier)} instance(s) configured for this config: {identifier}, please double check the code where this client is being instantiated."
             if multiple_instance_mode == InstanceAllowType.BLOCK:
@@ -669,14 +807,6 @@ class UnleashClient:
             if multiple_instance_mode == InstanceAllowType.WARN:
                 LOGGER.error(msg)
         INSTANCES.increment(identifier)
-
-    def __get_identifier(self):
-        api_key = (
-            self.unleash_custom_headers.get("Authorization")
-            if self.unleash_custom_headers is not None
-            else None
-        )
-        return f"apiKey:{self._redact_to_print_safely(api_key)} appName:{self.unleash_app_name} instanceId:{self.unleash_instance_id}"
 
     def __enter__(self) -> "UnleashClient":
         self.initialize_client()
