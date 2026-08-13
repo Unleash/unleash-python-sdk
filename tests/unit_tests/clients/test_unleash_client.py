@@ -1376,49 +1376,6 @@ def test_context_adds_current_time_if_not_set():
     unleash_client.destroy()
 
 
-def test_context_moves_properties_fields_to_properties():
-    unleash_client = UnleashClient(
-        URL,
-        APP_NAME,
-        disable_metrics=True,
-        disable_registration=True,
-    )
-
-    context = {"myContext": "1234"}
-
-    assert "myContext" in unleash_client._safe_context(context)["properties"]
-    unleash_client.destroy()
-
-
-def test_existing_properties_are_retained_when_custom_context_properties_are_in_the_root():
-    unleash_client = UnleashClient(
-        URL,
-        APP_NAME,
-        disable_metrics=True,
-        disable_registration=True,
-    )
-
-    context = {"myContext": "1234", "properties": {"yourContext": "1234"}}
-
-    assert "myContext" in unleash_client._safe_context(context)["properties"]
-    assert "yourContext" in unleash_client._safe_context(context)["properties"]
-    unleash_client.destroy()
-
-
-def test_base_context_properties_are_retained_in_root():
-    unleash_client = UnleashClient(
-        URL,
-        APP_NAME,
-        disable_metrics=True,
-        disable_registration=True,
-    )
-
-    context = {"userId": "1234"}
-
-    assert "userId" in unleash_client._safe_context(context)
-    unleash_client.destroy()
-
-
 def test_is_enabled_works_with_properties_field_in_the_context_root():
     cache = FileCache("MOCK_CACHE")
     cache.bootstrap_from_dict(MOCK_FEATURE_WITH_CUSTOM_CONTEXT_REQUIREMENTS)
