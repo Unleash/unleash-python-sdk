@@ -7,7 +7,7 @@ from yggdrasil_engine.engine import UnleashEngine
 
 from UnleashClient.cache import BaseCache
 from UnleashClient.connectors.base_connector import BaseConnector
-from UnleashClient.constants import APPLICATION_HEADERS, FEATURES_URL, STREAMING_URL
+from UnleashClient.constants import FEATURES_URL, STREAMING_URL
 from UnleashClient.events import EventDispatcher
 from UnleashClient.utils import LOGGER
 
@@ -29,11 +29,7 @@ class StreamingConnector(BaseConnector):
     ) -> None:
         super().__init__(engine=engine, cache=cache, events=events)
         self._base_url = url.rstrip("/") + STREAMING_URL
-        self._headers = {
-            **headers,
-            **APPLICATION_HEADERS,
-            "Accept": "text/event-stream",
-        }
+        self._headers = dict(headers)
         self._timeout = request_timeout
         self._backoff_initial = backoff_initial
         self._backoff_max = backoff_max
