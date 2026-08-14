@@ -14,6 +14,7 @@ from UnleashClient.config import ExperimentalMode, UnleashConfig
 from UnleashClient.constants import REQUEST_RETRIES, REQUEST_TIMEOUT
 from UnleashClient.context import ContextEnricher
 from UnleashClient.events import BaseEvent
+from UnleashClient.headers import HeaderFactory
 
 _NOT_IMPLEMENTED = (
     "AsyncUnleashClient is a work in progress and does not do anything yet. "
@@ -72,6 +73,7 @@ class AsyncUnleashClient:
             experimental_mode=experimental_mode,
         )
         self._enricher = ContextEnricher(self._config)
+        self._headers = HeaderFactory(self._config)
 
     async def initialize_client(self) -> None:
         raise NotImplementedError(_NOT_IMPLEMENTED)
