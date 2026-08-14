@@ -105,6 +105,14 @@ def test_empty_custom_dicts_become_fresh_dicts():
     assert config.custom_options is not options
 
 
+def test_refresh_interval_str_millis():
+    assert UnleashConfig(URL, APP_NAME).refresh_interval_str_millis == "15000"
+    assert (
+        UnleashConfig(URL, APP_NAME, refresh_interval=2).refresh_interval_str_millis
+        == "2000"
+    )
+
+
 def test_metrics_interval_str_millis():
     assert UnleashConfig(URL, APP_NAME).metrics_interval_str_millis == "60000"
     assert (

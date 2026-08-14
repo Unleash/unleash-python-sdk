@@ -46,7 +46,7 @@ class UnleashConfig:
     disable_registration: bool = False
     # repr=False: the dataclass __repr__ would otherwise put the Authorization
     # API key into logs and tracebacks.
-    custom_headers: Optional[dict] = field(default=None, repr=False)
+    custom_headers: Optional[Dict[str, str]] = field(default=None, repr=False)
     custom_options: Optional[dict] = None
     request_timeout: int = REQUEST_TIMEOUT
     request_retries: int = REQUEST_RETRIES
@@ -79,6 +79,10 @@ class UnleashConfig:
     @property
     def mode(self) -> str:
         return self.experimental_mode.get("type", "polling")
+
+    @property
+    def refresh_interval_str_millis(self) -> str:
+        return str(self.refresh_interval * 1000)
 
     @property
     def metrics_interval_str_millis(self) -> str:
