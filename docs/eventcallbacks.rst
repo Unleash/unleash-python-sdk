@@ -47,7 +47,7 @@ the thread that called ``is_enabled()`` or ``get_variant()``. This means:
 * **Thread local state from the caller isn't available.** Flask's ``g``, the
   current Django request, ``contextvars`` and similar will not be set. Read
   anything you need from the event itself, or capture it before the call.
-* **Callbacks are serialised.** Events are delivered one at a time, in order, so
+* **Callbacks run sequentially.** Events are delivered one at a time, in order, so
   your callback doesn't need to be thread safe against itself.
 * **Events are dropped if you can't keep up.** Up to 10,000 events are held while
   waiting on your callback; beyond that, events are discarded and a warning is
