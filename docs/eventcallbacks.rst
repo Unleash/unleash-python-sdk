@@ -49,7 +49,7 @@ the thread that called ``is_enabled()`` or ``get_variant()``. This means:
   anything you need from the event itself, or capture it before the call.
 * **Callbacks run sequentially.** Events are delivered one at a time, in order, so
   your callback doesn't need to be thread safe against itself.
-* **Events are dropped if you can't keep up.** Up to 10,000 events are held while
+* **Events are dropped if you can't keep up.** Up to 100 events are held while
   waiting on your callback; beyond that, events are discarded and a warning is
   logged. Exceptions raised by your callback are logged and otherwise ignored.
 * **Call** ``destroy()`` **when you're done.** It delivers whatever is still
