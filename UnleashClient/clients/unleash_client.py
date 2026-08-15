@@ -520,6 +520,7 @@ class UnleashClient:
                         project=self.unleash_project_name,
                         scheduler_executor=self.unleash_executor_name,
                         refresh_interval=self.unleash_refresh_interval,
+                        refresh_jitter=self.unleash_refresh_jitter,
                     )
                 else:
                     start_scheduler = True
