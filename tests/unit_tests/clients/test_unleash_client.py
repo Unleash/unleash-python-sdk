@@ -432,7 +432,7 @@ def test_uc_fallback_result_is_what_gets_counted(readyable_unleash_client):
     )
 
     # The fallback's answer is counted, not the "not found" default.
-    metrics = unleash_client.engine.get_metrics()["toggles"]
+    metrics = unleash_client._engine.get_metrics()["toggles"]
     assert metrics["notFoundTestFlag"]["yes"] == 1
 
 
@@ -466,7 +466,7 @@ def test_uc_raising_fallback_returns_false_and_records_nothing(
         )
         is False
     )
-    assert "notFoundTestFlag" not in unleash_client.engine.get_metrics()["toggles"]
+    assert "notFoundTestFlag" not in unleash_client._engine.get_metrics()["toggles"]
 
 
 @responses.activate
@@ -657,7 +657,7 @@ def test_uc_metrics(readyable_unleash_client):
     assert ready_signal.wait(timeout=WAIT_TIMEOUT)
     assert unleash_client.is_enabled("testFlag")
 
-    metrics = unleash_client.engine.get_metrics()["toggles"]
+    metrics = unleash_client._engine.get_metrics()["toggles"]
     assert metrics["testFlag"]["yes"] == 1
 
 
@@ -678,7 +678,7 @@ def test_uc_is_enabled_counts_each_call_once(readyable_unleash_client):
         assert unleash_client.is_enabled("testFlag")
 
     # The engine counts the toggle. If the client counted it too, this would be 6.
-    metrics = unleash_client.engine.get_metrics()["toggles"]
+    metrics = unleash_client._engine.get_metrics()["toggles"]
     assert metrics["testFlag"]["yes"] == 3
 
 
@@ -699,7 +699,7 @@ def test_uc_get_variant_counts_toggle_and_variant_once(readyable_unleash_client)
     assert variant["name"] == "VarA"
 
     # get_variant counts both the toggle and the variant, each exactly once.
-    metrics = unleash_client.engine.get_metrics()["toggles"]
+    metrics = unleash_client._engine.get_metrics()["toggles"]
     assert metrics["testVariations"]["yes"] == 1
     assert metrics["testVariations"]["variants"]["VarA"] == 1
 
@@ -740,7 +740,7 @@ def test_uc_registers_metrics_for_nonexistent_features(readyable_unleash_client)
     unleash_client.is_enabled("nonexistent-flag")
 
     # Verify that the metrics are serialized
-    metrics = unleash_client.engine.get_metrics()["toggles"]
+    metrics = unleash_client._engine.get_metrics()["toggles"]
     assert metrics["nonexistent-flag"]["no"] == 1
 
 
@@ -759,7 +759,7 @@ def test_uc_metrics_dependencies(readyable_unleash_client):
     assert ready_signal.wait(timeout=WAIT_TIMEOUT)
     assert unleash_client.is_enabled("Child")
 
-    metrics = unleash_client.engine.get_metrics()["toggles"]
+    metrics = unleash_client._engine.get_metrics()["toggles"]
     assert metrics["Child"]["yes"] == 1
     assert "Parent" not in metrics
 
@@ -782,7 +782,7 @@ def test_uc_registers_variant_metrics_for_nonexistent_features(
     # Check a flag that doesn't exist
     unleash_client.get_variant("nonexistent-flag")
 
-    metrics = unleash_client.engine.get_metrics()["toggles"]
+    metrics = unleash_client._engine.get_metrics()["toggles"]
     assert metrics["nonexistent-flag"]["no"] == 1
     assert metrics["nonexistent-flag"]["variants"]["disabled"] == 1
 
@@ -810,7 +810,7 @@ def test_uc_doesnt_count_metrics_for_dependency_parents(readyable_unleash_client
     unleash_client.get_variant(child)
 
     # Verify that the parent doesn't have any metrics registered
-    metrics = unleash_client.engine.get_metrics()["toggles"]
+    metrics = unleash_client._engine.get_metrics()["toggles"]
     assert metrics[child]["yes"] == 2
     assert metrics[child]["variants"]["childVariant"] == 1
     assert parent not in metrics
@@ -841,7 +841,7 @@ def test_uc_counts_metrics_for_child_even_if_parent_is_disabled(
     unleash_client.get_variant(child)
 
     # Verify that the parent doesn't have any metrics registered
-    metrics = unleash_client.engine.get_metrics()["toggles"]
+    metrics = unleash_client._engine.get_metrics()["toggles"]
     assert metrics[child]["no"] == 2
     assert metrics[child]["variants"]["disabled"] == 1
     assert parent not in metrics
@@ -1320,6 +1320,63 @@ def test_ready_signal_works_with_bootstrapping():
     unleash_client.destroy()
 
 
+def test_bootstrapping_does_not_signal_ready_before_initialization():
+    cache = FileCache("MOCK_CACHE")
+    cache.bootstrap_from_dict(MOCK_FEATURE_RESPONSE)
+
+    recorder = EventRecorder()
+
+    unleash_client = UnleashClient(
+        url=URL,
+        app_name=APP_NAME,
+        cache=cache,
+        disable_metrics=True,
+        disable_registration=True,
+        event_callback=recorder,
+    )
+
+    # The constructor has already loaded the bootstrapped features, but READY
+    # belongs to initialize_client().
+    assert unleash_client.is_enabled("testFlag")
+    assert recorder.of_type(UnleashEventType.READY) == []
+
+    unleash_client.initialize_client(fetch_toggles=False)
+    assert recorder.ready.wait(timeout=WAIT_TIMEOUT)
+
+    assert len(recorder.of_type(UnleashEventType.READY)) == 1
+
+    unleash_client.destroy()
+
+
+@responses.activate
+def test_refresh_jitter_reaches_the_polling_job():
+    responses.add(
+        responses.GET, URL + FEATURES_URL, json=MOCK_FEATURE_RESPONSE, status=200
+    )
+
+    triggers = []
+
+    class RecordingScheduler(BackgroundScheduler):
+        def add_job(self, func, trigger=None, **kwargs):
+            triggers.append(trigger)
+            return super().add_job(func, trigger=trigger, **kwargs)
+
+    unleash_client = UnleashClient(
+        URL,
+        APP_NAME,
+        scheduler=RecordingScheduler(),
+        scheduler_executor="default",
+        refresh_interval=REFRESH_INTERVAL,
+        refresh_jitter=10,
+        disable_metrics=True,
+        disable_registration=True,
+    )
+    unleash_client.initialize_client()
+    unleash_client.destroy()
+
+    assert [trigger.jitter for trigger in triggers] == [10]
+
+
 def test_context_handles_numerics():
     cache = FileCache("MOCK_CACHE")
     cache.bootstrap_from_dict(MOCK_FEATURE_WITH_NUMERIC_CONSTRAINT)
@@ -1622,7 +1679,7 @@ def test_destroy_skips_default_file_cache_destroy(monkeypatch):
         nonlocal destroy_calls
         destroy_calls += 1
 
-    monkeypatch.setattr(unleash_client.cache, "destroy", count_destroy)
+    monkeypatch.setattr(unleash_client._cache, "destroy", count_destroy)
 
     unleash_client.destroy()
 

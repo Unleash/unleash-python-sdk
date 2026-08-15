@@ -85,7 +85,7 @@ class TestSendMetricsViaClient:
             headers={},
             custom_options={},
             request_timeout=30,
-            engine=unleash_client.engine,
+            engine=unleash_client._engine,
         )
 
         request_body = json.loads(responses.calls[0].request.body)
@@ -146,7 +146,7 @@ class TestSendMetricsViaClient:
             headers={},
             custom_options={},
             request_timeout=30,
-            engine=unleash_client.engine,
+            engine=unleash_client._engine,
         )
 
         request_body = json.loads(responses.calls[0].request.body)
@@ -172,7 +172,7 @@ class TestSendMetricsViaClient:
         # Resolving a flag into a label goes through the engine's check_variant,
         # which does not count the evaluation. The engine reports no metrics
         # bucket at all until something is counted.
-        assert unleash_client.engine.get_metrics() is None
+        assert unleash_client._engine.get_metrics() is None
 
     def test_real_evaluations_are_still_counted_alongside_label_resolution(
         self, unleash_client
@@ -187,7 +187,7 @@ class TestSendMetricsViaClient:
 
         unleash_client.is_enabled("enabled-feature")
 
-        toggles = unleash_client.engine.get_metrics()["toggles"]
+        toggles = unleash_client._engine.get_metrics()["toggles"]
         assert list(toggles) == ["enabled-feature"]
         assert toggles["enabled-feature"]["yes"] == 1
 
@@ -207,7 +207,7 @@ class TestSendMetricsViaClient:
             headers={},
             custom_options={},
             request_timeout=30,
-            engine=unleash_client.engine,
+            engine=unleash_client._engine,
         )
         aggregate_and_send_metrics(
             url=URL,
@@ -217,7 +217,7 @@ class TestSendMetricsViaClient:
             headers={},
             custom_options={},
             request_timeout=30,
-            engine=unleash_client.engine,
+            engine=unleash_client._engine,
         )
 
         request_body = json.loads(responses.calls[1].request.body)
