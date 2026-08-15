@@ -159,6 +159,25 @@ MOCK_FEATURE_RESPONSE_PROJECT = {
     ],
 }
 
+# A delta, as the streaming endpoint sends on `unleash-updated`. It describes
+# one flag; every other flag the engine knows about survives.
+MOCK_FEATURE_DELTA_RESPONSE = {
+    "events": [
+        {
+            "type": "feature-updated",
+            "eventId": 2,
+            "feature": {
+                "name": "deltaFlag",
+                "type": "release",
+                "enabled": True,
+                "strategies": [{"name": "default", "parameters": {}}],
+                "variants": [],
+                "impressionData": False,
+            },
+        }
+    ]
+}
+
 MOCK_FEATURE_WITH_DEPENDENCIES_RESPONSE = {
     "version": 1,
     "features": [
