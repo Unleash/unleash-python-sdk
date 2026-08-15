@@ -1,11 +1,14 @@
+import json
 from dataclasses import asdict
 
 import pytest
 
+from tests.utilities.mocks.mock_features import MOCK_FEATURE_RESPONSE
 from tests.utilities.testing_constants import APP_NAME, URL
 from UnleashClient import INSTANCES, UnleashClient
 from UnleashClient.cache import FileCache
 from UnleashClient.clients.async_unleash_client import AsyncUnleashClient
+from UnleashClient.constants import FEATURES_URL
 
 
 @pytest.fixture(autouse=True)
@@ -13,8 +16,23 @@ def before_each():
     INSTANCES._reset()
 
 
-def test_async_client_builds_the_shared_config():
-    client = AsyncUnleashClient("http://localhost:4242/api/", APP_NAME)
+def build_async_client(tmpdir, **kwargs) -> AsyncUnleashClient:
+    """
+    The async client builds a real FileCache when it isn't given one, so tests
+    keep it out of fcache's shared default directory.
+    """
+    kwargs.setdefault("cache_directory", str(tmpdir))
+    return AsyncUnleashClient(**kwargs)
+
+
+def known_toggles(engine) -> list:
+    return sorted(toggle.name for toggle in engine.list_known_toggles())
+
+
+def test_async_client_builds_the_shared_config(tmpdir):
+    client = build_async_client(
+        tmpdir, url="http://localhost:4242/api/", app_name=APP_NAME
+    )
 
     assert client._config.url == URL
     assert client._config.app_name == APP_NAME
@@ -49,7 +67,7 @@ def test_both_clients_build_the_same_config(tmpdir):
         cache=FileCache(APP_NAME, directory=str(tmpdir)), **kwargs
     )
     try:
-        async_client = AsyncUnleashClient(**kwargs)
+        async_client = build_async_client(tmpdir, **kwargs)
 
         sync_config = asdict(sync_client._config)
         async_config = asdict(async_client._config)
@@ -61,8 +79,8 @@ def test_both_clients_build_the_same_config(tmpdir):
         sync_client.destroy()
 
 
-def test_async_client_builds_the_shared_headers():
-    client = AsyncUnleashClient(URL, APP_NAME, instance_id="123")
+def test_async_client_builds_the_shared_headers(tmpdir):
+    client = build_async_client(tmpdir, url=URL, app_name=APP_NAME, instance_id="123")
 
     headers = client._headers.base()
 
@@ -87,7 +105,7 @@ def test_both_clients_build_the_same_headers(tmpdir):
         **kwargs,
     )
     try:
-        async_client = AsyncUnleashClient(**kwargs)
+        async_client = build_async_client(tmpdir, **kwargs)
 
         for build in ("base", "polling", "metrics", "streaming"):
             sync_headers = getattr(sync_client._headers, build)()
@@ -101,8 +119,8 @@ def test_both_clients_build_the_same_headers(tmpdir):
         sync_client.destroy()
 
 
-def test_async_client_enriches_context_over_its_own_config():
-    client = AsyncUnleashClient(URL, APP_NAME, environment="unit")
+def test_async_client_enriches_context_over_its_own_config(tmpdir):
+    client = build_async_client(tmpdir, url=URL, app_name=APP_NAME, environment="unit")
 
     context = client._enricher.build({"myContext": "1234"})
 
@@ -127,10 +145,55 @@ def test_both_clients_enrich_context_identically(tmpdir):
         **kwargs,
     )
     try:
-        async_client = AsyncUnleashClient(**kwargs)
+        async_client = build_async_client(tmpdir, **kwargs)
 
         assert sync_client._enricher.build(context) == async_client._enricher.build(
             context
         )
+    finally:
+        sync_client.destroy()
+
+
+def test_async_client_uses_the_cache_it_was_given(tmpdir):
+    cache = FileCache(APP_NAME, directory=str(tmpdir))
+
+    client = build_async_client(tmpdir, url=URL, app_name=APP_NAME, cache=cache)
+
+    assert client._cache is cache
+
+
+def test_async_client_builds_a_feature_store_over_its_engine_and_cache(tmpdir):
+    cache = FileCache(APP_NAME, directory=str(tmpdir))
+    cache.set(FEATURES_URL, json.dumps(MOCK_FEATURE_RESPONSE))
+
+    client = build_async_client(tmpdir, url=URL, app_name=APP_NAME, cache=cache)
+    client._store.load_from_cache()
+
+    assert client._engine.is_enabled("testFlag", {}).is_enabled
+
+
+def test_both_clients_load_the_same_state(tmpdir):
+    sync_cache = FileCache("sync", directory=str(tmpdir))
+    async_cache = FileCache("async", directory=str(tmpdir))
+    for cache in (sync_cache, async_cache):
+        cache.set(FEATURES_URL, json.dumps(MOCK_FEATURE_RESPONSE))
+
+    sync_client = UnleashClient(
+        URL,
+        APP_NAME,
+        cache=sync_cache,
+        disable_metrics=True,
+        disable_registration=True,
+    )
+    try:
+        async_client = build_async_client(
+            tmpdir, url=URL, app_name=APP_NAME, cache=async_cache
+        )
+
+        sync_client._store.load_from_cache()
+        async_client._store.load_from_cache()
+
+        assert known_toggles(sync_client._engine) == known_toggles(async_client._engine)
+        assert known_toggles(async_client._engine)
     finally:
         sync_client.destroy()
