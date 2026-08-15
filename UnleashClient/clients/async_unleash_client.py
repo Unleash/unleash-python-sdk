@@ -3,18 +3,21 @@ Asynchronous Unleash client.
 
 Work in progress.  This class currently only builds the collaborators it
 shares with :class:`UnleashClient.clients.unleash_client.UnleashClient`; it
-performs no I/O and is not exported from the package root.  See
+performs no network I/O and is not exported from the package root.  See
 ``docs/object-composition.md``.
 """
 
 from typing import Callable, Optional
 
-from UnleashClient.cache import BaseCache
+from yggdrasil_engine.engine import UnleashEngine
+
+from UnleashClient.cache import BaseCache, FileCache
 from UnleashClient.config import ExperimentalMode, UnleashConfig
 from UnleashClient.constants import REQUEST_RETRIES, REQUEST_TIMEOUT
 from UnleashClient.context import ContextEnricher
-from UnleashClient.events import BaseEvent
+from UnleashClient.events import BaseEvent, EventDispatcher
 from UnleashClient.headers import HeaderFactory
+from UnleashClient.store import FeatureStore
 
 _NOT_IMPLEMENTED = (
     "AsyncUnleashClient is a work in progress and does not do anything yet. "
@@ -72,8 +75,19 @@ class AsyncUnleashClient:
             sdk_flavor_version=sdk_flavor_version,
             experimental_mode=experimental_mode,
         )
-        self._enricher = ContextEnricher(self._config)
-        self._headers = HeaderFactory(self._config)
+        self._enricher: ContextEnricher = ContextEnricher(self._config)
+        self._headers: HeaderFactory = HeaderFactory(self._config)
+
+        self._event_dispatcher: Optional[EventDispatcher] = (
+            EventDispatcher(event_callback) if event_callback is not None else None
+        )
+        self._engine: UnleashEngine = UnleashEngine()
+        self._cache: BaseCache = cache or FileCache(
+            self._config.app_name, directory=cache_directory
+        )
+        self._store: FeatureStore = FeatureStore(
+            engine=self._engine, cache=self._cache, events=self._event_dispatcher
+        )
 
     async def initialize_client(self) -> None:
         raise NotImplementedError(_NOT_IMPLEMENTED)
