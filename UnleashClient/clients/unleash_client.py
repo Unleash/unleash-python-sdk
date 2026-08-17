@@ -1,6 +1,4 @@
 # pylint: disable=invalid-name
-import random
-import string
 import threading
 import uuid
 import warnings
@@ -9,12 +7,7 @@ from datetime import datetime, timezone
 from enum import IntEnum
 from typing import Any, Callable, Dict, Optional
 
-from apscheduler.executors.pool import ThreadPoolExecutor
-from apscheduler.job import Job
-from apscheduler.jobstores.base import JobLookupError
-from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.schedulers.base import STATE_RUNNING, BaseScheduler
-from apscheduler.triggers.interval import IntervalTrigger
+from apscheduler.schedulers.base import BaseScheduler
 from yggdrasil_engine.engine import UnleashEngine
 
 from UnleashClient.api import register_client
@@ -50,6 +43,7 @@ from UnleashClient.impact_metrics import ImpactMetrics
 from UnleashClient.periodic_tasks import (
     aggregate_and_send_metrics,
 )
+from UnleashClient.scheduler import ScheduledJob, Scheduler
 from UnleashClient.store import FeatureStore
 from UnleashClient.utils import (
     LOGGER,
@@ -200,8 +194,7 @@ class UnleashClient:
         self._do_instance_check(multiple_instance_mode)
 
         # Class objects
-        self.fl_job: Job = None
-        self.metric_job: Job = None
+        self.metric_job: ScheduledJob = None
         self._engine = UnleashEngine()
 
         self.impact_metrics = ImpactMetrics(
@@ -222,7 +215,7 @@ class UnleashClient:
 
         self.metrics_headers: dict = {}
 
-        self._init_scheduler(scheduler, scheduler_executor)
+        self._scheduler = Scheduler(scheduler, scheduler_executor)
 
         if custom_strategies:
             self._engine.register_custom_strategies(custom_strategies)
@@ -244,33 +237,21 @@ class UnleashClient:
 
         self.connector: BaseConnector = None
 
-    def _init_scheduler(
-        self, scheduler: Optional[BaseScheduler], scheduler_executor: Optional[str]
-    ) -> None:
-        """
-        Scheduler bootstrapping
-        """
-        # - Figure out the Unleash executor name.
-        if scheduler and scheduler_executor:
-            self.unleash_executor_name = scheduler_executor
-        elif scheduler and not scheduler_executor:
-            raise ValueError(
-                "If using a custom scheduler, you must specify a executor."
-            )
-        else:
-            if not scheduler and scheduler_executor:
-                LOGGER.warning(
-                    "scheduler_executor should only be used with a custom scheduler."
-                )
+    @property
+    def unleash_scheduler(self) -> BaseScheduler:
+        return self._scheduler.scheduler
 
-            self.unleash_executor_name = f"unleash_executor_{''.join(random.choices(string.ascii_uppercase + string.digits, k=6))}"
+    @unleash_scheduler.setter
+    def unleash_scheduler(self, value: BaseScheduler) -> None:
+        self._scheduler.scheduler = value
 
-        # Set up the scheduler.
-        if scheduler:
-            self.unleash_scheduler = scheduler
-        else:
-            executors = {self.unleash_executor_name: ThreadPoolExecutor()}
-            self.unleash_scheduler = BackgroundScheduler(executors=executors)
+    @property
+    def unleash_executor_name(self) -> str:
+        return self._scheduler.executor_name
+
+    @unleash_executor_name.setter
+    def unleash_executor_name(self, value: str) -> None:
+        self._scheduler.executor_name = value
 
     @property
     def unleash_url(self) -> str:
@@ -509,7 +490,7 @@ class UnleashClient:
                     start_scheduler = True
                     self.connector = PollingConnector(
                         store=self._store,
-                        scheduler=self.unleash_scheduler,
+                        scheduler=self._scheduler,
                         url=self.unleash_url,
                         app_name=self.unleash_app_name,
                         instance_id=self.unleash_instance_id,
@@ -518,7 +499,6 @@ class UnleashClient:
                         request_timeout=self.unleash_request_timeout,
                         request_retries=self.unleash_request_retries,
                         project=self.unleash_project_name,
-                        scheduler_executor=self.unleash_executor_name,
                         refresh_interval=self.unleash_refresh_interval,
                         refresh_jitter=self.unleash_refresh_jitter,
                     )
@@ -526,8 +506,7 @@ class UnleashClient:
                     start_scheduler = True
                     self.connector = OfflineConnector(
                         store=self._store,
-                        scheduler=self.unleash_scheduler,
-                        scheduler_executor=self.unleash_executor_name,
+                        scheduler=self._scheduler,
                         refresh_interval=self.unleash_refresh_interval,
                         refresh_jitter=self.unleash_refresh_jitter,
                     )
@@ -535,8 +514,9 @@ class UnleashClient:
                 self.connector.start()
 
                 if not self.unleash_disable_metrics:
-                    if getattr(self.unleash_scheduler, "state", None) != STATE_RUNNING:
-                        start_scheduler = True
+                    # Scheduler.start() no-ops when it is already running, so this can
+                    # be unconditional.
+                    start_scheduler = True
 
                     self.metrics_headers = self._headers.metrics()
 
@@ -553,18 +533,15 @@ class UnleashClient:
                         "sdk_flavor_version": self.unleash_sdk_flavor_version,
                     }
 
-                    self.metric_job = self.unleash_scheduler.add_job(
-                        aggregate_and_send_metrics,
-                        trigger=IntervalTrigger(
-                            seconds=int(self.unleash_metrics_interval),
-                            jitter=self.unleash_metrics_jitter,
-                        ),
-                        executor=self.unleash_executor_name,
+                    self.metric_job = self._scheduler.every(
+                        interval_seconds=int(self.unleash_metrics_interval),
+                        jitter_seconds=self.unleash_metrics_jitter,
+                        fn=aggregate_and_send_metrics,
                         kwargs=metrics_args,
                     )
 
                 if start_scheduler:
-                    self.unleash_scheduler.start()
+                    self._scheduler.start()
                 self._run_state = _RunState.INITIALIZED
 
             except Exception as excep:
@@ -627,15 +604,13 @@ class UnleashClient:
                     request_timeout=self.unleash_request_timeout,
                     engine=self._engine,
                 )
-                try:
-                    self.metric_job.remove()
-                except JobLookupError as exc:
-                    LOGGER.info("Exception during connector teardown: %s", exc)
+                self._scheduler.cancel(self.metric_job)
 
             try:
-                if hasattr(self, "unleash_scheduler") and self.unleash_scheduler:
-                    self.unleash_scheduler.remove_all_jobs()
-                    self.unleash_scheduler.shutdown(wait=True)
+                # hasattr: the constructor raises before assigning _scheduler when a
+                # custom scheduler was passed without an executor name.
+                if hasattr(self, "_scheduler") and self._scheduler.scheduler:
+                    self._scheduler.shutdown(wait=True)
             except Exception as exc:
                 LOGGER.warning("Exception during scheduler teardown: %s", exc)
 
