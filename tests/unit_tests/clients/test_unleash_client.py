@@ -356,6 +356,96 @@ def test_uc_fallbackfunction(readyable_unleash_client, mocker):
 
 
 @responses.activate
+def test_uc_fallback_receives_feature_name_and_enriched_context(
+    readyable_unleash_client, mocker
+):
+    unleash_client, ready_signal, _ = readyable_unleash_client
+
+    def good_fallback(feature_name: str, context: dict) -> bool:
+        return True
+
+    # Set up API
+    responses.add(responses.POST, URL + REGISTER_URL, json={}, status=202)
+    responses.add(
+        responses.GET, URL + FEATURES_URL, json=MOCK_FEATURE_RESPONSE, status=200
+    )
+    responses.add(responses.POST, URL + METRICS_URL, json={}, status=202)
+    fallback_spy = mocker.Mock(wraps=good_fallback)
+
+    unleash_client.initialize_client()
+    assert ready_signal.wait(timeout=WAIT_TIMEOUT)
+
+    assert unleash_client.is_enabled(
+        "notFoundTestFlag", {"userId": "7"}, fallback_function=fallback_spy
+    )
+
+    # The engine resolves the fallback now, but it must still hand the callable
+    # the feature name and the context the client enriched.
+    feature_name, context = fallback_spy.call_args[0]
+    assert feature_name == "notFoundTestFlag"
+    assert context["userId"] == "7"
+    assert context["appName"] == APP_NAME
+    assert context["environment"] == "default"
+    assert "currentTime" in context
+    assert "properties" in context
+
+
+@responses.activate
+def test_uc_fallback_result_is_what_gets_counted(readyable_unleash_client):
+    unleash_client, ready_signal, _ = readyable_unleash_client
+    # Set up API
+    responses.add(responses.POST, URL + REGISTER_URL, json={}, status=202)
+    responses.add(
+        responses.GET, URL + FEATURES_URL, json=MOCK_FEATURE_RESPONSE, status=200
+    )
+    responses.add(responses.POST, URL + METRICS_URL, json={}, status=202)
+
+    unleash_client.initialize_client()
+    assert ready_signal.wait(timeout=WAIT_TIMEOUT)
+
+    assert unleash_client.is_enabled(
+        "notFoundTestFlag", fallback_function=lambda name, context: True
+    )
+
+    # The fallback's answer is counted, not the "not found" default.
+    metrics = unleash_client.engine.get_metrics()["toggles"]
+    assert metrics["notFoundTestFlag"]["yes"] == 1
+
+
+@responses.activate
+def test_uc_raising_fallback_returns_false_and_records_nothing(
+    readyable_unleash_client,
+):
+    unleash_client, ready_signal, _ = readyable_unleash_client
+
+    def context_fallback(feature_name: str, context: dict) -> bool:
+        return context["wat"]
+
+    # Set up API
+    responses.add(responses.POST, URL + REGISTER_URL, json={}, status=202)
+    responses.add(
+        responses.GET, URL + FEATURES_URL, json=MOCK_FEATURE_RESPONSE, status=200
+    )
+    responses.add(responses.POST, URL + METRICS_URL, json={}, status=202)
+
+    unleash_client.initialize_client()
+    assert ready_signal.wait(timeout=WAIT_TIMEOUT)
+
+    # Counted so the metrics bucket exists; it's None until something lands in it.
+    assert unleash_client.is_enabled("testFlag")
+
+    # A fallback that raises used to propagate out of is_enabled. The engine now
+    # swallows and logs it, and never reaches the point where it counts the toggle.
+    assert (
+        unleash_client.is_enabled(
+            "notFoundTestFlag", fallback_function=context_fallback
+        )
+        is False
+    )
+    assert "notFoundTestFlag" not in unleash_client.engine.get_metrics()["toggles"]
+
+
+@responses.activate
 def test_uc_dirty_cache(readyable_unleash_client_nodestroy):
     unleash_client, ready_signal, _ = readyable_unleash_client_nodestroy
     # Set up API
@@ -545,6 +635,68 @@ def test_uc_metrics(readyable_unleash_client):
 
     metrics = unleash_client.engine.get_metrics()["toggles"]
     assert metrics["testFlag"]["yes"] == 1
+
+
+@responses.activate
+def test_uc_is_enabled_counts_each_call_once(readyable_unleash_client):
+    unleash_client, ready_signal, _ = readyable_unleash_client
+    # Set up API
+    responses.add(responses.POST, URL + REGISTER_URL, json={}, status=202)
+    responses.add(
+        responses.GET, URL + FEATURES_URL, json=MOCK_FEATURE_RESPONSE, status=200
+    )
+    responses.add(responses.POST, URL + METRICS_URL, json={}, status=202)
+
+    unleash_client.initialize_client()
+    assert ready_signal.wait(timeout=WAIT_TIMEOUT)
+
+    for _ in range(3):
+        assert unleash_client.is_enabled("testFlag")
+
+    # The engine counts the toggle. If the client counted it too, this would be 6.
+    metrics = unleash_client.engine.get_metrics()["toggles"]
+    assert metrics["testFlag"]["yes"] == 3
+
+
+@responses.activate
+def test_uc_get_variant_counts_toggle_and_variant_once(readyable_unleash_client):
+    unleash_client, ready_signal, _ = readyable_unleash_client
+    # Set up API
+    responses.add(responses.POST, URL + REGISTER_URL, json={}, status=202)
+    responses.add(
+        responses.GET, URL + FEATURES_URL, json=MOCK_FEATURE_RESPONSE, status=200
+    )
+    responses.add(responses.POST, URL + METRICS_URL, json={}, status=202)
+
+    unleash_client.initialize_client()
+    assert ready_signal.wait(timeout=WAIT_TIMEOUT)
+
+    variant = unleash_client.get_variant("testVariations", context={"userId": "2"})
+    assert variant["name"] == "VarA"
+
+    # get_variant counts both the toggle and the variant, each exactly once.
+    metrics = unleash_client.engine.get_metrics()["toggles"]
+    assert metrics["testVariations"]["yes"] == 1
+    assert metrics["testVariations"]["variants"]["VarA"] == 1
+
+
+@responses.activate
+def test_uc_is_enabled_returns_a_plain_bool(readyable_unleash_client):
+    unleash_client, ready_signal, _ = readyable_unleash_client
+    # Set up API
+    responses.add(responses.POST, URL + REGISTER_URL, json={}, status=202)
+    responses.add(
+        responses.GET, URL + FEATURES_URL, json=MOCK_FEATURE_RESPONSE, status=200
+    )
+    responses.add(responses.POST, URL + METRICS_URL, json={}, status=202)
+
+    unleash_client.initialize_client()
+    assert ready_signal.wait(timeout=WAIT_TIMEOUT)
+
+    # The engine's FeatureToggle must not leak out of the public API; it can't
+    # even be truth-tested.
+    assert unleash_client.is_enabled("testFlag") is True
+    assert unleash_client.is_enabled("notFoundTestFlag") is False
 
 
 @responses.activate
