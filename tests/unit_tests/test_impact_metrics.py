@@ -160,10 +160,7 @@ class TestSendMetricsViaClient:
             "disabled-feature": "disabled",
         }
 
-    # TODO: I'm leaving this test here as a reminder of the unintended side effect
-    # caused by having moved "count_toggle" and "count_variant" inside the engine's
-    # operations.
-    def test_flag_context_labels_record_toggle_metrics(self, unleash_client):
+    def test_flag_context_labels_do_not_record_toggle_metrics(self, unleash_client):
         flag_context = MetricFlagContext(
             flag_names=["feature-with-variant", "disabled-feature"],
             context={"userId": "123"},
@@ -172,12 +169,27 @@ class TestSendMetricsViaClient:
         unleash_client.impact_metrics.define_counter("purchases", "Number of purchases")
         unleash_client.impact_metrics.increment_counter("purchases", 1, flag_context)
 
-        # Resolving a flag into a label goes through the engine's get_variant,
-        # which records the evaluation. This is intentional, not a leak.
-        metrics = unleash_client.engine.get_metrics()["toggles"]
-        assert metrics["feature-with-variant"]["yes"] == 1
-        assert metrics["feature-with-variant"]["variants"]["treatment"] == 1
-        assert metrics["disabled-feature"]["no"] == 1
+        # Resolving a flag into a label goes through the engine's check_variant,
+        # which does not count the evaluation. The engine reports no metrics
+        # bucket at all until something is counted.
+        assert unleash_client.engine.get_metrics() is None
+
+    def test_real_evaluations_are_still_counted_alongside_label_resolution(
+        self, unleash_client
+    ):
+        flag_context = MetricFlagContext(
+            flag_names=["feature-with-variant", "enabled-feature", "disabled-feature"],
+            context={"userId": "123"},
+        )
+
+        unleash_client.impact_metrics.define_counter("purchases", "Number of purchases")
+        unleash_client.impact_metrics.increment_counter("purchases", 1, flag_context)
+
+        unleash_client.is_enabled("enabled-feature")
+
+        toggles = unleash_client.engine.get_metrics()["toggles"]
+        assert list(toggles) == ["enabled-feature"]
+        assert toggles["enabled-feature"]["yes"] == 1
 
     @responses.activate
     def test_impact_metrics_resent_after_failure(self, unleash_client):

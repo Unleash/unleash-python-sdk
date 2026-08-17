@@ -64,7 +64,7 @@ class ImpactMetrics:
         self._engine.observe_histogram(name, value, labels)
 
     def _variant_label(self, flag_name: str, context: Dict[str, Any]) -> str:
-        variant = self._engine.get_variant(flag_name, context).variant
+        variant = self._engine.check_variant(flag_name, context).variant
         if variant.enabled:
             return variant.name
         if variant.feature_enabled:

@@ -31,7 +31,7 @@ dependencies=[
     "importlib_metadata",
     "python-dateutil",
     "semver < 4.0.0",
-    "yggdrasil-engine >= 2.0.0a0",
+    "yggdrasil-engine >= 2.0.0a1",
     "launchdarkly-eventsource",
 ]
 
