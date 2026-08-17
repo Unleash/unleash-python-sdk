@@ -1,10 +1,11 @@
-from typing import Callable
+from typing import Optional
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from yggdrasil_engine.engine import UnleashEngine
 
 from UnleashClient.cache import BaseCache
+from UnleashClient.events import EventDispatcher
 
 from .base_connector import BaseConnector
 
@@ -18,11 +19,9 @@ class OfflineConnector(BaseConnector):
         scheduler_executor: str = "default",
         refresh_interval: int = 15,
         refresh_jitter: int = None,
-        ready_callback: Callable = None,
+        events: Optional[EventDispatcher] = None,
     ):
-        self.engine = engine
-        self.cache = cache
-        self.ready_callback = ready_callback
+        super().__init__(engine, cache, events)
         self.scheduler = scheduler
         self.scheduler_executor = scheduler_executor
         self.refresh_interval = refresh_interval
@@ -40,8 +39,7 @@ class OfflineConnector(BaseConnector):
             executor=self.scheduler_executor,
         )
 
-        if self.ready_callback:
-            self.ready_callback()
+        self.emit_ready()
 
     def stop(self):
         if self.job:

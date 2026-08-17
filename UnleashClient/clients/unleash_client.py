@@ -38,6 +38,7 @@ from UnleashClient.constants import (
 )
 from UnleashClient.events import (
     BaseEvent,
+    EventDispatcher,
     UnleashEvent,
     UnleashEventType,
     UnleashReadyEvent,
@@ -85,6 +86,11 @@ def build_ready_callback(
 ) -> Optional[Callable]:
     """
     Builds a callback function that can be used to notify when the Unleash client is ready.
+
+    .. deprecated::
+        READY is now emitted through :class:`UnleashClient.events.EventDispatcher`,
+        which deduplicates it itself.  This helper is retained for backwards
+        compatibility and is no longer used internally.
     """
 
     if not event_callback:
@@ -137,7 +143,7 @@ class UnleashClient:
     :param scheduler: Custom APScheduler object.  Use this if you want to customize jobstore or executors.  When unset, UnleashClient will create it's own scheduler.
     :param scheduler_executor: Name of APSCheduler executor to use if using a custom scheduler.
     :param multiple_instance_mode: Determines how multiple instances being instantiated is handled by the SDK, when set to InstanceAllowType.BLOCK, the client constructor will fail when more than one instance is detected, when set to InstanceAllowType.WARN, multiple instances will be allowed but log a warning, when set to InstanceAllowType.SILENTLY_ALLOW, no warning or failure will be raised when instantiating multiple instances of the client. Defaults to InstanceAllowType.WARN
-    :param event_callback: Function to call if impression events are enabled.  WARNING: Depending on your event library, this may have performance implications!
+    :param event_callback: Function to call if impression events are enabled.  Called on a dedicated background thread, so it must not rely on thread local state from the caller.
     :param experimental_mode: Optional dict to configure mode. Use {"type": "streaming"} to enable streaming or {"type": "polling"} (default).
     :param sdk_flavor: Optional identifier of an integration built on top of this SDK (e.g. an OpenFeature provider). Sent in the register + metrics payloads alongside sdkVersion so adoption of the integration can be tracked. Leave unset for plain SDK usage.
     :param sdk_flavor_version: Optional version of the integration named by sdk_flavor.
@@ -205,7 +211,11 @@ class UnleashClient:
         self.unleash_project_name = project_name
         self.unleash_verbose_log_level = verbose_log_level
         self.unleash_event_callback = event_callback
-        self._ready_callback = build_ready_callback(event_callback)
+        # Events are handed to the dispatcher, which delivers them to the user's
+        # callback on its own thread.  The callback is never called from here.
+        self.__events: Optional[EventDispatcher] = (
+            EventDispatcher(event_callback) if event_callback is not None else None
+        )
         self.connector_mode: ExperimentalMode = experimental_mode or {"type": "polling"}
         self._lifecycle_lock = threading.RLock()
         self._closed = threading.Event()
@@ -361,7 +371,7 @@ class UnleashClient:
                         url=self.unleash_url,
                         headers=base_headers,
                         request_timeout=self.unleash_request_timeout,
-                        ready_callback=self._ready_callback,
+                        events=self.__events,
                         custom_options=self.unleash_custom_options,
                     )
                 elif fetch_toggles:
@@ -380,8 +390,7 @@ class UnleashClient:
                         project=self.unleash_project_name,
                         scheduler_executor=self.unleash_executor_name,
                         refresh_interval=self.unleash_refresh_interval,
-                        event_callback=self.unleash_event_callback,
-                        ready_callback=self._ready_callback,
+                        events=self.__events,
                     )
                 else:
                     start_scheduler = True
@@ -392,7 +401,7 @@ class UnleashClient:
                         scheduler_executor=self.unleash_executor_name,
                         refresh_interval=self.unleash_refresh_interval,
                         refresh_jitter=self.unleash_refresh_jitter,
-                        ready_callback=self._ready_callback,
+                        events=self.__events,
                     )
 
                 self.connector.start()
@@ -513,6 +522,11 @@ class UnleashClient:
                 except Exception as exc:
                     LOGGER.warning("Exception during cache teardown: %s", exc)
 
+            # Closed last: the scheduler has to drain first, otherwise an
+            # in-flight poll can still queue events we'd silently drop.
+            if self.__events:
+                self.__events.close()
+
     @staticmethod
     def _redact_to_print_safely(value: Optional[str]) -> Optional[str]:
         if not value:
@@ -561,23 +575,20 @@ class UnleashClient:
 
         self.engine.count_toggle(feature_name, feature_enabled)
         try:
-            if (
-                self.unleash_event_callback
-                and self.engine.should_emit_impression_event(feature_name)
-            ):
-                event = UnleashEvent(
-                    event_type=UnleashEventType.FEATURE_FLAG,
-                    event_id=uuid.uuid4(),
-                    context=context,
-                    enabled=feature_enabled,
-                    feature_name=feature_name,
+            if self.__events and self.engine.should_emit_impression_event(feature_name):
+                self.__events.emit_event(
+                    UnleashEvent(
+                        event_type=UnleashEventType.FEATURE_FLAG,
+                        event_id=uuid.uuid4(),
+                        context=context,
+                        enabled=feature_enabled,
+                        feature_name=feature_name,
+                    )
                 )
-
-                self.unleash_event_callback(event)
         except Exception as excep:
             LOGGER.log(
                 self.unleash_verbose_log_level,
-                "Error in event callback: %s",
+                "Error emitting impression event: %s",
                 excep,
             )
 
@@ -611,26 +622,24 @@ class UnleashClient:
         self.engine.count_variant(feature_name, variant["name"])
         self.engine.count_toggle(feature_name, variant["feature_enabled"])
 
-        if self.unleash_event_callback and self.engine.should_emit_impression_event(
-            feature_name
-        ):
-            try:
-                event = UnleashEvent(
-                    event_type=UnleashEventType.VARIANT,
-                    event_id=uuid.uuid4(),
-                    context=context,
-                    enabled=bool(variant["enabled"]),
-                    feature_name=feature_name,
-                    variant=str(variant["name"]),
+        try:
+            if self.__events and self.engine.should_emit_impression_event(feature_name):
+                self.__events.emit_event(
+                    UnleashEvent(
+                        event_type=UnleashEventType.VARIANT,
+                        event_id=uuid.uuid4(),
+                        context=context,
+                        enabled=bool(variant["enabled"]),
+                        feature_name=feature_name,
+                        variant=str(variant["name"]),
+                    )
                 )
-
-                self.unleash_event_callback(event)
-            except Exception as excep:
-                LOGGER.log(
-                    self.unleash_verbose_log_level,
-                    "Error in event callback: %s",
-                    excep,
-                )
+        except Exception as excep:
+            LOGGER.log(
+                self.unleash_verbose_log_level,
+                "Error emitting impression event: %s",
+                excep,
+            )
 
         return variant
 
