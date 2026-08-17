@@ -108,7 +108,7 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">fcache.cache</span><span class="w"> </span><span class="kn">import</span> <span class="n">FileCache</span> <span class="k">as</span> <span class="n">_Filecache</span>
 
 <span class="k">class</span><span class="w"> </span><span class="nc">FileCache</span><span class="p">(</span><span class="n">BaseCache</span><span class="p">):</span>
-    <span class="c1"># This is specific for FileCache.  Depending on the cache you&#39;re using, this may look different!</span>
+    <span class="c1"># This is specific for FileCache.  Depending on the cache you're using, this may look different!</span>
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">directory</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_cache</span> <span class="o">=</span> <span class="n">_FileCache</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">app_cache_dir</span><span class="o">=</span><span class="n">directory</span><span class="p">)</span>
 

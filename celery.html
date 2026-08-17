@@ -100,9 +100,9 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">celery.signals</span><span class="w"> </span><span class="kn">import</span> <span class="n">worker_process_init</span>
 
 <span class="n">client</span> <span class="o">=</span> <span class="n">UnleashClient</span><span class="p">(</span>
-    <span class="n">url</span><span class="o">=</span><span class="s2">&quot;http://localhost:4242/api/&quot;</span><span class="p">,</span>
-    <span class="n">app_name</span><span class="o">=</span><span class="s2">&quot;test-dev&quot;</span><span class="p">,</span>
-    <span class="n">custom_headers</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;Authorization&#39;</span><span class="p">:</span> <span class="s1">&#39;*:development.bb09e81624d5ad67b2ac29bd0b0fdc35ccbac884e63cfd20c6fefc49&#39;</span><span class="p">})</span>
+    <span class="n">url</span><span class="o">=</span><span class="s2">"http://localhost:4242/api/"</span><span class="p">,</span>
+    <span class="n">app_name</span><span class="o">=</span><span class="s2">"test-dev"</span><span class="p">,</span>
+    <span class="n">custom_headers</span><span class="o">=</span><span class="p">{</span><span class="s1">'Authorization'</span><span class="p">:</span> <span class="s1">'*:development.bb09e81624d5ad67b2ac29bd0b0fdc35ccbac884e63cfd20c6fefc49'</span><span class="p">})</span>
 
 <span class="nd">@worker_process_init</span><span class="o">.</span><span class="n">connect</span>
 <span class="k">def</span><span class="w"> </span><span class="nf">configure_workers</span><span class="p">(</span><span class="n">sender</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">conf</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>

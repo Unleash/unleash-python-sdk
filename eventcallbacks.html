@@ -51,7 +51,10 @@
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="customstrategies.html">Custom Strategies</a></li>
 <li class="toctree-l1"><a class="reference internal" href="customcache.html">Custom Cache</a></li>
-<li class="toctree-l1 current"><a class="current reference internal" href="#">Event Callbacks</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Event Callbacks</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#threading">Threading</a></li>
+</ul>
+</li>
 <li class="toctree-l1"><a class="reference internal" href="development.html">Development</a></li>
 <li class="toctree-l1"><a class="reference internal" href="wsgi.html">Running with WSGI</a></li>
 <li class="toctree-l1"><a class="reference internal" href="celery.html">Running with Celery</a></li>
@@ -105,26 +108,47 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">UnleashClient</span><span class="w"> </span><span class="kn">import</span> <span class="n">UnleashClient</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">UnleashClient.events</span><span class="w"> </span><span class="kn">import</span> <span class="n">UnleashEvent</span>
 
-<span class="n">send_data</span> <span class="o">=</span> <span class="n">signal</span><span class="p">(</span><span class="s1">&#39;send-data&#39;</span><span class="p">)</span>
+<span class="n">send_data</span> <span class="o">=</span> <span class="n">signal</span><span class="p">(</span><span class="s1">'send-data'</span><span class="p">)</span>
 
 <span class="nd">@send_data</span><span class="o">.</span><span class="n">connect</span>
 <span class="k">def</span><span class="w"> </span><span class="nf">receive_data</span><span class="p">(</span><span class="n">sender</span><span class="p">,</span> <span class="o">**</span><span class="n">kw</span><span class="p">):</span>
-    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Caught signal from </span><span class="si">%r</span><span class="s2">, data </span><span class="si">%r</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">sender</span><span class="p">,</span> <span class="n">kw</span><span class="p">))</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">"Caught signal from </span><span class="si">%r</span><span class="s2">, data </span><span class="si">%r</span><span class="s2">"</span> <span class="o">%</span> <span class="p">(</span><span class="n">sender</span><span class="p">,</span> <span class="n">kw</span><span class="p">))</span>
     <span class="k">return</span> <span class="n">kw</span>
 
 <span class="k">def</span><span class="w"> </span><span class="nf">example_callback</span><span class="p">(</span><span class="n">event</span><span class="p">:</span> <span class="n">UnleashEvent</span><span class="p">):</span>
-    <span class="n">send_data</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="s1">&#39;anonymous&#39;</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="n">event</span><span class="p">)</span>
+    <span class="n">send_data</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="s1">'anonymous'</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="n">event</span><span class="p">)</span>
 
 <span class="c1"># Set up Unleash</span>
 <span class="n">client</span> <span class="o">=</span> <span class="n">UnleashClient</span><span class="p">(</span>
-    <span class="s2">&quot;https://unleash.herokuapp.com/api&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;My Program&quot;</span>
+    <span class="s2">"https://unleash.herokuapp.com/api"</span><span class="p">,</span>
+    <span class="s2">"My Program"</span>
     <span class="n">event_callback</span><span class="o">=</span><span class="n">example_callback</span>
 <span class="p">)</span>
 <span class="n">client</span><span class="o">.</span><span class="n">initialize_client</span><span class="p">()</span>
-<span class="n">client</span><span class="o">.</span><span class="n">is_enabled</span><span class="p">(</span><span class="s2">&quot;testFlag&quot;</span><span class="p">)</span>
+<span class="n">client</span><span class="o">.</span><span class="n">is_enabled</span><span class="p">(</span><span class="s2">"testFlag"</span><span class="p">)</span>
 </pre></div>
 </div>
+<section id="threading">
+<h2>Threading<a class="headerlink" href="#threading" title="Link to this heading"></a></h2>
+<p>Your callback runs on a single background thread owned by the client, never on
+the thread that called <code class="docutils literal notranslate"><span class="pre">is_enabled()</span></code> or <code class="docutils literal notranslate"><span class="pre">get_variant()</span></code>. This means:</p>
+<ul class="simple">
+<li><p><strong>Calls don’t block on your callback.</strong> <code class="docutils literal notranslate"><span class="pre">is_enabled()</span></code> returns as soon as the
+event is queued, so a slow callback can’t slow down flag evaluation. It also
+means the call returns <em>before</em> your callback has run - if you need to assert on
+an event in a test, wait for it rather than checking immediately afterwards.</p></li>
+<li><p><strong>Thread local state from the caller isn’t available.</strong> Flask’s <code class="docutils literal notranslate"><span class="pre">g</span></code>, the
+current Django request, <code class="docutils literal notranslate"><span class="pre">contextvars</span></code> and similar will not be set. Read
+anything you need from the event itself, or capture it before the call.</p></li>
+<li><p><strong>Callbacks run sequentially.</strong> Events are delivered one at a time, in order, so
+your callback doesn’t need to be thread safe against itself.</p></li>
+<li><p><strong>Events are dropped if you can’t keep up.</strong> Up to 100 events are held while
+waiting on your callback; beyond that, events are discarded and a warning is
+logged. Exceptions raised by your callback are logged and otherwise ignored.</p></li>
+<li><p><strong>Call</strong> <code class="docutils literal notranslate"><span class="pre">destroy()</span></code> <strong>when you’re done.</strong> It delivers whatever is still
+queued before shutting the thread down.</p></li>
+</ul>
+</section>
 </section>
 
 

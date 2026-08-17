@@ -124,11 +124,11 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">UnleashClient.cache</span><span class="w"> </span><span class="kn">import</span> <span class="n">FileCache</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">UnleashClient</span><span class="w"> </span><span class="kn">import</span> <span class="n">UnleashClient</span>
 
-<span class="n">my_cache</span> <span class="o">=</span> <span class="n">FileCache</span><span class="p">(</span><span class="s2">&quot;HAMSTER_API&quot;</span><span class="p">)</span>
-<span class="n">my_cache</span><span class="o">.</span><span class="n">bootstrap_from_file</span><span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="s2">&quot;/path/to/boostrap.json&quot;</span><span class="p">))</span>
+<span class="n">my_cache</span> <span class="o">=</span> <span class="n">FileCache</span><span class="p">(</span><span class="s2">"HAMSTER_API"</span><span class="p">)</span>
+<span class="n">my_cache</span><span class="o">.</span><span class="n">bootstrap_from_file</span><span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="s2">"/path/to/boostrap.json"</span><span class="p">))</span>
 <span class="n">unleash_client</span> <span class="o">=</span> <span class="n">UnleashClient</span><span class="p">(</span>
-    <span class="s2">&quot;https://my.unleash.server.com&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;HAMSTER_API&quot;</span><span class="p">,</span>
+    <span class="s2">"https://my.unleash.server.com"</span><span class="p">,</span>
+    <span class="s2">"HAMSTER_API"</span><span class="p">,</span>
     <span class="n">cache</span><span class="o">=</span><span class="n">my_cache</span>
 <span class="p">)</span>
 </pre></div>
