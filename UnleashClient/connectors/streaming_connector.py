@@ -23,6 +23,16 @@ class StreamingConnector(BaseConnector):
         backoff_jitter: Optional[float] = 0.5,
         custom_options: Optional[dict] = None,
     ) -> None:
+        """
+        :param request_timeout: Seconds to wait for the stream response.
+        :param backoff_initial: Seconds to wait before the first reconnect.
+        :param backoff_max: Ceiling on the reconnect delay, in seconds.
+        :param backoff_multiplier: Factor the delay grows by on each attempt.
+        :param backoff_jitter: Fraction of the delay to randomize by, not a number of
+                               seconds -- 0.5 means the delay varies by up to 50%.
+                               Unlike ``refresh_jitter`` on the polling and offline
+                               connectors, which is in seconds.
+        """
         super().__init__(store)
         self._base_url = url.rstrip("/") + STREAMING_URL
         self._headers = dict(headers)
