@@ -17,6 +17,7 @@ from UnleashClient.constants import REQUEST_RETRIES, REQUEST_TIMEOUT
 from UnleashClient.context import ContextEnricher
 from UnleashClient.events import BaseEvent, EventDispatcher
 from UnleashClient.headers import HeaderFactory
+from UnleashClient.scheduler import Scheduler
 from UnleashClient.store import FeatureStore
 
 _NOT_IMPLEMENTED = (
@@ -88,6 +89,7 @@ class AsyncUnleashClient:
         self._store: FeatureStore = FeatureStore(
             engine=self._engine, cache=self._cache, events=self._event_dispatcher
         )
+        self._scheduler: Scheduler = Scheduler()
 
     async def initialize_client(self) -> None:
         raise NotImplementedError(_NOT_IMPLEMENTED)
