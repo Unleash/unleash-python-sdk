@@ -15,7 +15,7 @@ from UnleashClient.constants import (
     SDK_NAME,
     SDK_VERSION,
 )
-from UnleashClient.utils import LOGGER, log_resp_info
+from UnleashClient.utils import LOGGER, log_resp_info, redact_to_print_safely
 
 
 # pylint: disable=broad-except
@@ -70,7 +70,15 @@ def register_client(
 
     try:
         LOGGER.info("Registering unleash client with unleash @ %s", url)
-        LOGGER.info("Registration request information: %s", registration_request)
+        LOGGER.info(
+            "Registration request information: %s",
+            {
+                **registration_request,
+                "instanceId": redact_to_print_safely(
+                    registration_request.get("instanceId")
+                ),
+            },
+        )
 
         resp = requests.post(
             build_normalized_url(url, REGISTER_URL),

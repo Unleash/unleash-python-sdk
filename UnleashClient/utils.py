@@ -63,6 +63,14 @@ def get_identifier(context_key_name: str, context: dict) -> Any:
     return value
 
 
+def redact_to_print_safely(value: Optional[str]) -> Optional[str]:
+    if not value:
+        return value
+    prefix, separator, secret = value.rpartition(":")
+    redacted_secret = f"{secret[:6]}...{secret[-3:]}"
+    return f"{prefix}{separator}{redacted_secret}"
+
+
 def log_resp_info(resp: Response) -> None:
     LOGGER.debug("HTTP status code: %s", resp.status_code)
     LOGGER.debug("HTTP headers: %s", resp.headers)

@@ -4,7 +4,7 @@ import requests
 
 from UnleashClient.api.urls import build_normalized_url
 from UnleashClient.constants import APPLICATION_HEADERS, METRICS_URL
-from UnleashClient.utils import LOGGER, log_resp_info
+from UnleashClient.utils import LOGGER, log_resp_info, redact_to_print_safely
 
 
 # pylint: disable=broad-except
@@ -30,7 +30,13 @@ def send_metrics(
     """
     try:
         LOGGER.info("Sending messages to with unleash @ %s", url)
-        LOGGER.info("unleash metrics information: %s", request_body)
+        LOGGER.info(
+            "unleash metrics information: %s",
+            {
+                **request_body,
+                "instanceId": redact_to_print_safely(request_body.get("instanceId")),
+            },
+        )
 
         resp = requests.post(
             build_normalized_url(url, METRICS_URL),

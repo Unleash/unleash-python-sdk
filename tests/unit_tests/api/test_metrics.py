@@ -47,6 +47,21 @@ def test_send_metrics(payload, status, expected):
 
 
 @responses.activate
+def test_instance_id_is_not_logged_in_plain_text_in_metrics(caplog):
+    responses.add(responses.POST, FULL_METRICS_URL, json={}, status=202)
+    instance_id = "abcdef1234567890ghijklmnop"
+    request_body = {**MOCK_METRICS_REQUEST, "instanceId": instance_id}
+
+    send_metrics(URL, request_body, CUSTOM_HEADERS, CUSTOM_OPTIONS, REQUEST_TIMEOUT)
+
+    assert instance_id not in caplog.text
+    assert "abcdef...nop" in caplog.text
+
+    actual_payload = json.loads(responses.calls[0].request.body)
+    assert actual_payload["instanceId"] == instance_id
+
+
+@responses.activate
 def test_send_metrics_strips_trailing_slash_from_url():
     responses.add(responses.POST, FULL_METRICS_URL, json={}, status=202)
 
