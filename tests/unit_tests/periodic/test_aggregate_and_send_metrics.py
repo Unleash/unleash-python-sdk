@@ -12,14 +12,28 @@ from tests.utilities.testing_constants import (
     REQUEST_TIMEOUT,
     URL,
 )
+from UnleashClient.config import UnleashConfig
 from UnleashClient.constants import (
     CLIENT_SPEC_VERSION,
     METRICS_URL,
 )
+from UnleashClient.headers import HeaderFactory
 from UnleashClient.periodic_tasks import aggregate_and_send_metrics
+from UnleashClient.transport import Transport
 
 FULL_METRICS_URL = URL + METRICS_URL
-print(FULL_METRICS_URL)
+
+
+def build_transport() -> Transport:
+    config = UnleashConfig(
+        URL,
+        APP_NAME,
+        instance_id=INSTANCE_ID,
+        custom_headers=CUSTOM_HEADERS,
+        custom_options=CUSTOM_OPTIONS,
+        request_timeout=REQUEST_TIMEOUT,
+    )
+    return Transport(config, HeaderFactory(config))
 
 
 @responses.activate
@@ -29,13 +43,10 @@ def test_no_metrics():
     engine = UnleashEngine()
 
     aggregate_and_send_metrics(
-        URL,
+        build_transport(),
         APP_NAME,
         INSTANCE_ID,
         CONNECTION_ID,
-        CUSTOM_HEADERS,
-        CUSTOM_OPTIONS,
-        REQUEST_TIMEOUT,
         engine,
     )
 
@@ -50,13 +61,10 @@ def test_metrics_metadata_is_sent():
     engine.count_toggle("something-to-make-sure-metrics-get-sent", True)
 
     aggregate_and_send_metrics(
-        URL,
+        build_transport(),
         APP_NAME,
         INSTANCE_ID,
         CONNECTION_ID,
-        CUSTOM_HEADERS,
-        CUSTOM_OPTIONS,
-        REQUEST_TIMEOUT,
         engine,
     )
 
@@ -77,13 +85,10 @@ def test_metrics_includes_sdk_flavor_when_set():
     engine.count_toggle("something-to-make-sure-metrics-get-sent", True)
 
     aggregate_and_send_metrics(
-        URL,
+        build_transport(),
         APP_NAME,
         INSTANCE_ID,
         CONNECTION_ID,
-        CUSTOM_HEADERS,
-        CUSTOM_OPTIONS,
-        REQUEST_TIMEOUT,
         engine,
         sdk_flavor="unleash-openfeature-python-provider",
         sdk_flavor_version="1.2.3",
@@ -102,13 +107,10 @@ def test_metrics_omits_sdk_flavor_when_unset():
     engine.count_toggle("something-to-make-sure-metrics-get-sent", True)
 
     aggregate_and_send_metrics(
-        URL,
+        build_transport(),
         APP_NAME,
         INSTANCE_ID,
         CONNECTION_ID,
-        CUSTOM_HEADERS,
-        CUSTOM_OPTIONS,
-        REQUEST_TIMEOUT,
         engine,
     )
 
