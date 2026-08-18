@@ -4,7 +4,6 @@ from threading import RLock
 from typing import Any, Dict, Optional
 
 import mmh3  # pylint: disable=import-error
-from requests import Response
 
 LOGGER = logging.getLogger("UnleashClient")
 
@@ -61,12 +60,6 @@ def get_identifier(context_key_name: str, context: dict) -> Any:
         value = None
 
     return value
-
-
-def log_resp_info(resp: Response) -> None:
-    LOGGER.debug("HTTP status code: %s", resp.status_code)
-    LOGGER.debug("HTTP headers: %s", resp.headers)
-    LOGGER.debug("HTTP content: %s", resp.text)
 
 
 def extract_environment_from_headers(
