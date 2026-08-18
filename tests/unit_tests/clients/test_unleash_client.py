@@ -211,6 +211,30 @@ def test_UC_type_violation():
     client.destroy()
 
 
+def test_UC_public_config_attributes_are_writable():
+    client = UnleashClient(URL, APP_NAME, disable_metrics=True)
+
+    client.unleash_refresh_interval = 99
+    client.unleash_custom_headers = {"name": "replaced"}
+    client.unleash_url = "http://elsewhere:4242/api/"
+    client.unleash_refresh_jitter = "5"
+
+    assert client.unleash_refresh_interval == 99
+    assert client.unleash_custom_headers == {"name": "replaced"}
+    assert client.unleash_url == "http://elsewhere:4242/api/"
+    assert client.unleash_refresh_jitter == "5"
+    client.destroy()
+
+
+def test_UC_custom_headers_can_be_mutated_in_place():
+    client = UnleashClient(URL, APP_NAME, custom_headers=dict(CUSTOM_HEADERS))
+
+    client.unleash_custom_headers["extra"] = "header"
+
+    assert client.unleash_custom_headers["extra"] == "header"
+    client.destroy()
+
+
 @responses.activate
 def test_uc_lifecycle(readyable_unleash_client):
     unleash_client, ready_signal, fetch_signal = readyable_unleash_client
