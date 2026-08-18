@@ -4,19 +4,16 @@ from typing import Optional
 import yggdrasil_engine
 from yggdrasil_engine.engine import UnleashEngine
 
-from UnleashClient.api import send_metrics
 from UnleashClient.constants import CLIENT_SPEC_VERSION
+from UnleashClient.transport import Transport
 from UnleashClient.utils import LOGGER
 
 
 def aggregate_and_send_metrics(
-    url: str,
+    transport: Transport,
     app_name: str,
     instance_id: str,
     connection_id: str,
-    headers: dict,
-    custom_options: dict,
-    request_timeout: int,
     engine: UnleashEngine,
     sdk_flavor: Optional[str] = None,
     sdk_flavor_version: Optional[str] = None,
@@ -49,9 +46,7 @@ def aggregate_and_send_metrics(
         metrics_request["impactMetrics"] = impact_metrics
 
     if metrics_bucket or impact_metrics:
-        success = send_metrics(
-            url, metrics_request, headers, custom_options, request_timeout
-        )
+        success = transport.send_metrics(metrics_request)
         if not success and impact_metrics:
             engine.restore_impact_metrics(impact_metrics)
     else:

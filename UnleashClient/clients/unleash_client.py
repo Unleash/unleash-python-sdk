@@ -10,7 +10,6 @@ from typing import Any, Callable, Dict, Optional
 from apscheduler.schedulers.base import BaseScheduler
 from yggdrasil_engine.engine import UnleashEngine
 
-from UnleashClient.api import register_client
 from UnleashClient.cache import BaseCache, FileCache
 from UnleashClient.config import (
     ExperimentalMode,
@@ -40,11 +39,13 @@ from UnleashClient.events import (
 )
 from UnleashClient.headers import HeaderFactory
 from UnleashClient.impact_metrics import ImpactMetrics
+from UnleashClient.payloads import build_register_payload
 from UnleashClient.periodic_tasks import (
     aggregate_and_send_metrics,
 )
 from UnleashClient.scheduler import ScheduledJob, Scheduler
 from UnleashClient.store import FeatureStore
+from UnleashClient.transport import Transport
 from UnleashClient.utils import (
     LOGGER,
     InstanceAllowType,
@@ -214,6 +215,8 @@ class UnleashClient:
         )
 
         self.metrics_headers: dict = {}
+
+        self._transport = Transport(self._config, self._headers)
 
         self._scheduler = Scheduler(scheduler, scheduler_executor)
 
@@ -463,18 +466,8 @@ class UnleashClient:
 
                 # Register app
                 if not self.unleash_disable_registration:
-                    register_client(
-                        self.unleash_url,
-                        self.unleash_app_name,
-                        self.unleash_instance_id,
-                        self.connection_id,
-                        self.unleash_metrics_interval,
-                        self._headers.base(),
-                        self.unleash_custom_options,
-                        self.strategy_mapping,
-                        self.unleash_request_timeout,
-                        self.unleash_sdk_flavor,
-                        self.unleash_sdk_flavor_version,
+                    self._transport.register(
+                        build_register_payload(self._config, self.strategy_mapping)
                     )
                 mode = self.connector_mode.get("type", "polling")
 
@@ -491,14 +484,7 @@ class UnleashClient:
                     self.connector = PollingConnector(
                         store=self._store,
                         scheduler=self._scheduler,
-                        url=self.unleash_url,
-                        app_name=self.unleash_app_name,
-                        instance_id=self.unleash_instance_id,
-                        headers=self._headers.polling(),
-                        custom_options=self.unleash_custom_options,
-                        request_timeout=self.unleash_request_timeout,
-                        request_retries=self.unleash_request_retries,
-                        project=self.unleash_project_name,
+                        transport=self._transport,
                         refresh_interval=self.unleash_refresh_interval,
                         refresh_jitter=self.unleash_refresh_jitter,
                     )
@@ -518,16 +504,15 @@ class UnleashClient:
                     # be unconditional.
                     start_scheduler = True
 
+                    # Informational only since the Transport builds its own
+                    # headers; kept because it is a public attribute.
                     self.metrics_headers = self._headers.metrics()
 
                     metrics_args = {
-                        "url": self.unleash_url,
+                        "transport": self._transport,
                         "app_name": self.unleash_app_name,
                         "connection_id": self.connection_id,
                         "instance_id": self.unleash_instance_id,
-                        "headers": self.metrics_headers,
-                        "custom_options": self.unleash_custom_options,
-                        "request_timeout": self.unleash_request_timeout,
                         "engine": self._engine,
                         "sdk_flavor": self.unleash_sdk_flavor,
                         "sdk_flavor_version": self.unleash_sdk_flavor_version,
@@ -595,13 +580,10 @@ class UnleashClient:
             if self.metric_job:
                 # Flush metrics before shutting down.
                 aggregate_and_send_metrics(
-                    url=self.unleash_url,
+                    transport=self._transport,
                     app_name=self.unleash_app_name,
                     connection_id=self.connection_id,
                     instance_id=self.unleash_instance_id,
-                    headers=self.metrics_headers,
-                    custom_options=self.unleash_custom_options,
-                    request_timeout=self.unleash_request_timeout,
                     engine=self._engine,
                 )
                 self._scheduler.cancel(self.metric_job)
