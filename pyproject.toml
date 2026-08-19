@@ -35,6 +35,12 @@ dependencies=[
     "launchdarkly-eventsource",
 ]
 
+[project.optional-dependencies]
+# Required by the in-progress AsyncUnleashClient only.  3.9 is the floor because
+# it introduced InvalidUrlClientError/NonHttpUrlClientError, which
+# AsyncTransport.register re-raises.
+async = ["aiohttp >= 3.9"]
+
 [project.urls]
 Homepage = "https://github.com/Unleash/unleash-python-sdk"
 Documentation = "https://docs.getunleash.io/unleash-python-sdk"
@@ -61,6 +67,7 @@ addopts= """
     --disable-warnings
 """
 log_file_level="INFO"
+asyncio_default_fixture_loop_scope = "function"
 
 [tool.ruff]
 lint.select = [
