@@ -56,6 +56,8 @@ class UnleashConfig:
     sdk_flavor_version: Optional[str] = None
     experimental_mode: Optional[ExperimentalMode] = None
     connection_id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    # Appended after connection_id so no existing positional argument shifts.
+    custom_strategies: Optional[dict] = None
     static_context: Dict[str, Any] = field(init=False, default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -70,6 +72,7 @@ class UnleashConfig:
         # as the client constructor has always done.
         self.custom_headers = self.custom_headers or {}
         self.custom_options = self.custom_options or {}
+        self.custom_strategies = self.custom_strategies or {}
         self.experimental_mode = self.experimental_mode or {"type": "polling"}
         self.static_context = {
             "appName": self.app_name,
