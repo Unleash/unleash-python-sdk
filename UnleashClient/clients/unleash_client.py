@@ -38,10 +38,8 @@ from UnleashClient.events import (
 )
 from UnleashClient.headers import HeaderFactory
 from UnleashClient.impact_metrics import ImpactMetrics
+from UnleashClient.metrics_reporter import MetricsReporter
 from UnleashClient.payloads import build_register_payload
-from UnleashClient.periodic_tasks import (
-    aggregate_and_send_metrics,
-)
 from UnleashClient.scheduler import ScheduledJob, Scheduler
 from UnleashClient.store import FeatureStore
 from UnleashClient.transport import Transport
@@ -193,7 +191,6 @@ class UnleashClient:
         self._do_instance_check(multiple_instance_mode)
 
         # Class objects
-        self.metric_job: ScheduledJob = None
         self._engine = UnleashEngine()
 
         self.impact_metrics = ImpactMetrics(
@@ -223,6 +220,14 @@ class UnleashClient:
 
         self._scheduler = Scheduler(scheduler, scheduler_executor)
 
+        self._metrics = MetricsReporter(
+            config=self._config,
+            transport=self._transport,
+            scheduler=self._scheduler,
+            engine=self._engine,
+            impact_metrics=self.impact_metrics,
+        )
+
         # Client status
         self._run_state = _RunState.UNINITIALIZED
 
@@ -237,6 +242,14 @@ class UnleashClient:
             ).start()
 
         self.connector: BaseConnector = None
+
+    @property
+    def metric_job(self) -> ScheduledJob:
+        return self._metrics.job
+
+    @metric_job.setter
+    def metric_job(self, value: ScheduledJob) -> None:
+        self._metrics.job = value
 
     @property
     def unleash_scheduler(self) -> BaseScheduler:
@@ -519,22 +532,7 @@ class UnleashClient:
                     # be unconditional.
                     start_scheduler = True
 
-                    metrics_args = {
-                        "transport": self._transport,
-                        "app_name": self.unleash_app_name,
-                        "connection_id": self.connection_id,
-                        "instance_id": self.unleash_instance_id,
-                        "engine": self._engine,
-                        "sdk_flavor": self.unleash_sdk_flavor,
-                        "sdk_flavor_version": self.unleash_sdk_flavor_version,
-                    }
-
-                    self.metric_job = self._scheduler.every(
-                        interval_seconds=int(self.unleash_metrics_interval),
-                        jitter_seconds=self.unleash_metrics_jitter,
-                        fn=aggregate_and_send_metrics,
-                        kwargs=metrics_args,
-                    )
+                    self._metrics.start()
 
                 if start_scheduler:
                     self._scheduler.start()
@@ -584,16 +582,9 @@ class UnleashClient:
             if self.connector:
                 self.connector.stop()
 
-            if self.metric_job:
-                # Flush metrics before shutting down.
-                aggregate_and_send_metrics(
-                    transport=self._transport,
-                    app_name=self.unleash_app_name,
-                    connection_id=self.connection_id,
-                    instance_id=self.unleash_instance_id,
-                    engine=self._engine,
-                )
-                self._scheduler.cancel(self.metric_job)
+            # Flush metrics before shutting down.  A no-op when no job was
+            # registered.
+            self._metrics.stop()
 
             try:
                 # hasattr: the constructor raises before assigning _scheduler when a
