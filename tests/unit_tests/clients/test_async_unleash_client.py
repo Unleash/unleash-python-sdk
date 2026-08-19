@@ -197,3 +197,52 @@ def test_both_clients_load_the_same_state(tmpdir):
         assert known_toggles(async_client._engine)
     finally:
         sync_client.destroy()
+
+
+def test_both_clients_build_the_same_kind_of_scheduler(tmpdir):
+    sync_client = UnleashClient(
+        URL, APP_NAME, disable_metrics=True, disable_registration=True
+    )
+    try:
+        async_client = build_async_client(tmpdir, url=URL, app_name=APP_NAME)
+
+        assert type(async_client._scheduler) is type(sync_client._scheduler)
+    finally:
+        sync_client.destroy()
+
+
+def test_the_async_client_gets_its_own_scheduler(tmpdir):
+    sync_client = UnleashClient(
+        URL, APP_NAME, disable_metrics=True, disable_registration=True
+    )
+    try:
+        async_client = build_async_client(tmpdir, url=URL, app_name=APP_NAME)
+
+        assert async_client._scheduler is not sync_client._scheduler
+        assert async_client._scheduler.scheduler is not sync_client._scheduler.scheduler
+        assert (
+            async_client._scheduler.executor_name
+            != sync_client._scheduler.executor_name
+        )
+    finally:
+        sync_client.destroy()
+
+
+def test_the_async_client_can_register_and_cancel_a_job(tmpdir):
+    client = build_async_client(tmpdir, url=URL, app_name=APP_NAME)
+
+    job = client._scheduler.every(
+        interval_seconds=15, jitter_seconds=None, fn=client._store.load_from_cache
+    )
+    client._scheduler.cancel(job)
+
+    assert job is not None
+    assert client._scheduler.scheduler.get_jobs() == []
+
+
+def test_constructing_the_async_client_does_not_start_the_scheduler(tmpdir):
+    # No event loop is running here, and none is needed: the scheduler is built in
+    # __init__ but only started by initialize_client().
+    client = build_async_client(tmpdir, url=URL, app_name=APP_NAME)
+
+    assert not client._scheduler.scheduler.running

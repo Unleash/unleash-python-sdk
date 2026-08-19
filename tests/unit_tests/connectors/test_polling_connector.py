@@ -1,5 +1,4 @@
 import responses
-from apscheduler.schedulers.background import BackgroundScheduler
 from yggdrasil_engine.engine import UnleashEngine
 
 from tests.utilities.events import WAIT_TIMEOUT, EventRecorder
@@ -22,6 +21,7 @@ from tests.utilities.testing_constants import (
 from UnleashClient.connectors import PollingConnector
 from UnleashClient.constants import ETAG, FEATURES_URL
 from UnleashClient.events import EventDispatcher, UnleashEventType
+from UnleashClient.scheduler import Scheduler
 from UnleashClient.store import FeatureStore
 
 FULL_FEATURE_URL = URL + FEATURES_URL
@@ -30,7 +30,7 @@ FULL_FEATURE_URL = URL + FEATURES_URL
 @responses.activate
 def test_polling_connector_fetch_and_load(cache_empty):
     engine = UnleashEngine()
-    scheduler = BackgroundScheduler()
+    scheduler = Scheduler()
     responses.add(
         responses.GET,
         FULL_FEATURE_URL,
@@ -61,7 +61,7 @@ def test_polling_connector_fetch_and_load(cache_empty):
 @responses.activate
 def test_polling_connector_fetch_and_load_project(cache_empty):
     engine = UnleashEngine()
-    scheduler = BackgroundScheduler()
+    scheduler = Scheduler()
     responses.add(
         responses.GET, PROJECT_URL, json=MOCK_FEATURE_RESPONSE_PROJECT, status=200
     )
@@ -88,7 +88,7 @@ def test_polling_connector_fetch_and_load_project(cache_empty):
 @responses.activate
 def test_polling_connector_fetch_and_load_failure(cache_empty):
     engine = UnleashEngine()
-    scheduler = BackgroundScheduler()
+    scheduler = Scheduler()
     responses.add(
         responses.GET, FULL_FEATURE_URL, json=MOCK_FEATURE_RESPONSE, status=200
     )
@@ -121,7 +121,7 @@ def test_polling_connector_emits_fetched_and_ready(
     cache_empty, dispatcher: EventDispatcher, recorder: EventRecorder
 ):
     engine = UnleashEngine()
-    scheduler = BackgroundScheduler()
+    scheduler = Scheduler()
     responses.add(
         responses.GET,
         FULL_FEATURE_URL,
@@ -158,7 +158,7 @@ def test_polling_connector_emits_ready_once_across_polls(
     cache_empty, dispatcher, recorder
 ):
     engine = UnleashEngine()
-    scheduler = BackgroundScheduler()
+    scheduler = Scheduler()
     responses.add(
         responses.GET, FULL_FEATURE_URL, json=MOCK_FEATURE_RESPONSE, status=200
     )
@@ -187,7 +187,7 @@ def test_polling_connector_emits_ready_once_across_polls(
 @responses.activate
 def test_polling_connector_start_stop(cache_empty):
     engine = UnleashEngine()
-    scheduler = BackgroundScheduler()
+    scheduler = Scheduler()
     scheduler.start()
 
     responses.add(
