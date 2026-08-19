@@ -260,7 +260,6 @@ def test_uc_lifecycle(readyable_unleash_client):
     responses.add(
         responses.GET,
         URL + FEATURES_URL,
-        json={},
         status=304,
         headers={"etag": ETAG_VALUE},
     )
@@ -1029,7 +1028,7 @@ def test_uc_cache_bootstrap_url(cache):
 
 
 @responses.activate
-def test_uc_custom_scheduler():
+def test_uc_custom_scheduler(cache):
     # Set up API
     responses.add(
         responses.GET,
@@ -1054,6 +1053,7 @@ def test_uc_custom_scheduler():
         disable_registration=True,
         scheduler=custom_scheduler,
         scheduler_executor="hamster_executor",
+        cache=cache,
         event_callback=event_handler,
     )
 
@@ -1067,7 +1067,6 @@ def test_uc_custom_scheduler():
     responses.add(
         responses.GET,
         URL + FEATURES_URL,
-        json={},
         status=304,
         headers={"etag": ETAG_VALUE},
     )
