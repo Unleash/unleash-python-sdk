@@ -1,7 +1,9 @@
 import json
+import logging
 
 import pytest
 import responses
+from yggdrasil_engine.engine import UnleashEngine
 
 from tests.utilities.testing_constants import (
     APP_NAME,
@@ -12,8 +14,7 @@ from tests.utilities.testing_constants import (
 from UnleashClient import INSTANCES, UnleashClient
 from UnleashClient.cache import FileCache
 from UnleashClient.constants import METRICS_URL
-from UnleashClient.impact_metrics import MetricFlagContext
-from UnleashClient.periodic_tasks import aggregate_and_send_metrics
+from UnleashClient.impact_metrics import ImpactMetrics, MetricFlagContext
 
 MOCK_FEATURES_RESPONSE = {
     "version": 1,
@@ -77,13 +78,7 @@ class TestSendMetricsViaClient:
         )
         unleash_client.impact_metrics.observe_histogram("latency", 0.3)
 
-        aggregate_and_send_metrics(
-            transport=unleash_client._transport,
-            app_name=APP_NAME,
-            instance_id=INSTANCE_ID,
-            connection_id="test-connection",
-            engine=unleash_client._engine,
-        )
+        unleash_client._metrics.flush()
 
         request_body = json.loads(responses.calls[0].request.body)
         metrics = {m["name"]: m for m in request_body["impactMetrics"]}
@@ -135,13 +130,7 @@ class TestSendMetricsViaClient:
         unleash_client.impact_metrics.define_counter("purchases", "Number of purchases")
         unleash_client.impact_metrics.increment_counter("purchases", 1, flag_context)
 
-        aggregate_and_send_metrics(
-            transport=unleash_client._transport,
-            app_name=APP_NAME,
-            instance_id=INSTANCE_ID,
-            connection_id="test-connection",
-            engine=unleash_client._engine,
-        )
+        unleash_client._metrics.flush()
 
         request_body = json.loads(responses.calls[0].request.body)
         labels = request_body["impactMetrics"][0]["samples"][0]["labels"]
@@ -193,20 +182,49 @@ class TestSendMetricsViaClient:
         unleash_client.impact_metrics.define_counter("my_counter", "Test counter")
         unleash_client.impact_metrics.increment_counter("my_counter", 5)
 
-        aggregate_and_send_metrics(
-            transport=unleash_client._transport,
-            app_name=APP_NAME,
-            instance_id=INSTANCE_ID,
-            connection_id="test-connection",
-            engine=unleash_client._engine,
-        )
-        aggregate_and_send_metrics(
-            transport=unleash_client._transport,
-            app_name=APP_NAME,
-            instance_id=INSTANCE_ID,
-            connection_id="test-connection",
-            engine=unleash_client._engine,
-        )
+        unleash_client._metrics.flush()
+        unleash_client._metrics.flush()
 
         request_body = json.loads(responses.calls[1].request.body)
         assert request_body["impactMetrics"][0]["name"] == "my_counter"
+
+
+class TestCollectAndRestore:
+    def build_impact_metrics(self, engine=None) -> ImpactMetrics:
+        return ImpactMetrics(engine or UnleashEngine(), APP_NAME, ENVIRONMENT)
+
+    def test_collect_drains_what_was_recorded(self):
+        impact_metrics = self.build_impact_metrics()
+        impact_metrics.define_counter("purchases", "Number of purchases")
+        impact_metrics.increment_counter("purchases", 3)
+
+        collected = impact_metrics.collect()
+
+        assert [metric["name"] for metric in collected] == ["purchases"]
+        assert collected[0]["samples"][0]["value"] == 3
+
+    def test_collect_yields_nothing_when_nothing_was_recorded(self):
+        assert not self.build_impact_metrics().collect()
+
+    def test_collect_swallows_a_broken_engine(self, caplog):
+        class BrokenEngine:
+            def collect_impact_metrics(self):
+                raise RuntimeError("engine is broken")
+
+        impact_metrics = self.build_impact_metrics(BrokenEngine())
+
+        with caplog.at_level(logging.WARNING):
+            assert impact_metrics.collect() is None
+
+        assert "Failed to collect impact metrics" in caplog.text
+
+    def test_restore_hands_the_metrics_back(self):
+        impact_metrics = self.build_impact_metrics()
+        impact_metrics.define_counter("purchases", "Number of purchases")
+        impact_metrics.increment_counter("purchases", 3)
+        collected = impact_metrics.collect()
+
+        impact_metrics.restore(collected)
+
+        # Back where they were, so a failed send does not lose them.
+        assert impact_metrics.collect()[0]["samples"][0]["value"] == 3

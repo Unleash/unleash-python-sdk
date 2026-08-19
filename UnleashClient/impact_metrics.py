@@ -3,6 +3,8 @@ from typing import Any, Dict, List, Optional
 
 from yggdrasil_engine.engine import UnleashEngine
 
+from UnleashClient.utils import LOGGER
+
 
 @dataclass
 class MetricFlagContext:
@@ -62,6 +64,23 @@ class ImpactMetrics:
     ) -> None:
         labels = self._resolve_labels(flag_context)
         self._engine.observe_histogram(name, value, labels)
+
+    def collect(self) -> Optional[Any]:
+        """
+        Drains the impact metrics recorded since the last collection.
+
+        Returns None when the engine cannot produce them, so a failure here costs the
+        impact metrics rather than the whole metrics submission.
+        """
+        try:
+            return self._engine.collect_impact_metrics()
+        except Exception as exc:
+            LOGGER.warning("Failed to collect impact metrics: %s", exc)
+            return None
+
+    def restore(self, metrics: Any) -> None:
+        """Hands metrics back to the engine after a send that did not land."""
+        self._engine.restore_impact_metrics(metrics)
 
     def _variant_label(self, flag_name: str, context: Dict[str, Any]) -> str:
         variant = self._engine.check_variant(flag_name, context).variant

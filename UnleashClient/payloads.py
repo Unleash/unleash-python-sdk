@@ -2,7 +2,7 @@
 
 from datetime import datetime, timezone
 from platform import python_implementation, python_version
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import yggdrasil_engine
 
@@ -40,5 +40,41 @@ def build_register_payload(
         payload["sdkFlavor"] = config.sdk_flavor
     if config.sdk_flavor_version:
         payload["sdkFlavorVersion"] = config.sdk_flavor_version
+
+    return payload
+
+
+def build_metrics_payload(
+    config: UnleashConfig,
+    bucket: Optional[Dict[str, Any]],
+    impact_metrics: Optional[Any] = None,
+) -> Dict[str, Any]:
+    """
+    Build the body of a metrics submission.
+
+    :param config: read for the app name, instance id, connection id and the two SDK
+                   flavor fields.  Read at call time rather than captured, so a client
+                   whose ``unleash_app_name`` is reassigned reports the new name on its
+                   next send.
+    :param bucket: the engine's toggle metrics bucket, or None when nothing was counted.
+    :param impact_metrics: impact metrics collected for this send, if any.
+    """
+    payload: Dict[str, Any] = {
+        "appName": config.app_name,
+        "instanceId": config.instance_id,
+        "connectionId": config.connection_id,
+        "bucket": bucket,
+        "platformName": python_implementation(),
+        "platformVersion": python_version(),
+        "yggdrasilVersion": yggdrasil_engine.__yggdrasil_core_version__,
+        "specVersion": CLIENT_SPEC_VERSION,
+    }
+    if config.sdk_flavor:
+        payload["sdkFlavor"] = config.sdk_flavor
+    if config.sdk_flavor_version:
+        payload["sdkFlavorVersion"] = config.sdk_flavor_version
+
+    if impact_metrics:
+        payload["impactMetrics"] = impact_metrics
 
     return payload
