@@ -27,7 +27,7 @@ class FetchResult(NamedTuple):
     not_modified: bool = False
 
 
-def _normalized_url(url: str, path: str) -> str:
+def normalized_url(url: str, path: str) -> str:
     # config.url can carry a trailing slash: the UnleashClient.unleash_url setter
     # writes it without re-normalizing.
     return f"{url.rstrip('/')}{path}"
@@ -79,7 +79,7 @@ class Transport:
             if etag:
                 request_specific_headers["If-None-Match"] = etag
 
-            base_url = _normalized_url(config.url, FEATURES_URL)
+            base_url = normalized_url(config.url, FEATURES_URL)
             base_params = {}
 
             if config.project_name:
@@ -145,7 +145,7 @@ class Transport:
             LOGGER.info("Registration request information: %s", payload)
 
             resp = requests.post(
-                _normalized_url(config.url, REGISTER_URL),
+                normalized_url(config.url, REGISTER_URL),
                 data=json.dumps(payload),
                 headers=self._headers.base(),
                 timeout=config.request_timeout,
@@ -188,7 +188,7 @@ class Transport:
             LOGGER.info("unleash metrics information: %s", payload)
 
             resp = requests.post(
-                _normalized_url(config.url, METRICS_URL),
+                normalized_url(config.url, METRICS_URL),
                 data=json.dumps(payload),
                 headers=self._headers.metrics(),
                 timeout=config.request_timeout,
