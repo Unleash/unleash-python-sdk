@@ -61,6 +61,46 @@ def test_both_clients_build_the_same_config(tmpdir):
         sync_client.destroy()
 
 
+def test_async_client_builds_the_shared_headers():
+    client = AsyncUnleashClient(URL, APP_NAME, instance_id="123")
+
+    headers = client._headers.base()
+
+    assert headers["unleash-appname"] == APP_NAME
+    assert headers["unleash-instanceid"] == "123"
+
+
+def test_both_clients_build_the_same_headers(tmpdir):
+    kwargs = dict(
+        url=URL,
+        app_name=APP_NAME,
+        instance_id="123",
+        refresh_interval=1,
+        metrics_interval=3,
+        custom_headers={"Authorization": "project:environment.hash"},
+    )
+
+    sync_client = UnleashClient(
+        cache=FileCache(APP_NAME, directory=str(tmpdir)),
+        disable_metrics=True,
+        disable_registration=True,
+        **kwargs,
+    )
+    try:
+        async_client = AsyncUnleashClient(**kwargs)
+
+        for build in ("base", "polling", "metrics", "streaming"):
+            sync_headers = getattr(sync_client._headers, build)()
+            async_headers = getattr(async_client._headers, build)()
+            # A fresh uuid per config, so it can never match.
+            sync_headers.pop("unleash-connection-id")
+            async_headers.pop("unleash-connection-id")
+
+            assert sync_headers == async_headers
+    finally:
+        sync_client.destroy()
+
+
 def test_async_client_enriches_context_over_its_own_config():
     client = AsyncUnleashClient(URL, APP_NAME, environment="unit")
 

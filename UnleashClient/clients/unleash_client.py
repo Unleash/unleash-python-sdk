@@ -32,13 +32,10 @@ from UnleashClient.connectors import (
     StreamingConnector,
 )
 from UnleashClient.constants import (
-    APPLICATION_HEADERS,
     ETAG,
     METRIC_LAST_SENT_TIME,
     REQUEST_RETRIES,
     REQUEST_TIMEOUT,
-    SDK_NAME,
-    SDK_VERSION,
 )
 from UnleashClient.context import ContextEnricher
 from UnleashClient.events import (
@@ -48,6 +45,7 @@ from UnleashClient.events import (
     UnleashEventType,
     UnleashReadyEvent,
 )
+from UnleashClient.headers import HeaderFactory
 from UnleashClient.impact_metrics import ImpactMetrics
 from UnleashClient.periodic_tasks import (
     aggregate_and_send_metrics,
@@ -188,6 +186,7 @@ class UnleashClient:
             experimental_mode=experimental_mode,
         )
         self._enricher = ContextEnricher(self._config)
+        self._headers = HeaderFactory(self._config)
         self.unleash_event_callback = event_callback
         # Events are handed to the dispatcher, which delivers them to the user's
         # callback on its own thread.  The callback is never called from here.
@@ -472,14 +471,6 @@ class UnleashClient:
                 return
             try:
                 start_scheduler = False
-                base_headers = {
-                    **self.unleash_custom_headers,
-                    **APPLICATION_HEADERS,
-                    "unleash-connection-id": self.connection_id,
-                    "unleash-appname": self.unleash_app_name,
-                    "unleash-instanceid": self.unleash_instance_id,
-                    "unleash-sdk": f"{SDK_NAME}:{SDK_VERSION}",
-                }
 
                 # Register app
                 if not self.unleash_disable_registration:
@@ -489,7 +480,7 @@ class UnleashClient:
                         self.unleash_instance_id,
                         self.connection_id,
                         self.unleash_metrics_interval,
-                        base_headers,
+                        self._headers.base(),
                         self.unleash_custom_options,
                         self.strategy_mapping,
                         self.unleash_request_timeout,
@@ -503,7 +494,7 @@ class UnleashClient:
                         engine=self.engine,
                         cache=self.cache,
                         url=self.unleash_url,
-                        headers=base_headers,
+                        headers=self._headers.streaming(),
                         request_timeout=self.unleash_request_timeout,
                         events=self.__events,
                         custom_options=self.unleash_custom_options,
@@ -517,7 +508,7 @@ class UnleashClient:
                         url=self.unleash_url,
                         app_name=self.unleash_app_name,
                         instance_id=self.unleash_instance_id,
-                        headers=base_headers,
+                        headers=self._headers.polling(),
                         custom_options=self.unleash_custom_options,
                         request_timeout=self.unleash_request_timeout,
                         request_retries=self.unleash_request_retries,
@@ -544,10 +535,7 @@ class UnleashClient:
                     if getattr(self.unleash_scheduler, "state", None) != STATE_RUNNING:
                         start_scheduler = True
 
-                    self.metrics_headers = {
-                        **base_headers,
-                        "unleash-interval": self.unleash_metrics_interval_str_millis,
-                    }
+                    self.metrics_headers = self._headers.metrics()
 
                     metrics_args = {
                         "url": self.unleash_url,

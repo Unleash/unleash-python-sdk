@@ -53,10 +53,7 @@ class PollingConnector(BaseConnector):
             url=self.url,
             app_name=self.app_name,
             instance_id=self.instance_id,
-            headers={
-                **self.headers,
-                "unleash-interval": str(self.refresh_interval * 1000),
-            },
+            headers=self.headers,
             custom_options=self.custom_options,
             request_timeout=self.request_timeout,
             request_retries=self.request_retries,
