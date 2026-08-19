@@ -2,7 +2,6 @@
 import threading
 import uuid
 import warnings
-from dataclasses import asdict
 from datetime import datetime, timezone
 from enum import IntEnum
 from typing import Any, Callable, Dict, Optional
@@ -30,10 +29,10 @@ from UnleashClient.constants import (
     REQUEST_TIMEOUT,
 )
 from UnleashClient.context import ContextEnricher
+from UnleashClient.evaluator import Evaluator
 from UnleashClient.events import (
     BaseEvent,
     EventDispatcher,
-    UnleashEvent,
     UnleashEventType,
     UnleashReadyEvent,
 )
@@ -158,8 +157,6 @@ class UnleashClient:
         sdk_flavor: Optional[str] = None,
         sdk_flavor_version: Optional[str] = None,
     ) -> None:
-        custom_strategies = custom_strategies or {}
-
         self._config = UnleashConfig(
             url=url,
             app_name=app_name,
@@ -180,6 +177,7 @@ class UnleashClient:
             sdk_flavor=sdk_flavor,
             sdk_flavor_version=sdk_flavor_version,
             experimental_mode=experimental_mode,
+            custom_strategies=custom_strategies,
         )
         self._enricher = ContextEnricher(self._config)
         self._headers = HeaderFactory(self._config)
@@ -214,14 +212,16 @@ class UnleashClient:
             engine=self._engine, cache=self._cache, events=self.__events
         )
 
+        self._evaluator = Evaluator(
+            engine=self._engine,
+            enricher=self._enricher,
+            config=self._config,
+            events=self.__events,
+        )
+
         self._transport = Transport(self._config, self._headers)
 
         self._scheduler = Scheduler(scheduler, scheduler_executor)
-
-        if custom_strategies:
-            self._engine.register_custom_strategies(custom_strategies)
-
-        self.strategy_mapping = {**custom_strategies}
 
         # Client status
         self._run_state = _RunState.UNINITIALIZED
@@ -415,6 +415,14 @@ class UnleashClient:
         self._config.experimental_mode = value
 
     @property
+    def strategy_mapping(self) -> dict:
+        return self._config.custom_strategies
+
+    @strategy_mapping.setter
+    def strategy_mapping(self, value: dict) -> None:
+        self._config.custom_strategies = value
+
+    @property
     def unleash_metrics_interval_str_millis(self) -> str:
         return self._config.metrics_interval_str_millis
 
@@ -461,6 +469,15 @@ class UnleashClient:
                 return
             try:
                 start_scheduler = False
+
+                # Ahead of the app registration, so a malformed strategy fails
+                # before any request goes out.  The engine joins implementations
+                # to definitions at evaluation time, so this need not precede
+                # take_state.
+                if self._config.custom_strategies:
+                    self._engine.register_custom_strategies(
+                        self._config.custom_strategies
+                    )
 
                 # Register app
                 if not self.unleash_disable_registration:
@@ -546,11 +563,7 @@ class UnleashClient:
         }
         """
 
-        toggles = self._engine.list_known_toggles()
-        return {
-            toggle.name: {"type": toggle.type, "project": toggle.project}
-            for toggle in toggles
-        }
+        return self._evaluator.feature_definitions()
 
     def destroy(self) -> None:
         """
@@ -607,7 +620,6 @@ class UnleashClient:
     def _redact_to_print_safely(value: Optional[str]) -> Optional[str]:
         return redact_to_print_safely(value)
 
-    # pylint: disable=broad-except
     def is_enabled(
         self,
         feature_name: str,
@@ -626,32 +638,8 @@ class UnleashClient:
         :param fallback_function: Allows users to provide a custom function to set default value.
         :return: Feature flag result
         """
-        context = self._enricher.build(context)
-        result = self._engine.is_enabled(
-            feature_name, context, fallback_function=fallback_function
-        )
+        return self._evaluator.is_enabled(feature_name, context, fallback_function)
 
-        try:
-            if self.__events and result.requires_impression_event_emission:
-                self.__events.emit_event(
-                    UnleashEvent(
-                        event_type=UnleashEventType.FEATURE_FLAG,
-                        event_id=uuid.uuid4(),
-                        context=context,
-                        enabled=result.is_enabled,
-                        feature_name=feature_name,
-                    )
-                )
-        except Exception as excep:
-            LOGGER.log(
-                self.unleash_verbose_log_level,
-                "Error emitting impression event: %s",
-                excep,
-            )
-
-        return result.is_enabled
-
-    # pylint: disable=broad-except
     def get_variant(self, feature_name: str, context: Optional[dict] = None) -> dict:
         """
         Checks if a feature toggle is enabled.  If so, return variant.
@@ -664,8 +652,7 @@ class UnleashClient:
         :param context: Dictionary with context (e.g. IPs, email) for feature toggle.
         :return: Variant and feature flag status.
         """
-        context = self._enricher.build(context)
-        result = self._engine.get_variant(feature_name, context)
+        result = self._evaluator.get_variant(feature_name, context)
 
         if not result.is_found and (self.unleash_bootstrapped or self.is_initialized):
             LOGGER.log(
@@ -674,28 +661,7 @@ class UnleashClient:
                 feature_name,
             )
 
-        try:
-            if self.__events and result.requires_impression_event_emission:
-                self.__events.emit_event(
-                    UnleashEvent(
-                        event_type=UnleashEventType.VARIANT,
-                        event_id=uuid.uuid4(),
-                        context=context,
-                        enabled=bool(result.variant.enabled),
-                        feature_name=feature_name,
-                        variant=str(result.variant.name),
-                    )
-                )
-        except Exception as excep:
-            LOGGER.log(
-                self.unleash_verbose_log_level,
-                "Error emitting impression event: %s",
-                excep,
-            )
-
-        # This can probably become a to_dict method of the Variant type.
-        variant = {k: v for k, v in asdict(result.variant).items() if v is not None}
-        return variant
+        return result.variant
 
     def _do_instance_check(self, multiple_instance_mode):
         identifier = self._config.instance_identifier
