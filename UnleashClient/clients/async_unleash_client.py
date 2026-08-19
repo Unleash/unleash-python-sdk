@@ -21,6 +21,7 @@ from UnleashClient.cache import BaseCache, FileCache
 from UnleashClient.config import ExperimentalMode, UnleashConfig
 from UnleashClient.constants import REQUEST_RETRIES, REQUEST_TIMEOUT
 from UnleashClient.context import ContextEnricher
+from UnleashClient.evaluator import Evaluator
 from UnleashClient.events import BaseEvent, EventDispatcher
 from UnleashClient.headers import HeaderFactory
 from UnleashClient.scheduler import Scheduler
@@ -81,6 +82,7 @@ class AsyncUnleashClient:
             sdk_flavor=sdk_flavor,
             sdk_flavor_version=sdk_flavor_version,
             experimental_mode=experimental_mode,
+            custom_strategies=custom_strategies,
         )
         self._enricher: ContextEnricher = ContextEnricher(self._config)
         self._headers: HeaderFactory = HeaderFactory(self._config)
@@ -95,8 +97,77 @@ class AsyncUnleashClient:
         self._store: FeatureStore = FeatureStore(
             engine=self._engine, cache=self._cache, events=self._event_dispatcher
         )
+        self._evaluator: Evaluator = Evaluator(
+            engine=self._engine,
+            enricher=self._enricher,
+            config=self._config,
+            events=self._event_dispatcher,
+        )
         self._transport: AsyncTransport = AsyncTransport(self._config, self._headers)
         self._scheduler: Scheduler = Scheduler()
+        # config.custom_strategies are registered on the engine by
+        # initialize_client(), which does not exist yet.
+
+    def is_enabled(
+        self,
+        feature_name: str,
+        context: Optional[dict] = None,
+        fallback_function: Callable = None,
+    ) -> bool:
+        """
+        Checks if a feature toggle is enabled.
+
+        Not a coroutine: evaluation is an in-process call into the engine, and
+        stays synchronous on both clients.  Raises until initialization lands --
+        the evaluator is wired up, but a client that cannot fetch state has
+        nothing to evaluate against.
+
+        Notes:
+
+        * If client hasn't been initialized yet or an error occurs, flag will default to false.
+
+        :param feature_name: Name of the feature
+        :param context: Dictionary with context (e.g. IPs, email) for feature toggle.
+        :param fallback_function: Allows users to provide a custom function to set default value.
+        :return: Feature flag result
+        """
+        raise NotImplementedError(_NOT_IMPLEMENTED)
+
+    def get_variant(self, feature_name: str, context: Optional[dict] = None) -> dict:
+        """
+        Checks if a feature toggle is enabled.  If so, return variant.
+
+        Not a coroutine, and raises until initialization lands; see
+        :meth:`is_enabled`.
+
+        Notes:
+
+        * If client hasn't been initialized yet or an error occurs, flag will default to false.
+
+        :param feature_name: Name of the feature
+        :param context: Dictionary with context (e.g. IPs, email) for feature toggle.
+        :return: Variant and feature flag status.
+        """
+        raise NotImplementedError(_NOT_IMPLEMENTED)
+
+    def feature_definitions(self) -> dict:
+        """
+        Returns a dict containing all feature definitions known to the SDK at the time of calling.
+        Normally this would be a pared down version of the response from the Unleash API but this
+        may also be a result from bootstrapping or loading from backup.
+
+        Raises until initialization lands; see :meth:`is_enabled`.
+
+        Example response:
+
+        {
+            "feature1": {
+                "project": "default",
+                "type": "release",
+            }
+        }
+        """
+        raise NotImplementedError(_NOT_IMPLEMENTED)
 
     async def initialize_client(self) -> None:
         raise NotImplementedError(_NOT_IMPLEMENTED)
