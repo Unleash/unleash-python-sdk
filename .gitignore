@@ -116,3 +116,7 @@ site
 test_results
 _static
 _templates
+
+# Agents
+AGENTS.local.md
+CLAUDE.local.md
