@@ -23,6 +23,7 @@ def test_defaults():
     assert config.disable_registration is False
     assert config.custom_headers == {}
     assert config.custom_options == {}
+    assert config.custom_strategies == {}
     assert config.project_name is None
     assert config.verbose_log_level == 30
     assert config.sdk_flavor is None
@@ -97,12 +98,26 @@ def test_custom_headers_are_not_copied():
 def test_empty_custom_dicts_become_fresh_dicts():
     headers: dict = {}
     options: dict = {}
+    strategies: dict = {}
     config = UnleashConfig(
-        URL, APP_NAME, custom_headers=headers, custom_options=options
+        URL,
+        APP_NAME,
+        custom_headers=headers,
+        custom_options=options,
+        custom_strategies=strategies,
     )
 
     assert config.custom_headers is not headers
     assert config.custom_options is not options
+    assert config.custom_strategies is not strategies
+
+
+def test_custom_strategies_are_not_copied():
+    # The client registers these objects on the engine as they were given.
+    strategies = {"amIACat": object()}
+    config = UnleashConfig(URL, APP_NAME, custom_strategies=strategies)
+
+    assert config.custom_strategies is strategies
 
 
 def test_refresh_interval_str_millis():
