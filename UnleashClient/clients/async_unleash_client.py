@@ -8,6 +8,7 @@ from typing import Callable, Optional
 from yggdrasil_engine.engine import UnleashEngine
 
 from UnleashClient._evaluator import _Evaluator
+from UnleashClient.async_metrics_reporter import AsyncMetricsReporter
 from UnleashClient.async_transport import AsyncTransport
 from UnleashClient.cache import BaseCache, FileCache
 from UnleashClient.config import ExperimentalMode, UnleashConfig
@@ -15,6 +16,7 @@ from UnleashClient.constants import REQUEST_RETRIES, REQUEST_TIMEOUT
 from UnleashClient.context import ContextEnricher
 from UnleashClient.events import BaseEvent, EventDispatcher
 from UnleashClient.headers import HeaderFactory
+from UnleashClient.impact_metrics import ImpactMetrics
 from UnleashClient.scheduler import Scheduler
 from UnleashClient.store import FeatureStore
 
@@ -86,6 +88,11 @@ class AsyncUnleashClient:
             EventDispatcher(event_callback) if event_callback is not None else None
         )
         self._engine: UnleashEngine = UnleashEngine()
+        self.impact_metrics: ImpactMetrics = ImpactMetrics(
+            self._engine,
+            self._config.app_name,
+            self._config.impact_metrics_environment,
+        )
         self._cache: BaseCache = cache or FileCache(
             self._config.app_name, directory=cache_directory
         )
@@ -100,6 +107,12 @@ class AsyncUnleashClient:
         )
         self._transport: AsyncTransport = AsyncTransport(self._config, self._headers)
         self._scheduler: Scheduler = Scheduler()
+        self._metrics: AsyncMetricsReporter = AsyncMetricsReporter(
+            config=self._config,
+            transport=self._transport,
+            engine=self._engine,
+            impact_metrics=self.impact_metrics,
+        )
 
     def is_enabled(
         self,
