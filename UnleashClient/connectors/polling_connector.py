@@ -1,15 +1,10 @@
-import uuid
 from typing import Optional
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
-from yggdrasil_engine.engine import UnleashEngine
 
 from UnleashClient.api import get_feature_toggles
-from UnleashClient.cache import BaseCache
-from UnleashClient.constants import ETAG, FEATURES_URL
-from UnleashClient.events import EventDispatcher, UnleashEventType, UnleashFetchedEvent
-from UnleashClient.utils import LOGGER
+from UnleashClient.store import FeatureStore
 
 from .base_connector import BaseConnector
 
@@ -17,8 +12,7 @@ from .base_connector import BaseConnector
 class PollingConnector(BaseConnector):
     def __init__(
         self,
-        engine: UnleashEngine,
-        cache: BaseCache,
+        store: FeatureStore,
         scheduler: BackgroundScheduler,
         url: str,
         app_name: str,
@@ -30,10 +24,9 @@ class PollingConnector(BaseConnector):
         project: Optional[str] = None,
         scheduler_executor: str = "default",
         refresh_interval: int = 15,
-        refresh_jitter: int = None,
-        events: Optional[EventDispatcher] = None,
+        refresh_jitter: Optional[int] = None,
     ):
-        super().__init__(engine, cache, events)
+        super().__init__(store)
         self.scheduler = scheduler
         self.url = url
         self.app_name = app_name
@@ -58,30 +51,10 @@ class PollingConnector(BaseConnector):
             request_timeout=self.request_timeout,
             request_retries=self.request_retries,
             project=self.project,
-            cached_etag=self.cache.get(ETAG),
+            cached_etag=self._store.cached_etag,
         )
 
-        if state:
-            self.cache.set(FEATURES_URL, state)
-        else:
-            LOGGER.debug(
-                "No feature provisioning returned from server, using cached provisioning."
-            )
-
-        if etag:
-            self.cache.set(ETAG, etag)
-
-        self.load_features()
-
-        if state:
-            self.emit(
-                UnleashFetchedEvent(
-                    event_type=UnleashEventType.FETCHED,
-                    event_id=uuid.uuid4(),
-                    raw_features=state,
-                )
-            )
-            self.emit_ready()
+        self._store.apply_fetched(state, etag)
 
     def start(self):
         self._fetch_and_load()

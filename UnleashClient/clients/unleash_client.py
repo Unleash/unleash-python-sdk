@@ -50,6 +50,7 @@ from UnleashClient.impact_metrics import ImpactMetrics
 from UnleashClient.periodic_tasks import (
     aggregate_and_send_metrics,
 )
+from UnleashClient.store import FeatureStore
 from UnleashClient.utils import (
     LOGGER,
     InstanceAllowType,
@@ -201,26 +202,30 @@ class UnleashClient:
         # Class objects
         self.fl_job: Job = None
         self.metric_job: Job = None
-        self.engine = UnleashEngine()
+        self._engine = UnleashEngine()
 
         self.impact_metrics = ImpactMetrics(
-            self.engine,
+            self._engine,
             self._config.app_name,
             self._config.impact_metrics_environment,
         )
 
-        self.cache = cache or FileCache(
+        self._cache = cache or FileCache(
             self.unleash_app_name, directory=cache_directory
         )
-        self.cache.mset({METRIC_LAST_SENT_TIME: datetime.now(timezone.utc), ETAG: ""})
-        self.unleash_bootstrapped = self.cache.bootstrapped
+        self._cache.mset({METRIC_LAST_SENT_TIME: datetime.now(timezone.utc), ETAG: ""})
+        self.unleash_bootstrapped = self._cache.bootstrapped
+
+        self._store = FeatureStore(
+            engine=self._engine, cache=self._cache, events=self.__events
+        )
 
         self.metrics_headers: dict = {}
 
         self._init_scheduler(scheduler, scheduler_executor)
 
         if custom_strategies:
-            self.engine.register_custom_strategies(custom_strategies)
+            self._engine.register_custom_strategies(custom_strategies)
 
         self.strategy_mapping = {**custom_strategies}
 
@@ -229,9 +234,12 @@ class UnleashClient:
 
         # Bootstrapping
         if self.unleash_bootstrapped:
+            # A store with no dispatcher: start() runs here, before
+            # initialize_client(), and emitting READY from the constructor would
+            # move it earlier for bootstrapped clients.  See the TODO on
+            # BootstrapConnector.
             BootstrapConnector(
-                engine=self.engine,
-                cache=self.cache,
+                store=FeatureStore(engine=self._engine, cache=self._cache)
             ).start()
 
         self.connector: BaseConnector = None
@@ -491,19 +499,16 @@ class UnleashClient:
 
                 if mode == "streaming" and fetch_toggles:
                     self.connector = StreamingConnector(
-                        engine=self.engine,
-                        cache=self.cache,
+                        store=self._store,
                         url=self.unleash_url,
                         headers=self._headers.streaming(),
                         request_timeout=self.unleash_request_timeout,
-                        events=self.__events,
                         custom_options=self.unleash_custom_options,
                     )
                 elif fetch_toggles:
                     start_scheduler = True
                     self.connector = PollingConnector(
-                        engine=self.engine,
-                        cache=self.cache,
+                        store=self._store,
                         scheduler=self.unleash_scheduler,
                         url=self.unleash_url,
                         app_name=self.unleash_app_name,
@@ -515,18 +520,16 @@ class UnleashClient:
                         project=self.unleash_project_name,
                         scheduler_executor=self.unleash_executor_name,
                         refresh_interval=self.unleash_refresh_interval,
-                        events=self.__events,
+                        refresh_jitter=self.unleash_refresh_jitter,
                     )
                 else:
                     start_scheduler = True
                     self.connector = OfflineConnector(
-                        engine=self.engine,
-                        cache=self.cache,
+                        store=self._store,
                         scheduler=self.unleash_scheduler,
                         scheduler_executor=self.unleash_executor_name,
                         refresh_interval=self.unleash_refresh_interval,
                         refresh_jitter=self.unleash_refresh_jitter,
-                        events=self.__events,
                     )
 
                 self.connector.start()
@@ -545,7 +548,7 @@ class UnleashClient:
                         "headers": self.metrics_headers,
                         "custom_options": self.unleash_custom_options,
                         "request_timeout": self.unleash_request_timeout,
-                        "engine": self.engine,
+                        "engine": self._engine,
                         "sdk_flavor": self.unleash_sdk_flavor,
                         "sdk_flavor_version": self.unleash_sdk_flavor_version,
                     }
@@ -587,7 +590,7 @@ class UnleashClient:
         }
         """
 
-        toggles = self.engine.list_known_toggles()
+        toggles = self._engine.list_known_toggles()
         return {
             toggle.name: {"type": toggle.type, "project": toggle.project}
             for toggle in toggles
@@ -622,7 +625,7 @@ class UnleashClient:
                     headers=self.metrics_headers,
                     custom_options=self.unleash_custom_options,
                     request_timeout=self.unleash_request_timeout,
-                    engine=self.engine,
+                    engine=self._engine,
                 )
                 try:
                     self.metric_job.remove()
@@ -638,9 +641,9 @@ class UnleashClient:
 
             # Disk-backed FileCache instances can be shared across processes.
             # Avoid deleting them during shutdown to prevent cache races.
-            if not isinstance(self.cache, FileCache):
+            if not isinstance(self._cache, FileCache):
                 try:
-                    self.cache.destroy()
+                    self._cache.destroy()
                 except Exception as exc:
                     LOGGER.warning("Exception during cache teardown: %s", exc)
 
@@ -673,7 +676,7 @@ class UnleashClient:
         :return: Feature flag result
         """
         context = self._enricher.build(context)
-        result = self.engine.is_enabled(
+        result = self._engine.is_enabled(
             feature_name, context, fallback_function=fallback_function
         )
 
@@ -711,7 +714,7 @@ class UnleashClient:
         :return: Variant and feature flag status.
         """
         context = self._enricher.build(context)
-        result = self.engine.get_variant(feature_name, context)
+        result = self._engine.get_variant(feature_name, context)
 
         if not result.is_found and (self.unleash_bootstrapped or self.is_initialized):
             LOGGER.log(

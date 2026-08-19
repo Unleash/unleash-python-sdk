@@ -22,6 +22,7 @@ from tests.utilities.testing_constants import (
 from UnleashClient.connectors import PollingConnector
 from UnleashClient.constants import ETAG, FEATURES_URL
 from UnleashClient.events import EventDispatcher, UnleashEventType
+from UnleashClient.store import FeatureStore
 
 FULL_FEATURE_URL = URL + FEATURES_URL
 
@@ -40,8 +41,7 @@ def test_polling_connector_fetch_and_load(cache_empty):
     temp_cache = cache_empty
 
     connector = PollingConnector(
-        engine=engine,
-        cache=temp_cache,
+        store=FeatureStore(engine=engine, cache=temp_cache),
         scheduler=scheduler,
         url=URL,
         app_name=APP_NAME,
@@ -68,8 +68,7 @@ def test_polling_connector_fetch_and_load_project(cache_empty):
     temp_cache = cache_empty
 
     connector = PollingConnector(
-        engine=engine,
-        cache=temp_cache,
+        store=FeatureStore(engine=engine, cache=temp_cache),
         scheduler=scheduler,
         url=URL,
         app_name=APP_NAME,
@@ -96,8 +95,7 @@ def test_polling_connector_fetch_and_load_failure(cache_empty):
     temp_cache = cache_empty
 
     connector = PollingConnector(
-        engine=engine,
-        cache=temp_cache,
+        store=FeatureStore(engine=engine, cache=temp_cache),
         scheduler=scheduler,
         url=URL,
         app_name=APP_NAME,
@@ -133,8 +131,7 @@ def test_polling_connector_emits_fetched_and_ready(
     )
 
     connector = PollingConnector(
-        engine=engine,
-        cache=cache_empty,
+        store=FeatureStore(engine=engine, cache=cache_empty, events=dispatcher),
         scheduler=scheduler,
         url=URL,
         app_name=APP_NAME,
@@ -143,7 +140,6 @@ def test_polling_connector_emits_fetched_and_ready(
         custom_options=CUSTOM_OPTIONS,
         request_timeout=REQUEST_TIMEOUT,
         request_retries=REQUEST_RETRIES,
-        events=dispatcher,
         # Huge refresh interval to avoid any polling during the test. That
         # way we avoid having to call _fetch_and_load() directly and can test the start/stop behavior.
         refresh_interval=10,
@@ -168,8 +164,7 @@ def test_polling_connector_emits_ready_once_across_polls(
     )
 
     connector = PollingConnector(
-        engine=engine,
-        cache=cache_empty,
+        store=FeatureStore(engine=engine, cache=cache_empty, events=dispatcher),
         scheduler=scheduler,
         url=URL,
         app_name=APP_NAME,
@@ -178,10 +173,9 @@ def test_polling_connector_emits_ready_once_across_polls(
         custom_options=CUSTOM_OPTIONS,
         request_timeout=REQUEST_TIMEOUT,
         request_retries=REQUEST_RETRIES,
-        events=dispatcher,
     )
 
-    # Every poll emits READY twice, once from load_features() and once directly.
+    # Every poll emits READY twice, once from load_from_cache() and once directly.
     connector._fetch_and_load()
     connector._fetch_and_load()
     dispatcher.close(timeout=WAIT_TIMEOUT)
@@ -206,8 +200,7 @@ def test_polling_connector_start_stop(cache_empty):
     temp_cache = cache_empty
 
     connector = PollingConnector(
-        engine=engine,
-        cache=temp_cache,
+        store=FeatureStore(engine=engine, cache=temp_cache),
         scheduler=scheduler,
         url=URL,
         app_name=APP_NAME,

@@ -3,31 +3,27 @@ from typing import Optional
 
 from ld_eventsource import SSEClient
 from ld_eventsource.config import ConnectStrategy, ErrorStrategy, RetryDelayStrategy
-from yggdrasil_engine.engine import UnleashEngine
 
-from UnleashClient.cache import BaseCache
 from UnleashClient.connectors.base_connector import BaseConnector
-from UnleashClient.constants import FEATURES_URL, STREAMING_URL
-from UnleashClient.events import EventDispatcher
+from UnleashClient.constants import STREAMING_URL
+from UnleashClient.store import FeatureStore
 from UnleashClient.utils import LOGGER
 
 
 class StreamingConnector(BaseConnector):
     def __init__(
         self,
-        engine: UnleashEngine,
-        cache: BaseCache,
+        store: FeatureStore,
         url: str,
         headers: dict,
         request_timeout: int,
-        events: Optional[EventDispatcher] = None,
         backoff_initial: float = 2.0,
         backoff_max: float = 30.0,
         backoff_multiplier: float = 2.0,
         backoff_jitter: Optional[float] = 0.5,
         custom_options: Optional[dict] = None,
     ) -> None:
-        super().__init__(engine=engine, cache=cache, events=events)
+        super().__init__(store)
         self._base_url = url.rstrip("/") + STREAMING_URL
         self._headers = dict(headers)
         self._timeout = request_timeout
@@ -96,21 +92,23 @@ class StreamingConnector(BaseConnector):
 
                 if event.event in ("unleash-connected", "unleash-updated"):
                     try:
-                        self.engine.take_state(event.data)
-                        self.cache.set(FEATURES_URL, self.engine.get_state())
-
-                        if event.event == "unleash-connected":
-                            self.emit_ready()
+                        self._store.apply_streamed(
+                            event.data,
+                            emit_ready=event.event == "unleash-connected",
+                        )
                     except Exception:
+                        # TODO: Worth considering if this error handling could be hidden
+                        # directly in "apply_streamed" instead of here. Otherwise, state
+                        # management is still leaking out of the store, which is not ideal.
                         LOGGER.error("Error applying streaming state", exc_info=True)
-                        self.load_features()
+                        self._store.load_from_cache()
                 else:
                     LOGGER.debug("Ignoring SSE event type: %s", event.event)
 
             LOGGER.debug("SSE stream ended")
         except Exception as exc:
             LOGGER.warning("Streaming connection failed: %s", exc)
-            self.load_features()
+            self._store.load_from_cache()
         finally:
             try:
                 if self._client is not None:
