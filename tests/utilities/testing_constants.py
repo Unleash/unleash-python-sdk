@@ -13,6 +13,9 @@ DISABLE_METRICS = True
 DISABLE_REGISTRATION = True
 CUSTOM_HEADERS = {"name": "My random header."}
 CUSTOM_OPTIONS = {"verify": False}
+# The aiohttp spelling of the same intent. `verify` is a requests keyword and
+# raises TypeError against AsyncTransport -- see the async transport docstring.
+ASYNC_CUSTOM_OPTIONS = {"ssl": False}
 REQUEST_TIMEOUT = 30
 REQUEST_RETRIES = 3
 
