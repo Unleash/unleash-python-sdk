@@ -40,6 +40,7 @@ from UnleashClient.constants import (
     SDK_NAME,
     SDK_VERSION,
 )
+from UnleashClient.context import ContextEnricher
 from UnleashClient.events import (
     BaseEvent,
     EventDispatcher,
@@ -58,15 +59,6 @@ from UnleashClient.utils import (
 )
 
 INSTANCES = InstanceCounter()
-_BASE_CONTEXT_FIELDS = [
-    "userId",
-    "sessionId",
-    "environment",
-    "appName",
-    "currentTime",
-    "remoteAddress",
-    "properties",
-]
 
 
 class _RunState(IntEnum):
@@ -195,6 +187,7 @@ class UnleashClient:
             sdk_flavor_version=sdk_flavor_version,
             experimental_mode=experimental_mode,
         )
+        self._enricher = ContextEnricher(self._config)
         self.unleash_event_callback = event_callback
         # Events are handed to the dispatcher, which delivers them to the user's
         # callback on its own thread.  The callback is never called from here.
@@ -691,7 +684,7 @@ class UnleashClient:
         :param fallback_function: Allows users to provide a custom function to set default value.
         :return: Feature flag result
         """
-        context = self._safe_context(context)
+        context = self._enricher.build(context)
         result = self.engine.is_enabled(
             feature_name, context, fallback_function=fallback_function
         )
@@ -729,7 +722,7 @@ class UnleashClient:
         :param context: Dictionary with context (e.g. IPs, email) for feature toggle.
         :return: Variant and feature flag status.
         """
-        context = self._safe_context(context)
+        context = self._enricher.build(context)
         result = self.engine.get_variant(feature_name, context)
 
         if not result.is_found and (self.unleash_bootstrapped or self.is_initialized):
@@ -761,42 +754,6 @@ class UnleashClient:
         # This can probably become a to_dict method of the Variant type.
         variant = {k: v for k, v in asdict(result.variant).items() if v is not None}
         return variant
-
-    def _safe_context(self, context) -> dict:
-        new_context: Dict[str, Any] = self.unleash_static_context.copy()
-        new_context.update(context or {})
-
-        if "currentTime" not in new_context:
-            new_context["currentTime"] = datetime.now(timezone.utc).isoformat()
-
-        safe_properties = self._extract_properties(new_context)
-        safe_properties = {
-            k: self._safe_context_value(v) for k, v in safe_properties.items()
-        }
-        safe_context = {
-            k: self._safe_context_value(v)
-            for k, v in new_context.items()
-            if k != "properties"
-        }
-
-        safe_context["properties"] = safe_properties
-
-        return safe_context
-
-    def _extract_properties(self, context: dict) -> dict:
-        properties = context.get("properties", {})
-        extracted_fields = {
-            k: v for k, v in context.items() if k not in _BASE_CONTEXT_FIELDS
-        }
-        extracted_fields.update(properties)
-        return extracted_fields
-
-    def _safe_context_value(self, value):
-        if isinstance(value, datetime):
-            return value.isoformat()
-        if isinstance(value, (int, float)):
-            return str(value)
-        return str(value)
 
     def _do_instance_check(self, multiple_instance_mode):
         identifier = self._config.instance_identifier

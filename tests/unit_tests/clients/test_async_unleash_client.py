@@ -59,3 +59,38 @@ def test_both_clients_build_the_same_config(tmpdir):
         assert sync_config == async_config
     finally:
         sync_client.destroy()
+
+
+def test_async_client_enriches_context_over_its_own_config():
+    client = AsyncUnleashClient(URL, APP_NAME, environment="unit")
+
+    context = client._enricher.build({"myContext": "1234"})
+
+    assert context["appName"] == APP_NAME
+    assert context["environment"] == "unit"
+    assert context["properties"]["myContext"] == "1234"
+
+
+def test_both_clients_enrich_context_identically(tmpdir):
+    kwargs = dict(url=URL, app_name=APP_NAME, environment="unit")
+    # currentTime is supplied so the two clients don't each generate their own.
+    context = {
+        "userId": 7,
+        "myContext": "1234",
+        "currentTime": "1834-02-20T00:00:00+00:00",
+    }
+
+    sync_client = UnleashClient(
+        cache=FileCache(APP_NAME, directory=str(tmpdir)),
+        disable_metrics=True,
+        disable_registration=True,
+        **kwargs,
+    )
+    try:
+        async_client = AsyncUnleashClient(**kwargs)
+
+        assert sync_client._enricher.build(context) == async_client._enricher.build(
+            context
+        )
+    finally:
+        sync_client.destroy()
