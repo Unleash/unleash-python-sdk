@@ -8,6 +8,7 @@ requests
 semver
 yggdrasil-engine==2.0.0a1
 launchdarkly-eventsource
+aiohttp
 
 # Development packages
 # - Testing
@@ -21,8 +22,11 @@ pytest
 pytest-cov
 pytest-html
 pytest-mock
+pytest-asyncio
 pytest-xdist
 responses
+# 0.7.9 is py3.9+: it annotates with a bare `Mapping[str, str]` at import time.
+aioresponses < 0.7.9
 ruff
 tox
 
