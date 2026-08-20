@@ -8,6 +8,8 @@ from .base_connector import BaseConnector
 
 
 class PollingConnector(BaseConnector):
+    """Keeps feature state fresh by fetching it on a fixed interval."""
+
     def __init__(
         self,
         store: FeatureStore,
@@ -17,8 +19,7 @@ class PollingConnector(BaseConnector):
         refresh_jitter: Optional[int] = None,
     ):
         """
-        :param transport: Performs the fetch. Owns the url, timeout, retries,
-                          project, custom options and headers it used to be handed.
+        :param transport: Performs the fetch against the Unleash server.
         :param refresh_interval: Seconds between fetches.
         :param refresh_jitter: Maximum seconds to randomly offset each fetch by, or
                                None for no jitter.
