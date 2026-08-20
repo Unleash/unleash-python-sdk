@@ -151,8 +151,8 @@ def readyable_unleash_client_toggle_only(cache):
 
 
 @pytest.fixture()
-def unleash_client_bootstrap_dependencies():
-    cache = FileCache("MOCK_CACHE")
+def unleash_client_bootstrap_dependencies(tmp_path):
+    cache = FileCache("MOCK_CACHE", directory=str(tmp_path))
     cache.bootstrap_from_dict(MOCK_FEATURE_WITH_DEPENDENCIES_RESPONSE)
     unleash_client = UnleashClient(
         url=URL,
@@ -167,15 +167,15 @@ def unleash_client_bootstrap_dependencies():
     unleash_client.destroy()
 
 
-def test_UC_initialize_default():
-    client = UnleashClient(URL, APP_NAME)
+def test_UC_initialize_default(tmp_path):
+    client = UnleashClient(URL, APP_NAME, cache_directory=str(tmp_path))
     assert client.unleash_url == URL
     assert client.unleash_app_name == APP_NAME
     assert client.unleash_metrics_interval == 60
     client.destroy()
 
 
-def test_UC_initialize_full():
+def test_UC_initialize_full(tmp_path):
     client = UnleashClient(
         URL,
         APP_NAME,
@@ -191,6 +191,7 @@ def test_UC_initialize_full():
         CUSTOM_OPTIONS,
         REQUEST_TIMEOUT,
         REQUEST_RETRIES,
+        cache_directory=str(tmp_path),
     )
     assert client.unleash_instance_id == INSTANCE_ID
     assert client.unleash_refresh_interval == REFRESH_INTERVAL
@@ -204,16 +205,20 @@ def test_UC_initialize_full():
     client.destroy()
 
 
-def test_UC_type_violation():
-    client = UnleashClient(URL, APP_NAME, refresh_interval="60")
+def test_UC_type_violation(tmp_path):
+    client = UnleashClient(
+        URL, APP_NAME, refresh_interval="60", cache_directory=str(tmp_path)
+    )
     assert client.unleash_url == URL
     assert client.unleash_app_name == APP_NAME
     assert client.unleash_refresh_interval == "60"
     client.destroy()
 
 
-def test_UC_public_config_attributes_are_writable():
-    client = UnleashClient(URL, APP_NAME, disable_metrics=True)
+def test_UC_public_config_attributes_are_writable(tmp_path):
+    client = UnleashClient(
+        URL, APP_NAME, disable_metrics=True, cache_directory=str(tmp_path)
+    )
 
     client.unleash_refresh_interval = 99
     client.unleash_custom_headers = {"name": "replaced"}
@@ -227,8 +232,13 @@ def test_UC_public_config_attributes_are_writable():
     client.destroy()
 
 
-def test_UC_custom_headers_can_be_mutated_in_place():
-    client = UnleashClient(URL, APP_NAME, custom_headers=dict(CUSTOM_HEADERS))
+def test_UC_custom_headers_can_be_mutated_in_place(tmp_path):
+    client = UnleashClient(
+        URL,
+        APP_NAME,
+        custom_headers=dict(CUSTOM_HEADERS),
+        cache_directory=str(tmp_path),
+    )
 
     client.unleash_custom_headers["extra"] = "header"
 
@@ -492,7 +502,7 @@ def test_uc_dirty_cache(readyable_unleash_client_nodestroy):
 
 
 @responses.activate
-def test_uc_is_enabled_with_context():
+def test_uc_is_enabled_with_context(tmp_path):
     event_handler, ready_signal, _ = build_event_handlers()
 
     # Set up API
@@ -510,6 +520,7 @@ def test_uc_is_enabled_with_context():
         environment="prod",
         custom_strategies=custom_strategies_dict,
         event_callback=event_handler,
+        cache_directory=str(tmp_path),
     )
     # Create Unleash client and check initial load
     unleash_client.initialize_client()
@@ -560,8 +571,8 @@ def test_uc_context_manager(readyable_unleash_client_nodestroy):
 
 
 @responses.activate
-def test_uc_not_initialized_isenabled():
-    unleash_client = UnleashClient(URL, APP_NAME)
+def test_uc_not_initialized_isenabled(tmp_path):
+    unleash_client = UnleashClient(URL, APP_NAME, cache_directory=str(tmp_path))
     assert not unleash_client.is_enabled("ThisFlagDoesn'tExist")
     assert unleash_client.is_enabled(
         "ThisFlagDoesn'tExist", fallback_function=lambda x, y: True
@@ -579,7 +590,7 @@ def test_uc_dependency(unleash_client_bootstrap_dependencies):
 
 
 @responses.activate
-def test_uc_get_variant():
+def test_uc_get_variant(tmp_path):
     # Set up API
     responses.add(responses.POST, URL + REGISTER_URL, json={}, status=202)
     responses.add(
@@ -589,7 +600,9 @@ def test_uc_get_variant():
 
     event_handler, ready_signal, _ = build_event_handlers()
 
-    unleash_client = UnleashClient(URL, APP_NAME, event_callback=event_handler)
+    unleash_client = UnleashClient(
+        URL, APP_NAME, event_callback=event_handler, cache_directory=str(tmp_path)
+    )
     # Create Unleash client and check initial load
     unleash_client.initialize_client()
 
@@ -610,8 +623,8 @@ def test_uc_get_variant():
 
 
 @responses.activate
-def test_uc_get_variant_feature_enabled_no_variants():
-    cache = FileCache("MOCK_CACHE")
+def test_uc_get_variant_feature_enabled_no_variants(tmp_path):
+    cache = FileCache("MOCK_CACHE", directory=str(tmp_path))
     cache.bootstrap_from_dict(MOCK_FEATURE_ENABLED_NO_VARIANTS_RESPONSE)
     unleash_client = UnleashClient(
         url=URL,
@@ -633,8 +646,8 @@ def test_uc_get_variant_feature_enabled_no_variants():
 
 
 @responses.activate
-def test_uc_not_initialized_getvariant():
-    unleash_client = UnleashClient(URL, APP_NAME)
+def test_uc_not_initialized_getvariant(tmp_path):
+    unleash_client = UnleashClient(URL, APP_NAME, cache_directory=str(tmp_path))
     variant = unleash_client.get_variant("ThisFlagDoesn'tExist")
     assert not variant["enabled"]
     assert variant["name"] == "disabled"
@@ -886,21 +899,24 @@ def test_uc_server_error(readyable_unleash_client):
     assert unleash_client.is_enabled("testFlag")
 
 
-def test_uc_with_invalid_url():
-    unleash_client = UnleashClient("thisisnotavalidurl", APP_NAME)
+def test_uc_with_invalid_url(tmp_path):
+    unleash_client = UnleashClient(
+        "thisisnotavalidurl", APP_NAME, cache_directory=str(tmp_path)
+    )
 
     with pytest.raises(ValueError):
         unleash_client.initialize_client()
     unleash_client.destroy()
 
 
-def test_uc_with_network_error():
+def test_uc_with_network_error(tmp_path):
     unleash_client = UnleashClient(
         "https://this-will-never-try-to-dns-resolve.invalid/",
         APP_NAME,
         disable_metrics=True,
         disable_registration=True,
         request_timeout=1,
+        cache_directory=str(tmp_path),
     )
     unleash_client.initialize_client()
 
@@ -1086,15 +1102,21 @@ def test_uc_custom_scheduler(cache):
     unleash_client.destroy()
 
 
-def test_multiple_instances_blocks_client_instantiation():
+def test_multiple_instances_blocks_client_instantiation(tmp_path):
     client1 = None
     client2 = None
     with pytest.raises(Exception):
         client1 = UnleashClient(
-            URL, APP_NAME, multiple_instance_mode=InstanceAllowType.BLOCK
+            URL,
+            APP_NAME,
+            multiple_instance_mode=InstanceAllowType.BLOCK,
+            cache_directory=str(tmp_path),
         )
         client2 = UnleashClient(
-            URL, APP_NAME, multiple_instance_mode=InstanceAllowType.BLOCK
+            URL,
+            APP_NAME,
+            multiple_instance_mode=InstanceAllowType.BLOCK,
+            cache_directory=str(tmp_path),
         )
     if client1:
         client1.destroy()
@@ -1102,25 +1124,37 @@ def test_multiple_instances_blocks_client_instantiation():
         client2.destroy()
 
 
-def test_multiple_instances_with_allow_multiple_warns(caplog):
+def test_multiple_instances_with_allow_multiple_warns(caplog, tmp_path):
     client1 = UnleashClient(
-        URL, APP_NAME, multiple_instance_mode=InstanceAllowType.WARN
+        URL,
+        APP_NAME,
+        multiple_instance_mode=InstanceAllowType.WARN,
+        cache_directory=str(tmp_path),
     )
     client2 = UnleashClient(
-        URL, APP_NAME, multiple_instance_mode=InstanceAllowType.WARN
+        URL,
+        APP_NAME,
+        multiple_instance_mode=InstanceAllowType.WARN,
+        cache_directory=str(tmp_path),
     )
     assert any(["You already have 1 instance" in r.msg for r in caplog.records])
     client1.destroy()
     client2.destroy()
 
 
-def test_multiple_instances_tracks_current_instance_count(caplog):
-    client1 = UnleashClient(URL, APP_NAME)
+def test_multiple_instances_tracks_current_instance_count(caplog, tmp_path):
+    client1 = UnleashClient(URL, APP_NAME, cache_directory=str(tmp_path))
     client2 = UnleashClient(
-        URL, APP_NAME, multiple_instance_mode=InstanceAllowType.WARN
+        URL,
+        APP_NAME,
+        multiple_instance_mode=InstanceAllowType.WARN,
+        cache_directory=str(tmp_path),
     )
     client3 = UnleashClient(
-        URL, APP_NAME, multiple_instance_mode=InstanceAllowType.WARN
+        URL,
+        APP_NAME,
+        multiple_instance_mode=InstanceAllowType.WARN,
+        cache_directory=str(tmp_path),
     )
     assert any(["You already have 1 instance" in r.msg for r in caplog.records])
     assert any(["You already have 2 instance(s)" in r.msg for r in caplog.records])
@@ -1129,16 +1163,24 @@ def test_multiple_instances_tracks_current_instance_count(caplog):
     client3.destroy()
 
 
-def test_multiple_instances_no_warnings_or_errors_with_different_client_configs(caplog):
-    client1 = UnleashClient(URL, "some-probably-unique-app-name")
+def test_multiple_instances_no_warnings_or_errors_with_different_client_configs(
+    caplog, tmp_path
+):
+    client1 = UnleashClient(
+        URL, "some-probably-unique-app-name", cache_directory=str(tmp_path)
+    )
     client2 = UnleashClient(
         URL,
         "some-probably-unique-app-name",
         instance_id="some-unique-instance-id",
         refresh_interval="60",
+        cache_directory=str(tmp_path),
     )
     client3 = UnleashClient(
-        URL, "some-probably-unique-but-different-app-name", refresh_interval="60"
+        URL,
+        "some-probably-unique-but-different-app-name",
+        refresh_interval="60",
+        cache_directory=str(tmp_path),
     )
     assert not any(
         ["Multiple instances has been disabled" in r.msg for r in caplog.records]
@@ -1148,16 +1190,18 @@ def test_multiple_instances_no_warnings_or_errors_with_different_client_configs(
     client3.destroy()
 
 
-def test_multiple_instances_are_unique_on_api_key(caplog):
+def test_multiple_instances_are_unique_on_api_key(caplog, tmp_path):
     client1 = UnleashClient(
         URL,
         "some-probably-unique-app-name",
         custom_headers={"Authorization": "penguins"},
+        cache_directory=str(tmp_path),
     )
     client2 = UnleashClient(
         URL,
         "some-probably-unique-app-name",
         custom_headers={"Authorization": "hamsters"},
+        cache_directory=str(tmp_path),
     )
     assert not any(
         ["Multiple instances has been disabled" in r.msg for r in caplog.records]
@@ -1180,17 +1224,21 @@ def test_redact_to_print_safely_keeps_environment_and_project_visible():
     assert "abcdef1234567890ghijklmnop" not in redacted
 
 
-def test_api_key_is_not_logged_in_plain_text_in_multiple_instances_warning(caplog):
+def test_api_key_is_not_logged_in_plain_text_in_multiple_instances_warning(
+    caplog, tmp_path
+):
     api_key = "production:default:abcdef1234567890ghijklmnop"
     client1 = UnleashClient(
         URL,
         APP_NAME,
         custom_headers={"Authorization": api_key},
+        cache_directory=str(tmp_path),
     )
     client2 = UnleashClient(
         URL,
         APP_NAME,
         custom_headers={"Authorization": api_key},
+        cache_directory=str(tmp_path),
     )
 
     log_text = " ".join(str(r.msg) for r in caplog.records)
@@ -1300,8 +1348,8 @@ def test_ready_signal(cache):
     assert len(recorder.of_type(UnleashEventType.READY)) == 1
 
 
-def test_ready_signal_works_with_bootstrapping():
-    cache = FileCache("MOCK_CACHE")
+def test_ready_signal_works_with_bootstrapping(tmp_path):
+    cache = FileCache("MOCK_CACHE", directory=str(tmp_path))
     cache.bootstrap_from_dict(MOCK_FEATURE_WITH_DEPENDENCIES_RESPONSE)
 
     recorder = EventRecorder()
@@ -1323,8 +1371,8 @@ def test_ready_signal_works_with_bootstrapping():
     unleash_client.destroy()
 
 
-def test_bootstrapping_does_not_signal_ready_before_initialization():
-    cache = FileCache("MOCK_CACHE")
+def test_bootstrapping_does_not_signal_ready_before_initialization(tmp_path):
+    cache = FileCache("MOCK_CACHE", directory=str(tmp_path))
     cache.bootstrap_from_dict(MOCK_FEATURE_RESPONSE)
 
     recorder = EventRecorder()
@@ -1352,7 +1400,7 @@ def test_bootstrapping_does_not_signal_ready_before_initialization():
 
 
 @responses.activate
-def test_refresh_jitter_reaches_the_polling_job():
+def test_refresh_jitter_reaches_the_polling_job(tmp_path):
     responses.add(
         responses.GET, URL + FEATURES_URL, json=MOCK_FEATURE_RESPONSE, status=200
     )
@@ -1373,6 +1421,7 @@ def test_refresh_jitter_reaches_the_polling_job():
         refresh_jitter=10,
         disable_metrics=True,
         disable_registration=True,
+        cache_directory=str(tmp_path),
     )
     unleash_client.initialize_client()
     unleash_client.destroy()
@@ -1380,8 +1429,8 @@ def test_refresh_jitter_reaches_the_polling_job():
     assert [trigger.jitter for trigger in triggers] == [10]
 
 
-def test_context_handles_numerics():
-    cache = FileCache("MOCK_CACHE")
+def test_context_handles_numerics(tmp_path):
+    cache = FileCache("MOCK_CACHE", directory=str(tmp_path))
     cache.bootstrap_from_dict(MOCK_FEATURE_WITH_NUMERIC_CONSTRAINT)
 
     unleash_client = UnleashClient(
@@ -1399,8 +1448,8 @@ def test_context_handles_numerics():
     unleash_client.destroy()
 
 
-def test_context_handles_datetimes():
-    cache = FileCache("MOCK_CACHE")
+def test_context_handles_datetimes(tmp_path):
+    cache = FileCache("MOCK_CACHE", directory=str(tmp_path))
     cache.bootstrap_from_dict(MOCK_FEATURE_RESPONSE)
 
     unleash_client = UnleashClient(
@@ -1419,8 +1468,8 @@ def test_context_handles_datetimes():
     unleash_client.destroy()
 
 
-def test_context_adds_current_time_if_not_set():
-    cache = FileCache("MOCK_CACHE")
+def test_context_adds_current_time_if_not_set(tmp_path):
+    cache = FileCache("MOCK_CACHE", directory=str(tmp_path))
     cache.bootstrap_from_dict(MOCK_FEATURE_WITH_DATE_AFTER_CONSTRAINT)
 
     unleash_client = UnleashClient(
@@ -1436,8 +1485,8 @@ def test_context_adds_current_time_if_not_set():
     unleash_client.destroy()
 
 
-def test_is_enabled_works_with_properties_field_in_the_context_root():
-    cache = FileCache("MOCK_CACHE")
+def test_is_enabled_works_with_properties_field_in_the_context_root(tmp_path):
+    cache = FileCache("MOCK_CACHE", directory=str(tmp_path))
     cache.bootstrap_from_dict(MOCK_FEATURE_WITH_CUSTOM_CONTEXT_REQUIREMENTS)
     unleash_client = UnleashClient(
         URL,
@@ -1452,12 +1501,13 @@ def test_is_enabled_works_with_properties_field_in_the_context_root():
     unleash_client.destroy()
 
 
-def test_uuids_are_valid_context_properties():
+def test_uuids_are_valid_context_properties(tmp_path):
     unleash_client = UnleashClient(
         URL,
         APP_NAME,
         disable_metrics=True,
         disable_registration=True,
+        cache_directory=str(tmp_path),
     )
 
     context = {"userId": uuid.uuid4()}
@@ -1492,7 +1542,7 @@ def test_identification_headers_sent_and_consistent(readyable_unleash_client):
 
 
 @responses.activate
-def test_identification_headers_unique_connection_id():
+def test_identification_headers_unique_connection_id(tmp_path):
     responses.add(responses.POST, URL + REGISTER_URL, json={}, status=202)
     responses.add(
         responses.GET, URL + FEATURES_URL, json=MOCK_FEATURE_RESPONSE, status=200
@@ -1500,10 +1550,18 @@ def test_identification_headers_unique_connection_id():
     responses.add(responses.POST, URL + METRICS_URL, json={}, status=202)
 
     unleash_client = UnleashClient(
-        URL, APP_NAME, disable_metrics=True, disable_registration=True
+        URL,
+        APP_NAME,
+        disable_metrics=True,
+        disable_registration=True,
+        cache_directory=str(tmp_path),
     )
     other_unleash_client = UnleashClient(
-        URL, APP_NAME, disable_metrics=True, disable_registration=True
+        URL,
+        APP_NAME,
+        disable_metrics=True,
+        disable_registration=True,
+        cache_directory=str(tmp_path),
     )
     try:
         unleash_client.initialize_client()
@@ -1523,7 +1581,7 @@ def test_identification_headers_unique_connection_id():
 
 
 @responses.activate
-def test_identification_values_are_passed_in():
+def test_identification_values_are_passed_in(tmp_path):
     responses.add(responses.POST, URL + REGISTER_URL, json={}, status=202)
     responses.add(
         responses.GET, URL + FEATURES_URL, json=MOCK_FEATURE_RESPONSE, status=200
@@ -1539,6 +1597,7 @@ def test_identification_values_are_passed_in():
         refresh_interval=refresh_interval,
         metrics_interval=metrics_interval,
         event_callback=event_handler,
+        cache_directory=str(tmp_path),
     )
 
     expected_refresh_interval = str(refresh_interval * 1000)
@@ -1603,9 +1662,9 @@ def test_identification_values_are_passed_in():
         unleash_client.destroy()
 
 
-def test_uc_bootstrap_initializes_offline_connector():
+def test_uc_bootstrap_initializes_offline_connector(tmp_path):
     """Test that UnleashClient initializes OfflineConnector when bootstrapped."""
-    cache = FileCache("MOCK_CACHE")
+    cache = FileCache("MOCK_CACHE", directory=str(tmp_path))
     cache.bootstrap_from_dict(MOCK_FEATURE_RESPONSE)
 
     unleash_client = UnleashClient(
@@ -1623,13 +1682,17 @@ def test_uc_bootstrap_initializes_offline_connector():
 
 
 @responses.activate
-def test_spec_header_is_sent_when_fetching_features():
+def test_spec_header_is_sent_when_fetching_features(tmp_path):
     responses.add(
         responses.GET, URL + FEATURES_URL, json=MOCK_FEATURE_RESPONSE, status=200
     )
 
     unleash_client = UnleashClient(
-        URL, APP_NAME, disable_metrics=True, disable_registration=True
+        URL,
+        APP_NAME,
+        disable_metrics=True,
+        disable_registration=True,
+        cache_directory=str(tmp_path),
     )
     try:
         unleash_client.initialize_client()
@@ -1642,7 +1705,7 @@ def test_spec_header_is_sent_when_fetching_features():
         unleash_client.destroy()
 
 
-def test_shutdown_calls_scheduler_at_most_once():
+def test_shutdown_calls_scheduler_at_most_once(tmp_path):
     class MockScheduler:
         def __init__(self):
             self.shutdown_called = 0
@@ -1674,6 +1737,7 @@ def test_shutdown_calls_scheduler_at_most_once():
         scheduler_executor=BackgroundScheduler(),
         disable_metrics=True,
         disable_registration=True,
+        cache_directory=str(tmp_path),
     )
     unleash_client.initialize_client()
     unleash_client.destroy()
@@ -1682,9 +1746,13 @@ def test_shutdown_calls_scheduler_at_most_once():
     assert scheduler.shutdown_called == 1
 
 
-def test_destroy_skips_default_file_cache_destroy(monkeypatch):
+def test_destroy_skips_default_file_cache_destroy(monkeypatch, tmp_path):
     unleash_client = UnleashClient(
-        URL, APP_NAME, disable_metrics=True, disable_registration=True
+        URL,
+        APP_NAME,
+        disable_metrics=True,
+        disable_registration=True,
+        cache_directory=str(tmp_path),
     )
     destroy_calls = 0
 
@@ -1730,8 +1798,8 @@ def test_destroy_calls_custom_cache_destroy():
     assert cache.destroy_calls == 1
 
 
-def bootstrapped_client(recorder, **kwargs):
-    cache = FileCache("MOCK_CACHE")
+def bootstrapped_client(recorder, cache_dir, **kwargs):
+    cache = FileCache("MOCK_CACHE", directory=str(cache_dir))
     cache.bootstrap_from_dict(MOCK_FEATURE_RESPONSE)
     return UnleashClient(
         URL,
@@ -1744,14 +1812,14 @@ def bootstrapped_client(recorder, **kwargs):
     )
 
 
-def test_impression_events_are_delivered_off_the_calling_thread():
+def test_impression_events_are_delivered_off_the_calling_thread(tmp_path):
     calling_thread = threading.current_thread()
     callback_threads = []
 
     def record_thread(event):
         callback_threads.append(threading.current_thread())
 
-    unleash_client = bootstrapped_client(record_thread)
+    unleash_client = bootstrapped_client(record_thread, tmp_path)
     unleash_client.initialize_client(fetch_toggles=False)
 
     assert unleash_client.is_enabled("testFlag")
@@ -1762,7 +1830,7 @@ def test_impression_events_are_delivered_off_the_calling_thread():
     assert all(thread.name == "UnleashEventDispatcher" for thread in callback_threads)
 
 
-def test_is_enabled_does_not_block_on_a_slow_callback():
+def test_is_enabled_does_not_block_on_a_slow_callback(tmp_path):
     release = threading.Event()
     recorder = EventRecorder()
 
@@ -1770,7 +1838,7 @@ def test_is_enabled_does_not_block_on_a_slow_callback():
         release.wait(timeout=WAIT_TIMEOUT)
         recorder(event)
 
-    unleash_client = bootstrapped_client(wedged_callback)
+    unleash_client = bootstrapped_client(wedged_callback, tmp_path)
     unleash_client.initialize_client(fetch_toggles=False)
 
     try:
@@ -1788,7 +1856,7 @@ def test_is_enabled_does_not_block_on_a_slow_callback():
     unleash_client.destroy()
 
 
-def test_callback_exception_does_not_break_is_enabled_or_get_variant():
+def test_callback_exception_does_not_break_is_enabled_or_get_variant(tmp_path):
     recorder = EventRecorder()
     first_call = True
 
@@ -1799,7 +1867,7 @@ def test_callback_exception_does_not_break_is_enabled_or_get_variant():
             raise ValueError("callbacks can misbehave")
         recorder(event)
 
-    unleash_client = bootstrapped_client(exploding_callback)
+    unleash_client = bootstrapped_client(exploding_callback, tmp_path)
     unleash_client.initialize_client(fetch_toggles=False)
 
     assert unleash_client.is_enabled("testFlag")
@@ -1812,10 +1880,10 @@ def test_callback_exception_does_not_break_is_enabled_or_get_variant():
     assert recorder.events
 
 
-def test_events_emitted_after_destroy_are_dropped():
+def test_events_emitted_after_destroy_are_dropped(tmp_path):
     recorder = EventRecorder()
 
-    unleash_client = bootstrapped_client(recorder)
+    unleash_client = bootstrapped_client(recorder, tmp_path)
     unleash_client.initialize_client(fetch_toggles=False)
     unleash_client.destroy()
 
