@@ -78,13 +78,10 @@ class TestSendMetricsViaClient:
         unleash_client.impact_metrics.observe_histogram("latency", 0.3)
 
         aggregate_and_send_metrics(
-            url=URL,
+            transport=unleash_client._transport,
             app_name=APP_NAME,
             instance_id=INSTANCE_ID,
             connection_id="test-connection",
-            headers={},
-            custom_options={},
-            request_timeout=30,
             engine=unleash_client._engine,
         )
 
@@ -139,13 +136,10 @@ class TestSendMetricsViaClient:
         unleash_client.impact_metrics.increment_counter("purchases", 1, flag_context)
 
         aggregate_and_send_metrics(
-            url=URL,
+            transport=unleash_client._transport,
             app_name=APP_NAME,
             instance_id=INSTANCE_ID,
             connection_id="test-connection",
-            headers={},
-            custom_options={},
-            request_timeout=30,
             engine=unleash_client._engine,
         )
 
@@ -200,23 +194,17 @@ class TestSendMetricsViaClient:
         unleash_client.impact_metrics.increment_counter("my_counter", 5)
 
         aggregate_and_send_metrics(
-            url=URL,
+            transport=unleash_client._transport,
             app_name=APP_NAME,
             instance_id=INSTANCE_ID,
             connection_id="test-connection",
-            headers={},
-            custom_options={},
-            request_timeout=30,
             engine=unleash_client._engine,
         )
         aggregate_and_send_metrics(
-            url=URL,
+            transport=unleash_client._transport,
             app_name=APP_NAME,
             instance_id=INSTANCE_ID,
             connection_id="test-connection",
-            headers={},
-            custom_options={},
-            request_timeout=30,
             engine=unleash_client._engine,
         )
 
