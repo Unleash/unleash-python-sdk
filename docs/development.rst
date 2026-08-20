@@ -27,6 +27,21 @@ Running Tox locally
 4. Run ``make install`` to get latest local dependencies.
 5. Run ``make tox`` to run tox.
 
+``make tox`` runs the environments in parallel. Each environment writes its test
+reports into its own ``.tox/<env>/tmp`` directory and does not collect coverage;
+use ``make test`` when you want coverage or a ``test_results/`` directory.
+
+Continuous integration
+#######################################
+Pull requests run every supported Python version on Linux, and only the oldest and
+newest supported versions on macOS and Windows. Each operating system gets a single
+job that runs its interpreters in parallel through tox, rather than one job per
+combination.
+
+There is deliberately no scheduled job covering the combinations left out of pull
+requests. The supported version list is declared in ``pyproject.toml``, ``tox.ini``
+and ``.github/workflows/pull_request.yml``, and all three need to stay in sync.
+
 Using devcontainer
 ###########################################
 This SDK ships with a devcontainer to make local (or cloud!) environment fast & easy!
