@@ -214,8 +214,6 @@ class UnleashClient:
             engine=self._engine, cache=self._cache, events=self.__events
         )
 
-        self.metrics_headers: dict = {}
-
         self._transport = Transport(self._config, self._headers)
 
         self._scheduler = Scheduler(scheduler, scheduler_executor)
@@ -503,10 +501,6 @@ class UnleashClient:
                     # Scheduler.start() no-ops when it is already running, so this can
                     # be unconditional.
                     start_scheduler = True
-
-                    # Informational only since the Transport builds its own
-                    # headers; kept because it is a public attribute.
-                    self.metrics_headers = self._headers.metrics()
 
                     metrics_args = {
                         "transport": self._transport,
