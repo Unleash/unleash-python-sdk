@@ -27,8 +27,10 @@ from UnleashClient.evaluator import Evaluator
 from UnleashClient.events import BaseEvent, EventDispatcher
 from UnleashClient.headers import HeaderFactory
 from UnleashClient.impact_metrics import ImpactMetrics
+from UnleashClient.instance_registry import get_instance
 from UnleashClient.scheduler import Scheduler
 from UnleashClient.store import FeatureStore
+from UnleashClient.utils import InstanceAllowType
 
 _NOT_IMPLEMENTED = (
     "AsyncUnleashClient is a work in progress and does not do anything yet. "
@@ -60,6 +62,7 @@ class AsyncUnleashClient:
         project_name: Optional[str] = None,
         verbose_log_level: int = 30,
         cache: Optional[BaseCache] = None,
+        multiple_instance_mode: InstanceAllowType = InstanceAllowType.WARN,
         event_callback: Optional[Callable[[BaseEvent], None]] = None,
         experimental_mode: Optional[ExperimentalMode] = None,
         sdk_flavor: Optional[str] = None,
@@ -93,6 +96,13 @@ class AsyncUnleashClient:
         self._event_dispatcher: Optional[EventDispatcher] = (
             EventDispatcher(event_callback) if event_callback is not None else None
         )
+
+        # The registry is process-wide, so a synchronous and an asynchronous
+        # client on the same configuration count as duplicates of each other.
+        get_instance().register(
+            self._config.instance_identifier, multiple_instance_mode
+        )
+
         self._engine: UnleashEngine = UnleashEngine()
         self.impact_metrics: ImpactMetrics = ImpactMetrics(
             self._engine,

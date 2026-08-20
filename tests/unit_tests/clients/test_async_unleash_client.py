@@ -11,6 +11,7 @@ from UnleashClient.cache import FileCache
 from UnleashClient.clients.async_unleash_client import AsyncUnleashClient
 from UnleashClient.constants import FEATURES_URL
 from UnleashClient.metrics_reporter import MetricsReporter
+from UnleashClient.utils import InstanceAllowType
 
 
 @pytest.fixture(autouse=True)
@@ -422,3 +423,68 @@ def test_constructing_the_async_client_starts_no_metrics_task(tmpdir):
 
     assert client._metrics._task is None
     assert client._scheduler.scheduler.get_jobs() == []
+
+
+def duplicate_warnings(caplog) -> list:
+    return [r.msg for r in caplog.records if "You already have" in str(r.msg)]
+
+
+def test_a_second_async_client_on_the_same_config_warns(tmpdir, caplog):
+    build_async_client(tmpdir, url=URL, app_name=APP_NAME)
+
+    build_async_client(tmpdir, url=URL, app_name=APP_NAME)
+
+    assert len(duplicate_warnings(caplog)) == 1
+    assert "You already have 1 instance(s)" in duplicate_warnings(caplog)[0]
+
+
+def test_a_second_async_client_on_the_same_config_can_be_blocked(tmpdir):
+    build_async_client(
+        tmpdir,
+        url=URL,
+        app_name=APP_NAME,
+        multiple_instance_mode=InstanceAllowType.BLOCK,
+    )
+
+    with pytest.raises(Exception, match="You already have 1 instance"):
+        build_async_client(
+            tmpdir,
+            url=URL,
+            app_name=APP_NAME,
+            multiple_instance_mode=InstanceAllowType.BLOCK,
+        )
+
+
+def test_async_clients_on_different_configs_do_not_warn(tmpdir, caplog):
+    build_async_client(tmpdir, url=URL, app_name=APP_NAME)
+
+    build_async_client(tmpdir, url=URL, app_name=APP_NAME, instance_id="second")
+
+    assert duplicate_warnings(caplog) == []
+
+
+def test_the_two_flavors_share_one_registry(tmpdir, caplog):
+    # A sync and an async client on one config both register and both report
+    # metrics, so they are duplicates of each other.
+    sync_client = UnleashClient(
+        url=URL, app_name=APP_NAME, cache=FileCache(APP_NAME, directory=str(tmpdir))
+    )
+    try:
+        build_async_client(tmpdir, url=URL, app_name=APP_NAME)
+
+        assert len(duplicate_warnings(caplog)) == 1
+    finally:
+        sync_client.destroy()
+
+
+def test_the_async_client_silently_allows_duplicates_on_request(tmpdir, caplog):
+    build_async_client(tmpdir, url=URL, app_name=APP_NAME)
+
+    build_async_client(
+        tmpdir,
+        url=URL,
+        app_name=APP_NAME,
+        multiple_instance_mode=InstanceAllowType.SILENTLY_ALLOW,
+    )
+
+    assert duplicate_warnings(caplog) == []
