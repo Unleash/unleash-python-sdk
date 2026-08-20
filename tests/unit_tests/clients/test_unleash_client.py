@@ -164,6 +164,7 @@ def unleash_client_bootstrap_dependencies():
     )
     unleash_client.initialize_client(fetch_toggles=False)
     yield unleash_client
+    unleash_client.destroy()
 
 
 def test_UC_initialize_default():
@@ -259,7 +260,6 @@ def test_uc_lifecycle(readyable_unleash_client):
     responses.add(
         responses.GET,
         URL + FEATURES_URL,
-        json={},
         status=304,
         headers={"etag": ETAG_VALUE},
     )
@@ -966,11 +966,14 @@ def test_uc_cache_bootstrap_dict(cache):
     assert unleash_client.is_enabled("ivan-project")
 
     # Create Unleash client and check initial load
-    unleash_client.initialize_client()
-    assert ready_signal.wait(timeout=WAIT_TIMEOUT)
-    assert unleash_client.is_initialized
-    assert len(unleash_client.feature_definitions()) >= 4
-    assert unleash_client.is_enabled("testFlag")
+    try:
+        unleash_client.initialize_client()
+        assert ready_signal.wait(timeout=WAIT_TIMEOUT)
+        assert unleash_client.is_initialized
+        assert len(unleash_client.feature_definitions()) >= 4
+        assert unleash_client.is_enabled("testFlag")
+    finally:
+        unleash_client.destroy()
 
 
 @responses.activate
@@ -1025,7 +1028,7 @@ def test_uc_cache_bootstrap_url(cache):
 
 
 @responses.activate
-def test_uc_custom_scheduler():
+def test_uc_custom_scheduler(cache):
     # Set up API
     responses.add(
         responses.GET,
@@ -1050,6 +1053,7 @@ def test_uc_custom_scheduler():
         disable_registration=True,
         scheduler=custom_scheduler,
         scheduler_executor="hamster_executor",
+        cache=cache,
         event_callback=event_handler,
     )
 
@@ -1063,7 +1067,6 @@ def test_uc_custom_scheduler():
     responses.add(
         responses.GET,
         URL + FEATURES_URL,
-        json={},
         status=304,
         headers={"etag": ETAG_VALUE},
     )
@@ -1499,20 +1502,24 @@ def test_identification_headers_unique_connection_id():
     unleash_client = UnleashClient(
         URL, APP_NAME, disable_metrics=True, disable_registration=True
     )
-    unleash_client.initialize_client()
-    connection_id_first_client = responses.calls[0].request.headers[
-        "UNLEASH-CONNECTION-ID"
-    ]
-
     other_unleash_client = UnleashClient(
         URL, APP_NAME, disable_metrics=True, disable_registration=True
     )
-    other_unleash_client.initialize_client()
+    try:
+        unleash_client.initialize_client()
+        connection_id_first_client = responses.calls[0].request.headers[
+            "UNLEASH-CONNECTION-ID"
+        ]
 
-    connection_id_second_client = responses.calls[1].request.headers[
-        "UNLEASH-CONNECTION-ID"
-    ]
-    assert connection_id_first_client != connection_id_second_client
+        other_unleash_client.initialize_client()
+
+        connection_id_second_client = responses.calls[1].request.headers[
+            "UNLEASH-CONNECTION-ID"
+        ]
+        assert connection_id_first_client != connection_id_second_client
+    finally:
+        unleash_client.destroy()
+        other_unleash_client.destroy()
 
 
 @responses.activate
@@ -1537,60 +1544,63 @@ def test_identification_values_are_passed_in():
     expected_refresh_interval = str(refresh_interval * 1000)
     expected_metrics_interval = str(metrics_interval * 1000)
 
-    unleash_client.initialize_client()
-    register_request = responses.calls[0].request
-    register_body = json.loads(register_request.body)
-
-    assert "connectionId" in register_body, "Key missing: connectionId"
     try:
-        uuid.UUID(register_body["connectionId"])
-    except ValueError:
-        assert False, "Invalid UUID format in connectionId"
+        unleash_client.initialize_client()
+        register_request = responses.calls[0].request
+        register_body = json.loads(register_request.body)
 
-    assert (
-        "UNLEASH-CONNECTION-ID" in register_request.headers
-    ), "Header missing: UNLEASH-CONNECTION-ID"
-    try:
-        uuid.UUID(register_request.headers["UNLEASH-CONNECTION-ID"])
-    except ValueError:
-        assert False, "Invalid UUID format in UNLEASH-CONNECTION-ID"
+        assert "connectionId" in register_body, "Key missing: connectionId"
+        try:
+            uuid.UUID(register_body["connectionId"])
+        except ValueError:
+            assert False, "Invalid UUID format in connectionId"
 
-    unleash_client.is_enabled("registerMetricsFlag")
+        assert (
+            "UNLEASH-CONNECTION-ID" in register_request.headers
+        ), "Header missing: UNLEASH-CONNECTION-ID"
+        try:
+            uuid.UUID(register_request.headers["UNLEASH-CONNECTION-ID"])
+        except ValueError:
+            assert False, "Invalid UUID format in UNLEASH-CONNECTION-ID"
 
-    features_request = responses.calls[1].request
+        unleash_client.is_enabled("registerMetricsFlag")
 
-    assert features_request.headers["UNLEASH-INTERVAL"] == expected_refresh_interval
+        features_request = responses.calls[1].request
 
-    assert (
-        "UNLEASH-CONNECTION-ID" in features_request.headers
-    ), "Header missing: UNLEASH-CONNECTION-ID"
+        assert features_request.headers["UNLEASH-INTERVAL"] == expected_refresh_interval
 
-    try:
-        uuid.UUID(features_request.headers["UNLEASH-CONNECTION-ID"])
-    except ValueError:
-        assert False, "Invalid UUID format in UNLEASH-CONNECTION-ID"
+        assert (
+            "UNLEASH-CONNECTION-ID" in features_request.headers
+        ), "Header missing: UNLEASH-CONNECTION-ID"
 
-    time.sleep(1.5)
-    metrics_request = [
-        call for call in responses.calls if METRICS_URL in call.request.url
-    ][0].request
-    metrics_body = json.loads(metrics_request.body)
+        try:
+            uuid.UUID(features_request.headers["UNLEASH-CONNECTION-ID"])
+        except ValueError:
+            assert False, "Invalid UUID format in UNLEASH-CONNECTION-ID"
 
-    assert metrics_request.headers["UNLEASH-INTERVAL"] == expected_metrics_interval
+        time.sleep(1.5)
+        metrics_request = [
+            call for call in responses.calls if METRICS_URL in call.request.url
+        ][0].request
+        metrics_body = json.loads(metrics_request.body)
 
-    assert "connectionId" in metrics_body, "Key missing: connectionId"
-    try:
-        uuid.UUID(metrics_body["connectionId"])
-    except ValueError:
-        assert False, "Invalid UUID format in connectionId"
+        assert metrics_request.headers["UNLEASH-INTERVAL"] == expected_metrics_interval
 
-    assert (
-        "UNLEASH-CONNECTION-ID" in metrics_request.headers
-    ), "Header missing: UNLEASH-CONNECTION-ID"
-    try:
-        uuid.UUID(metrics_request.headers["UNLEASH-CONNECTION-ID"])
-    except ValueError:
-        assert False, "Invalid UUID format in UNLEASH-CONNECTION-ID"
+        assert "connectionId" in metrics_body, "Key missing: connectionId"
+        try:
+            uuid.UUID(metrics_body["connectionId"])
+        except ValueError:
+            assert False, "Invalid UUID format in connectionId"
+
+        assert (
+            "UNLEASH-CONNECTION-ID" in metrics_request.headers
+        ), "Header missing: UNLEASH-CONNECTION-ID"
+        try:
+            uuid.UUID(metrics_request.headers["UNLEASH-CONNECTION-ID"])
+        except ValueError:
+            assert False, "Invalid UUID format in UNLEASH-CONNECTION-ID"
+    finally:
+        unleash_client.destroy()
 
 
 def test_uc_bootstrap_initializes_offline_connector():
@@ -1621,12 +1631,15 @@ def test_spec_header_is_sent_when_fetching_features():
     unleash_client = UnleashClient(
         URL, APP_NAME, disable_metrics=True, disable_registration=True
     )
-    unleash_client.initialize_client()
-    client_spec = responses.calls[0].request.headers["Unleash-Client-Spec"]
+    try:
+        unleash_client.initialize_client()
+        client_spec = responses.calls[0].request.headers["Unleash-Client-Spec"]
 
-    ## assert that the client spec looks like a semver string
-    semver_regex = r"^\d+\.\d+\.\d+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$"
-    assert re.match(semver_regex, client_spec)
+        ## assert that the client spec looks like a semver string
+        semver_regex = r"^\d+\.\d+\.\d+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$"
+        assert re.match(semver_regex, client_spec)
+    finally:
+        unleash_client.destroy()
 
 
 def test_shutdown_calls_scheduler_at_most_once():
