@@ -44,8 +44,8 @@ def before_each():
 
 
 @pytest.fixture
-def unleash_client():
-    cache = FileCache("TEST_CACHE")
+def unleash_client(tmp_path):
+    cache = FileCache("TEST_CACHE", directory=str(tmp_path))
     cache.bootstrap_from_dict(MOCK_FEATURES_RESPONSE)
     client = UnleashClient(
         url=URL,

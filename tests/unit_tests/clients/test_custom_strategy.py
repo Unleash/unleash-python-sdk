@@ -46,7 +46,7 @@ class DogTest:
 
 
 @responses.activate
-def test_uc_customstrategy_happypath(recwarn):
+def test_uc_customstrategy_happypath(recwarn, tmp_path):
     responses.add(responses.POST, URL + REGISTER_URL, json={}, status=202)
     responses.add(
         responses.GET, URL + FEATURES_URL, json=MOCK_CUSTOM_STRATEGY, status=200
@@ -56,7 +56,11 @@ def test_uc_customstrategy_happypath(recwarn):
     custom_strategies_dict = {"amIACat": CatTest()}
 
     unleash_client = UnleashClient(
-        URL, APP_NAME, environment="prod", custom_strategies=custom_strategies_dict
+        URL,
+        APP_NAME,
+        environment="prod",
+        custom_strategies=custom_strategies_dict,
+        cache_directory=str(tmp_path),
     )
 
     unleash_client.initialize_client()
@@ -68,7 +72,7 @@ def test_uc_customstrategy_happypath(recwarn):
 
 
 @responses.activate
-def test_uc_customstrategy_deprecation_error():
+def test_uc_customstrategy_deprecation_error(tmp_path):
     responses.add(responses.POST, URL + REGISTER_URL, json={}, status=202)
     responses.add(
         responses.GET, URL + FEATURES_URL, json=MOCK_CUSTOM_STRATEGY, status=200
@@ -79,12 +83,16 @@ def test_uc_customstrategy_deprecation_error():
 
     with pytest.raises(ValueError):
         UnleashClient(
-            URL, APP_NAME, environment="prod", custom_strategies=custom_strategies_dict
+            URL,
+            APP_NAME,
+            environment="prod",
+            custom_strategies=custom_strategies_dict,
+            cache_directory=str(tmp_path),
         )
 
 
 @responses.activate
-def test_uc_customstrategy_safemulti():
+def test_uc_customstrategy_safemulti(tmp_path):
     responses.add(responses.POST, URL + REGISTER_URL, json={}, status=202)
     responses.add(
         responses.GET, URL + FEATURES_URL, json=MOCK_CUSTOM_STRATEGY, status=200
@@ -94,7 +102,11 @@ def test_uc_customstrategy_safemulti():
     custom_strategies_dict = {"amIACat": CatTest(), "amIADog": DogTest()}
 
     unleash_client = UnleashClient(
-        URL, APP_NAME, environment="prod", custom_strategies=custom_strategies_dict
+        URL,
+        APP_NAME,
+        environment="prod",
+        custom_strategies=custom_strategies_dict,
+        cache_directory=str(tmp_path),
     )
 
     unleash_client.initialize_client()

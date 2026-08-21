@@ -201,7 +201,11 @@ def test_both_clients_load_the_same_state(tmpdir):
 
 def test_both_clients_build_the_same_kind_of_scheduler(tmpdir):
     sync_client = UnleashClient(
-        URL, APP_NAME, disable_metrics=True, disable_registration=True
+        URL,
+        APP_NAME,
+        disable_metrics=True,
+        disable_registration=True,
+        cache_directory=str(tmpdir),
     )
     try:
         async_client = build_async_client(tmpdir, url=URL, app_name=APP_NAME)
@@ -213,7 +217,11 @@ def test_both_clients_build_the_same_kind_of_scheduler(tmpdir):
 
 def test_the_async_client_gets_its_own_scheduler(tmpdir):
     sync_client = UnleashClient(
-        URL, APP_NAME, disable_metrics=True, disable_registration=True
+        URL,
+        APP_NAME,
+        disable_metrics=True,
+        disable_registration=True,
+        cache_directory=str(tmpdir),
     )
     try:
         async_client = build_async_client(tmpdir, url=URL, app_name=APP_NAME)

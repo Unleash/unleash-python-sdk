@@ -9,6 +9,21 @@ tox -e py311
 
 This command will take care of downloading the client specifications and putting them in the correct place in the repository, and install all the dependencies you need.
 
+The client specifications are downloaded once and stamped with their version, so
+later runs reuse the existing copy. That includes several tox environments running
+at the same time under `make tox`. To force a fresh download, delete the directory:
+
+```
+rm -rf tests/specification_tests/client-specification
+```
+
+Bumping `CLIENT_SPEC_VERSION` invalidates the copy automatically. If a download is
+interrupted, a lock directory may be left behind; remove it with
+`rm -rf tests/specification_tests/client-specification.lock`.
+
+Tox environments do not produce coverage or a `test_results/` directory. Run
+`make test` for those.
+
 However, there are some caveats to this method. There is no easy way to run a single test, and running the entire test suite can be slow.
 
 ### Manual setup

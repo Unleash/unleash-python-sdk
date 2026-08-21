@@ -109,6 +109,8 @@ ENV/
 # - Testing
 results*
 tests/specification_tests/client-specification
+tests/specification_tests/client-specification.lock
+tests/specification_tests/client-specification.tmp.*
 
 # - Docs
 assets
