@@ -77,10 +77,17 @@ def test_uc_customstrategy_deprecation_error():
 
     custom_strategies_dict = {"amIACat": CatTest, "amIADog": DogTest}
 
-    with pytest.raises(ValueError):
-        UnleashClient(
-            URL, APP_NAME, environment="prod", custom_strategies=custom_strategies_dict
-        )
+    unleash_client = UnleashClient(
+        URL, APP_NAME, environment="prod", custom_strategies=custom_strategies_dict
+    )
+
+    # The strategies reach the engine at initialization, and registering them is
+    # what rejects a class that was handed over without being instantiated.
+    try:
+        with pytest.raises(ValueError):
+            unleash_client.initialize_client()
+    finally:
+        unleash_client.destroy()
 
 
 @responses.activate

@@ -246,3 +246,118 @@ def test_constructing_the_async_client_does_not_start_the_scheduler(tmpdir):
     client = build_async_client(tmpdir, url=URL, app_name=APP_NAME)
 
     assert not client._scheduler.scheduler.running
+
+
+def test_async_client_builds_a_transport_over_its_config_and_headers(tmpdir):
+    client = build_async_client(tmpdir, url=URL, app_name=APP_NAME)
+
+    assert client._transport._config is client._config
+    assert client._transport._headers is client._headers
+
+
+def test_constructing_the_async_client_opens_no_session(tmpdir):
+    # No event loop is running here, and none is needed: aiohttp resolves the
+    # loop when a ClientSession is built, so the transport has to defer that to
+    # the first request.
+    client = build_async_client(tmpdir, url=URL, app_name=APP_NAME)
+
+    assert client._transport._session is None
+
+
+def test_the_async_client_cannot_evaluate_yet(tmpdir):
+    # The evaluator is wired up, but nothing can load state into the engine
+    # until initialize_client() lands, so the public surface stays closed.
+    client = build_async_client(tmpdir, url=URL, app_name=APP_NAME)
+
+    with pytest.raises(NotImplementedError):
+        client.is_enabled("testFlag")
+    with pytest.raises(NotImplementedError):
+        client.get_variant("testFlag")
+    with pytest.raises(NotImplementedError):
+        client.feature_definitions()
+
+
+def test_async_client_builds_an_evaluator_over_its_engine_and_config(tmpdir):
+    cache = FileCache(APP_NAME, directory=str(tmpdir))
+    cache.set(FEATURES_URL, json.dumps(MOCK_FEATURE_RESPONSE))
+
+    client = build_async_client(
+        tmpdir, url=URL, app_name=APP_NAME, environment="unit", cache=cache
+    )
+    client._store.load_from_cache()
+
+    assert client._evaluator.is_enabled("testFlag") is True
+    assert (
+        client._evaluator.get_variant("testVariations", {"userId": "2"}).variant["name"]
+        == "VarA"
+    )
+    assert "testFlag" in client._evaluator.feature_definitions()
+
+
+def test_the_async_clients_evaluator_enriches_over_its_own_config(tmpdir):
+    client = build_async_client(tmpdir, url=URL, app_name=APP_NAME, environment="unit")
+
+    def fallback(feature_name, context):
+        return context["appName"] == APP_NAME and context["environment"] == "unit"
+
+    assert client._evaluator.is_enabled("notAFlag", fallback_function=fallback) is True
+
+
+def test_both_clients_evaluate_identically(tmpdir):
+    sync_cache = FileCache("sync", directory=str(tmpdir))
+    async_cache = FileCache("async", directory=str(tmpdir))
+    for cache in (sync_cache, async_cache):
+        cache.set(FEATURES_URL, json.dumps(MOCK_FEATURE_RESPONSE))
+
+    sync_client = UnleashClient(
+        URL,
+        APP_NAME,
+        cache=sync_cache,
+        disable_metrics=True,
+        disable_registration=True,
+    )
+    try:
+        async_client = build_async_client(
+            tmpdir, url=URL, app_name=APP_NAME, cache=async_cache
+        )
+
+        sync_client._store.load_from_cache()
+        async_client._store.load_from_cache()
+
+        # Through the collaborator on both sides: the async client's own methods
+        # raise until initialization lands.
+        context = {"userId": "2"}
+        # testFlag2 is a 50% gradualRolloutRandom, so it is left out: the two
+        # clients would disagree on it however identically they evaluate.
+        for feature_name in (
+            "testFlag",
+            "testConstraintFlag",
+            "testVariations",
+            "notAFlag",
+        ):
+            assert sync_client._evaluator.is_enabled(feature_name, context) == (
+                async_client._evaluator.is_enabled(feature_name, context)
+            )
+            assert sync_client._evaluator.get_variant(feature_name, context) == (
+                async_client._evaluator.get_variant(feature_name, context)
+            )
+
+        assert sync_client._evaluator.feature_definitions() == (
+            async_client._evaluator.feature_definitions()
+        )
+    finally:
+        sync_client.destroy()
+
+
+def test_the_async_client_gets_its_own_evaluator(tmpdir):
+    sync_client = UnleashClient(
+        URL, APP_NAME, disable_metrics=True, disable_registration=True
+    )
+    try:
+        async_client = build_async_client(tmpdir, url=URL, app_name=APP_NAME)
+
+        assert async_client._evaluator is not sync_client._evaluator
+        assert async_client._evaluator._config is async_client._config
+        assert async_client._evaluator._engine is async_client._engine
+    finally:
+        sync_client.destroy()
