@@ -8,6 +8,7 @@ requests
 semver
 yggdrasil-engine==2.0.0a1
 launchdarkly-eventsource
+aiohttp
 
 # Development packages
 # - Testing
@@ -21,6 +22,7 @@ pytest
 pytest-cov
 pytest-html
 pytest-mock
+pytest-asyncio
 pytest-xdist
 responses
 ruff
