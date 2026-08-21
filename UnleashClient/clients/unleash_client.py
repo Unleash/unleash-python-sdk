@@ -38,6 +38,7 @@ from UnleashClient.events import (
 )
 from UnleashClient.headers import HeaderFactory
 from UnleashClient.impact_metrics import ImpactMetrics
+from UnleashClient.instance_registry import get_instance
 from UnleashClient.metrics_reporter import MetricsReporter
 from UnleashClient.payloads import build_register_payload
 from UnleashClient.scheduler import ScheduledJob, Scheduler
@@ -46,10 +47,9 @@ from UnleashClient.transport import Transport
 from UnleashClient.utils import (
     LOGGER,
     InstanceAllowType,
-    InstanceCounter,
 )
 
-INSTANCES = InstanceCounter()
+INSTANCES = get_instance()
 
 
 class _RunState(IntEnum):
@@ -188,7 +188,9 @@ class UnleashClient:
         self._lifecycle_lock = threading.RLock()
         self._closed = threading.Event()
 
-        self._do_instance_check(multiple_instance_mode)
+        get_instance().register(
+            self._config.instance_identifier, multiple_instance_mode
+        )
 
         # Class objects
         self._engine = UnleashEngine()
@@ -653,16 +655,6 @@ class UnleashClient:
             )
 
         return result.variant
-
-    def _do_instance_check(self, multiple_instance_mode):
-        identifier = self._config.instance_identifier
-        if identifier in INSTANCES:
-            msg = f"You already have {INSTANCES.count(identifier)} instance(s) configured for this config: {identifier}, please double check the code where this client is being instantiated."
-            if multiple_instance_mode == InstanceAllowType.BLOCK:
-                raise Exception(msg)  # pylint: disable=broad-exception-raised
-            if multiple_instance_mode == InstanceAllowType.WARN:
-                LOGGER.error(msg)
-        INSTANCES.increment(identifier)
 
     def __enter__(self) -> "UnleashClient":
         self.initialize_client()
