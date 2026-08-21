@@ -3,9 +3,10 @@ Asynchronous Unleash client.
 
 Work in progress.  This class builds the collaborators it shares with
 :class:`UnleashClient.clients.unleash_client.UnleashClient`, plus its own
-:class:`~UnleashClient.async_transport.AsyncTransport`.  Nothing calls that
-transport yet, so constructing the client still performs no I/O and opens no
-session, and the class is not exported from the package root.  See
+:class:`~UnleashClient.async_transport.AsyncTransport` and
+:class:`~UnleashClient.async_metrics_reporter.AsyncMetricsReporter`.  Nothing calls
+either yet, so constructing the client still performs no I/O, opens no session and
+starts no task, and the class is not exported from the package root.  See
 ``docs/object-composition.md``.
 
 Importing this module requires the optional ``aiohttp`` dependency:
@@ -16,6 +17,7 @@ from typing import Callable, Optional
 
 from yggdrasil_engine.engine import UnleashEngine
 
+from UnleashClient.async_metrics_reporter import AsyncMetricsReporter
 from UnleashClient.async_transport import AsyncTransport
 from UnleashClient.cache import BaseCache, FileCache
 from UnleashClient.config import ExperimentalMode, UnleashConfig
@@ -24,6 +26,7 @@ from UnleashClient.context import ContextEnricher
 from UnleashClient.evaluator import Evaluator
 from UnleashClient.events import BaseEvent, EventDispatcher
 from UnleashClient.headers import HeaderFactory
+from UnleashClient.impact_metrics import ImpactMetrics
 from UnleashClient.scheduler import Scheduler
 from UnleashClient.store import FeatureStore
 
@@ -91,6 +94,11 @@ class AsyncUnleashClient:
             EventDispatcher(event_callback) if event_callback is not None else None
         )
         self._engine: UnleashEngine = UnleashEngine()
+        self.impact_metrics: ImpactMetrics = ImpactMetrics(
+            self._engine,
+            self._config.app_name,
+            self._config.impact_metrics_environment,
+        )
         self._cache: BaseCache = cache or FileCache(
             self._config.app_name, directory=cache_directory
         )
@@ -105,6 +113,12 @@ class AsyncUnleashClient:
         )
         self._transport: AsyncTransport = AsyncTransport(self._config, self._headers)
         self._scheduler: Scheduler = Scheduler()
+        self._metrics: AsyncMetricsReporter = AsyncMetricsReporter(
+            config=self._config,
+            transport=self._transport,
+            engine=self._engine,
+            impact_metrics=self.impact_metrics,
+        )
         # config.custom_strategies are registered on the engine by
         # initialize_client(), which does not exist yet.
 
