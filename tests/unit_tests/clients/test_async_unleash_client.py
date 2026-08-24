@@ -7,10 +7,12 @@ from tests.utilities.mocks.mock_features import MOCK_FEATURE_RESPONSE
 from tests.utilities.testing_constants import APP_NAME, URL
 from UnleashClient import INSTANCES, UnleashClient
 from UnleashClient.async_metrics_reporter import AsyncMetricsReporter
+from UnleashClient.async_scheduler import AsyncScheduler
 from UnleashClient.cache import FileCache
 from UnleashClient.clients.async_unleash_client import AsyncUnleashClient
 from UnleashClient.constants import FEATURES_URL
 from UnleashClient.metrics_reporter import MetricsReporter
+from UnleashClient.scheduler import Scheduler
 from UnleashClient.utils import InstanceAllowType
 
 
@@ -202,33 +204,20 @@ def test_both_clients_load_the_same_state(tmpdir):
         sync_client.destroy()
 
 
-def test_both_clients_build_the_same_kind_of_scheduler(tmpdir):
-    sync_client = UnleashClient(
-        URL, APP_NAME, disable_metrics=True, disable_registration=True
-    )
-    try:
-        async_client = build_async_client(tmpdir, url=URL, app_name=APP_NAME)
+def test_the_async_client_gets_the_async_scheduler(tmpdir):
+    # Its jobs run on the client's event loop, so a job body can await. The
+    # APScheduler-backed scheduler runs them on worker threads, which cannot.
+    client = build_async_client(tmpdir, url=URL, app_name=APP_NAME)
 
-        assert type(async_client._scheduler) is type(sync_client._scheduler)
-    finally:
-        sync_client.destroy()
+    assert isinstance(client._scheduler, AsyncScheduler)
+    assert not isinstance(client._scheduler, Scheduler)
 
 
-def test_the_async_client_gets_its_own_scheduler(tmpdir):
-    sync_client = UnleashClient(
-        URL, APP_NAME, disable_metrics=True, disable_registration=True
-    )
-    try:
-        async_client = build_async_client(tmpdir, url=URL, app_name=APP_NAME)
+def test_each_async_client_gets_its_own_scheduler(tmpdir):
+    first = build_async_client(tmpdir, url=URL, app_name=APP_NAME)
+    second = build_async_client(tmpdir, url=URL, app_name=APP_NAME)
 
-        assert async_client._scheduler is not sync_client._scheduler
-        assert async_client._scheduler.scheduler is not sync_client._scheduler.scheduler
-        assert (
-            async_client._scheduler.executor_name
-            != sync_client._scheduler.executor_name
-        )
-    finally:
-        sync_client.destroy()
+    assert first._scheduler is not second._scheduler
 
 
 def test_the_async_client_can_register_and_cancel_a_job(tmpdir):
@@ -240,7 +229,7 @@ def test_the_async_client_can_register_and_cancel_a_job(tmpdir):
     client._scheduler.cancel(job)
 
     assert job is not None
-    assert client._scheduler.scheduler.get_jobs() == []
+    assert client._scheduler.jobs == ()
 
 
 def test_constructing_the_async_client_does_not_start_the_scheduler(tmpdir):
@@ -248,7 +237,7 @@ def test_constructing_the_async_client_does_not_start_the_scheduler(tmpdir):
     # __init__ but only started by initialize_client().
     client = build_async_client(tmpdir, url=URL, app_name=APP_NAME)
 
-    assert not client._scheduler.scheduler.running
+    assert not client._scheduler.running
 
 
 def test_async_client_builds_a_transport_over_its_config_and_headers(tmpdir):
@@ -422,7 +411,7 @@ def test_constructing_the_async_client_starts_no_metrics_task(tmpdir):
     client = build_async_client(tmpdir, url=URL, app_name=APP_NAME)
 
     assert client._metrics._task is None
-    assert client._scheduler.scheduler.get_jobs() == []
+    assert client._scheduler.jobs == ()
 
 
 def duplicate_warnings(caplog) -> list:
