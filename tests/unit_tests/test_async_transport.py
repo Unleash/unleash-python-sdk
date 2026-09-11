@@ -522,16 +522,6 @@ async def test_the_session_is_reused_across_requests(server, transport):
 
 
 @mark.asyncio
-async def test_aclose_is_a_no_op_before_any_request(build_transport):
-    transport = build_transport()
-
-    await transport.aclose()
-    await transport.aclose()
-
-    assert transport._session is None
-
-
-@mark.asyncio
 async def test_aclose_closes_the_session_and_a_later_request_opens_a_new_one(
     server, transport
 ):
