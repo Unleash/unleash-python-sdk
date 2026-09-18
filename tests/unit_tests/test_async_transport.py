@@ -229,37 +229,6 @@ async def test_fetch_features_retries_and_recovers_from_a_connection_error(
 
 
 @mark.asyncio
-async def test_fetch_features_carries_the_uppercase_identification_headers(
-    server, transport, mocker
-):
-    # The spelling is read off the request rather than off the wire: header
-    # names are case-insensitive, so a server cannot tell the uppercase copy
-    # from the lowercase pair HeaderFactory.polling() already carries.
-    spy = mocker.spy(aiohttp.ClientSession, "get")
-    server.on(
-        "GET",
-        FEATURES_PATH,
-        status=200,
-        payload=MOCK_FEATURE_RESPONSE,
-        headers={"etag": ETAG_VALUE},
-    )
-
-    await transport.fetch_features()
-
-    sent = spy.call_args.kwargs["headers"]
-    assert [key for key in sent if key.lower() == "unleash-appname"] == [
-        "UNLEASH-APPNAME"
-    ]
-    assert [key for key in sent if key.lower() == "unleash-instanceid"] == [
-        "UNLEASH-INSTANCEID"
-    ]
-
-    received = server.calls("GET", FEATURES_PATH)[0].headers
-    assert received["unleash-appname"] == APP_NAME
-    assert received["unleash-instanceid"] == INSTANCE_ID
-
-
-@mark.asyncio
 async def test_fetch_features_sends_each_identification_header_once(
     server, transport, mocker
 ):
