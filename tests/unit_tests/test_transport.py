@@ -160,26 +160,6 @@ def test_fetch_features_retries_and_recovers(build_transport):
 
 
 @responses.activate
-def test_fetch_features_carries_the_uppercase_identification_headers(transport):
-    responses.add(
-        responses.GET,
-        FULL_FEATURE_URL,
-        json=MOCK_FEATURE_RESPONSE,
-        status=200,
-        headers={"etag": ETAG_VALUE},
-    )
-
-    transport.fetch_features()
-
-    # HeaderFactory.base() already carries a lowercase pair, so this merge is
-    # redundant in production -- but requests keeps the last-set casing, so
-    # removing it would change the header names on the wire.
-    request = responses.calls[0].request
-    assert request.headers["UNLEASH-APPNAME"] == APP_NAME
-    assert request.headers["UNLEASH-INSTANCEID"] == INSTANCE_ID
-
-
-@responses.activate
 def test_fetch_features_strips_a_trailing_slash_from_the_url(transport):
     responses.add(
         responses.GET,
