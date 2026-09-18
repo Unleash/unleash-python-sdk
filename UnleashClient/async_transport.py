@@ -9,7 +9,7 @@ from multidict import CIMultiDict
 from UnleashClient.config import UnleashConfig
 from UnleashClient.constants import FEATURES_URL, METRICS_URL, REGISTER_URL
 from UnleashClient.headers import HeaderFactory
-from UnleashClient.transport import FetchResult, normalized_url
+from UnleashClient.transport import FetchResult, _normalized_url
 from UnleashClient.utils import LOGGER
 
 try:
@@ -145,7 +145,7 @@ class AsyncTransport:
             if etag:
                 headers["If-None-Match"] = etag
 
-            base_url = normalized_url(config.url, FEATURES_URL)
+            base_url = _normalized_url(config.url, FEATURES_URL)
             base_params = {}
 
             if config.project_name:
@@ -218,7 +218,7 @@ class AsyncTransport:
             # No retry loop, matching the sync register: only fetch_features
             # mounts the retry adapter.
             async with session.post(
-                normalized_url(config.url, REGISTER_URL),
+                _normalized_url(config.url, REGISTER_URL),
                 data=json.dumps(payload),
                 headers=self._headers.base(),
                 timeout=self._timeout(),
@@ -267,7 +267,7 @@ class AsyncTransport:
 
             session = await self._get_session()
             async with session.post(
-                normalized_url(config.url, METRICS_URL),
+                _normalized_url(config.url, METRICS_URL),
                 data=json.dumps(payload),
                 headers=self._headers.metrics(),
                 timeout=self._timeout(),
