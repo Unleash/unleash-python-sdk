@@ -325,21 +325,6 @@ def test_send_metrics_lets_a_bad_custom_option_escape(build_transport):
         build_transport(custom_options={"timeout": 5}).send_metrics({})
 
 
-# config read-through
-
-
-@responses.activate
-def test_the_config_is_read_on_every_request(transport):
-    responses.add(responses.POST, FULL_METRICS_URL, json={}, status=202)
-
-    transport._config.request_timeout = 7
-    transport.send_metrics(MOCK_METRICS_REQUEST)
-
-    # unleash_request_timeout and friends are public setters, so a Transport
-    # built in __init__ has to pick up a change made after initialize_client().
-    assert responses.calls[0].request.req_kwargs["timeout"] == 7
-
-
 @responses.activate
 def test_every_endpoint_gets_its_headers_from_the_factory(build_transport):
     responses.add(

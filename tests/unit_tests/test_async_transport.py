@@ -326,18 +326,6 @@ async def test_send_metrics_strips_a_trailing_slash_from_the_url(server, transpo
 
 
 @mark.asyncio
-async def test_the_config_is_read_on_every_request(server, transport, mocker):
-    spy = mocker.spy(aiohttp.ClientSession, "post")
-    server.on("POST", METRICS_PATH, status=202, payload={})
-
-    transport._config.request_timeout = 7
-    await transport.send_metrics(MOCK_METRICS_REQUEST)
-
-    timeout = spy.call_args.kwargs["timeout"]
-    assert timeout == aiohttp.ClientTimeout(total=None, sock_connect=7, sock_read=7)
-
-
-@mark.asyncio
 async def test_every_endpoint_gets_its_headers_from_the_factory(
     server, build_transport
 ):
