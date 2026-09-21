@@ -45,18 +45,8 @@ async def _log_resp_info(resp: "aiohttp.ClientResponse") -> None:
 
 class AsyncTransport:
     """
-    The asyncio twin of :class:`UnleashClient.transport.Transport`, and the
-    async half of the one colored leaf in the SDK.
+    The asyncio twin of :class:`UnleashClient.transport.Transport`.
 
-    It matches ``Transport`` method for method and returns the same
-    :class:`~UnleashClient.transport.FetchResult`, so everything downstream of a
-    request -- :class:`~UnleashClient.store.FeatureStore`, the payload builders,
-    the :class:`~UnleashClient.headers.HeaderFactory` -- is shared rather than
-    duplicated. ``aclose()`` is the one method with no sync counterpart.
-
-    Like ``Transport``, it reads the config and asks the header factory on every
-    request rather than capturing either, because the ``unleash_*`` properties
-    that back them are public and writable.
 
     An important difference from the sync client is that this class has to hand
     roll retries.
