@@ -30,6 +30,7 @@ from UnleashClient.constants import (
     REGISTER_URL,
 )
 from UnleashClient.headers import HeaderFactory
+from UnleashClient.transport import AlreadyClosedError
 
 API_PREFIX = "/api"
 FEATURES_PATH = API_PREFIX + FEATURES_URL
@@ -376,19 +377,27 @@ async def test_the_session_is_reused_across_requests(server, transport):
 
 
 @mark.asyncio
-async def test_aclose_closes_the_session_and_a_later_request_opens_a_new_one(
-    server, transport
-):
-    server.on("POST", METRICS_PATH, status=202, payload={}, repeat=True)
-
-    await transport.send_metrics(MOCK_METRICS_REQUEST)
-    first = transport._session
+@mark.parametrize(
+    "call",
+    (
+        param(lambda transport: transport.fetch_features(), id="fetch_features"),
+        param(lambda transport: transport.register({}), id="register"),
+        param(
+            lambda transport: transport.send_metrics(MOCK_METRICS_REQUEST),
+            id="send_metrics",
+        ),
+    ),
+)
+async def test_a_closed_transport_refuses_every_request(server, transport, call):
     await transport.aclose()
 
-    assert first.closed
-    assert transport._session is None
+    with pytest.raises(AlreadyClosedError):
+        await call(transport)
 
-    await transport.send_metrics(MOCK_METRICS_REQUEST)
+    assert server.requests == []
 
-    assert transport._session is not None
-    assert transport._session is not first
+
+@mark.asyncio
+async def test_closing_a_closed_transport_does_nothing(transport):
+    await transport.aclose()
+    await transport.aclose()

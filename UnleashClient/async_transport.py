@@ -2,12 +2,13 @@
 
 import asyncio
 import json
+import threading
 from typing import Any, Dict, Optional
 
 from UnleashClient.config import UnleashConfig
 from UnleashClient.constants import FEATURES_URL, METRICS_URL, REGISTER_URL
 from UnleashClient.headers import HeaderFactory
-from UnleashClient.transport import FetchResult, _normalized_url
+from UnleashClient.transport import AlreadyClosedError, FetchResult, _normalized_url
 from UnleashClient.utils import LOGGER
 
 try:
@@ -58,6 +59,12 @@ class AsyncTransport:
         self._config: UnleashConfig = config
         self._headers: HeaderFactory = headers
         self._session: Optional["aiohttp.ClientSession"] = None
+        self._is_closed: bool = False
+        self._close_lock = threading.Lock()
+
+    def _raise_if_closed(self) -> None:
+        if self._is_closed:
+            raise AlreadyClosedError()
 
     async def _get_session(self) -> "aiohttp.ClientSession":
         if self._session is None or self._session.closed:
@@ -76,14 +83,18 @@ class AsyncTransport:
 
     async def aclose(self) -> None:
         """
-        Close the pooled session, if one was ever opened.
+        Close the pooled session and put the transport out of service.
 
-        Nothing calls this yet -- ``AsyncUnleashClient.destroy()`` is still
-        unimplemented, and closing is its job when it lands. Until then every
-        caller that makes a request owns the close, or aiohttp logs an unclosed
-        session on garbage collection.
+        Every later request raises :class:`AlreadyClosedError`. Closing a
+        transport that is already closed does nothing.
         """
-        session, self._session = self._session, None
+        with self._close_lock:
+            if self._is_closed:
+                return
+
+            self._is_closed = True
+            session, self._session = self._session, None
+
         if session is not None and not session.closed:
             await session.close()
 
@@ -94,11 +105,15 @@ class AsyncTransport:
         """
         Fetch feature state, sending ``If-None-Match`` when an etag is known.
 
-        Never raises. Any failure is logged and returned as an empty
-        result, so a polling job can keep running against a server that is down.
+        :class:`AlreadyClosedError` is the only error this raises. Every other
+        failure is logged and returned as an empty result, so a polling job can
+        keep running against a server that is down.
 
         :param etag: the cached etag, or "" to fetch unconditionally.
+        :raises AlreadyClosedError: if the transport has been closed.
         """
+        self._raise_if_closed()
+
         config = self._config
         try:
             LOGGER.info("Getting feature flags.")
@@ -170,7 +185,10 @@ class AsyncTransport:
 
         :param payload: as built by
                         :func:`UnleashClient.payloads.build_register_payload`.
+        :raises AlreadyClosedError: if the transport has been closed.
         """
+        self._raise_if_closed()
+
         config = self._config
         try:
             LOGGER.info("Registering unleash client with unleash @ %s", config.url)
@@ -218,7 +236,10 @@ class AsyncTransport:
         the caller's impact-metrics restore path keys off.
 
         :param payload: the metrics request body.
+        :raises AlreadyClosedError: if the transport has been closed.
         """
+        self._raise_if_closed()
+
         config = self._config
         try:
             LOGGER.info("Sending messages to with unleash @ %s", config.url)
