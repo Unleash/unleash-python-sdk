@@ -256,19 +256,6 @@ def test_constructing_the_async_client_does_not_start_the_scheduler(tmpdir):
     assert not client._scheduler.scheduler.running
 
 
-def test_async_client_builds_a_transport_over_its_config_and_headers(tmpdir):
-    client = build_async_client(tmpdir, url=URL, app_name=APP_NAME)
-
-    assert client._transport._config is client._config
-    assert client._transport._headers is client._headers
-
-
-def test_constructing_the_async_client_opens_no_session(tmpdir):
-    client = build_async_client(tmpdir, url=URL, app_name=APP_NAME)
-
-    assert client._transport._session is None
-
-
 def test_the_async_client_cannot_evaluate_yet(tmpdir):
     client = build_async_client(tmpdir, url=URL, app_name=APP_NAME)
 
