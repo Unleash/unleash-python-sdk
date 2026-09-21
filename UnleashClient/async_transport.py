@@ -103,7 +103,7 @@ class AsyncTransport:
         """
         config = self._config
         try:
-            LOGGER.info("Getting feature flag.")
+            LOGGER.info("Getting feature flags.")
 
             # A CIMultiDict rather than a dict: the uppercase pair below
             # collides with the lowercase one HeaderFactory.base() already
