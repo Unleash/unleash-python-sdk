@@ -4,8 +4,6 @@ import asyncio
 import json
 from typing import Any, Dict, Optional
 
-from multidict import CIMultiDict
-
 from UnleashClient.config import UnleashConfig
 from UnleashClient.constants import FEATURES_URL, METRICS_URL, REGISTER_URL
 from UnleashClient.headers import HeaderFactory
@@ -105,22 +103,7 @@ class AsyncTransport:
         try:
             LOGGER.info("Getting feature flags.")
 
-            # A CIMultiDict rather than a dict: the uppercase pair below
-            # collides with the lowercase one HeaderFactory.base() already
-            # carries, and aiohttp would put *both* spellings on the wire where
-            # requests folds them into one. Updating a CIMultiDict replaces,
-            # which is the behaviour the sync transport has always had.
-            headers = CIMultiDict(self._headers.polling())
-
-            # The features endpoint has always been sent an uppercase copy of
-            # the two identification headers. It stays here rather than in
-            # polling() because it is a quirk of this one endpoint.
-            headers.update(
-                {
-                    "UNLEASH-APPNAME": config.app_name,
-                    "UNLEASH-INSTANCEID": config.instance_id,
-                }
-            )
+            headers = self._headers.polling()
 
             if etag:
                 headers["If-None-Match"] = etag
