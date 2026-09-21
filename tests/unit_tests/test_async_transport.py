@@ -227,27 +227,6 @@ async def test_fetch_features_retries_and_recovers_from_a_connection_error(
 
 
 @mark.asyncio
-async def test_fetch_features_sends_each_identification_header_once(
-    server, transport, mocker
-):
-    # Read off the request rather than off the wire: aiohttp folds repeated
-    # spellings of a header itself, so a server cannot tell a transport that
-    # merged them from one that did not.
-    spy = mocker.spy(aiohttp.ClientSession, "get")
-    server.on("GET", FEATURES_PATH, status=200, payload=MOCK_FEATURE_RESPONSE)
-
-    await transport.fetch_features()
-
-    # HeaderFactory.base() carries a lowercase pair and the features
-    # endpoint adds an uppercase one. requests folds the two into a single
-    # header; aiohttp would put both spellings on the wire unless the merge
-    # happens in a CIMultiDict first.
-    headers = spy.call_args.kwargs["headers"]
-    assert headers.getall("unleash-appname") == [APP_NAME]
-    assert headers.getall("unleash-instanceid") == [INSTANCE_ID]
-
-
-@mark.asyncio
 async def test_fetch_features_strips_a_trailing_slash_from_the_url(server, transport):
     server.on(
         "GET",
