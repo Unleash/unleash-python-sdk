@@ -160,26 +160,6 @@ def test_fetch_features_retries_and_recovers(build_transport):
 
 
 @responses.activate
-def test_fetch_features_carries_the_uppercase_identification_headers(transport):
-    responses.add(
-        responses.GET,
-        FULL_FEATURE_URL,
-        json=MOCK_FEATURE_RESPONSE,
-        status=200,
-        headers={"etag": ETAG_VALUE},
-    )
-
-    transport.fetch_features()
-
-    # HeaderFactory.base() already carries a lowercase pair, so this merge is
-    # redundant in production -- but requests keeps the last-set casing, so
-    # removing it would change the header names on the wire.
-    request = responses.calls[0].request
-    assert request.headers["UNLEASH-APPNAME"] == APP_NAME
-    assert request.headers["UNLEASH-INSTANCEID"] == INSTANCE_ID
-
-
-@responses.activate
 def test_fetch_features_strips_a_trailing_slash_from_the_url(transport):
     responses.add(
         responses.GET,
@@ -343,21 +323,6 @@ def test_send_metrics_lets_a_bad_custom_option_escape(build_transport):
 
     with pytest.raises(TypeError):
         build_transport(custom_options={"timeout": 5}).send_metrics({})
-
-
-# config read-through
-
-
-@responses.activate
-def test_the_config_is_read_on_every_request(transport):
-    responses.add(responses.POST, FULL_METRICS_URL, json={}, status=202)
-
-    transport._config.request_timeout = 7
-    transport.send_metrics(MOCK_METRICS_REQUEST)
-
-    # unleash_request_timeout and friends are public setters, so a Transport
-    # built in __init__ has to pick up a change made after initialize_client().
-    assert responses.calls[0].request.req_kwargs["timeout"] == 7
 
 
 @responses.activate

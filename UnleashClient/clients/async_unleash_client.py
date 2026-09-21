@@ -1,16 +1,22 @@
 """
 Asynchronous Unleash client.
 
-Work in progress.  This class currently only builds the collaborators it
-shares with :class:`UnleashClient.clients.unleash_client.UnleashClient`; it
-performs no network I/O and is not exported from the package root.  See
+Work in progress.  This class builds the collaborators it shares with
+:class:`UnleashClient.clients.unleash_client.UnleashClient`, plus its own
+:class:`~UnleashClient.async_transport.AsyncTransport`.  Nothing calls that
+transport yet, so constructing the client still performs no I/O and opens no
+session, and the class is not exported from the package root.  See
 ``docs/object-composition.md``.
+
+Importing this module requires the optional ``aiohttp`` dependency:
+``pip install UnleashClient[async]``.
 """
 
 from typing import Callable, Optional
 
 from yggdrasil_engine.engine import UnleashEngine
 
+from UnleashClient.async_transport import AsyncTransport
 from UnleashClient.cache import BaseCache, FileCache
 from UnleashClient.config import ExperimentalMode, UnleashConfig
 from UnleashClient.constants import REQUEST_RETRIES, REQUEST_TIMEOUT
@@ -89,6 +95,7 @@ class AsyncUnleashClient:
         self._store: FeatureStore = FeatureStore(
             engine=self._engine, cache=self._cache, events=self._event_dispatcher
         )
+        self._transport: AsyncTransport = AsyncTransport(self._config, self._headers)
         self._scheduler: Scheduler = Scheduler()
 
     async def initialize_client(self) -> None:

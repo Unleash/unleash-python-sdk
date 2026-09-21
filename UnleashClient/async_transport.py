@@ -1,0 +1,271 @@
+"""Asynchronous HTTP transport, for the async Unleash client."""
+
+import asyncio
+import json
+import threading
+from typing import Any, Dict, Optional
+
+from UnleashClient.config import UnleashConfig
+from UnleashClient.constants import FEATURES_URL, METRICS_URL, REGISTER_URL
+from UnleashClient.headers import HeaderFactory
+from UnleashClient.transport import AlreadyClosedError, FetchResult, _normalized_url
+from UnleashClient.utils import LOGGER
+
+try:
+    import aiohttp
+except ImportError as exc:  # pragma: no cover
+    raise ImportError(
+        "AsyncUnleashClient requires aiohttp, which is not installed. "
+        "Install it with: pip install UnleashClient[async]"
+    ) from exc
+
+
+# The statuses urllib3's Retry is given in Transport.fetch_features.
+RETRY_STATUSES = frozenset({500, 502, 504})
+
+# What a retry is worth attempting for. Deliberately narrower than
+# aiohttp.ClientError: InvalidUrlClientError and NonHttpUrlClientError also
+# subclass it, and a malformed url is not going to fix itself on attempt two.
+RETRYABLE_ERRORS = (aiohttp.ClientConnectionError, asyncio.TimeoutError)
+
+# The two aiohttp raises for a url it cannot use at all -- the analogue of the
+# requests quartet Transport.register re-raises. Both subclass ClientError, so
+# they have to be caught ahead of it. aiohttp has no InvalidHeader: an illegal
+# header surfaces as a bare ValueError, which is not a ClientError and so
+# escapes register() without a clause of its own.
+FATAL_URL_ERRORS = (aiohttp.InvalidURL, aiohttp.NonHttpUrlClientError)
+
+
+async def _log_resp_info(resp: "aiohttp.ClientResponse") -> None:
+    LOGGER.debug("HTTP status code: %s", resp.status)
+    LOGGER.debug("HTTP headers: %s", resp.headers)
+    LOGGER.debug("HTTP content: %s", await resp.text())
+
+
+class AsyncTransport:
+    """
+    The asyncio twin of :class:`UnleashClient.transport.Transport`.
+
+
+    An important difference from the sync client is that this class has to hand
+    roll retries.
+    """
+
+    def __init__(self, config: UnleashConfig, headers: HeaderFactory) -> None:
+        """
+        :param config: read for the url, timeouts, retries and project.
+        :param headers: builds the header set each request needs.
+        """
+        self._config: UnleashConfig = config
+        self._headers: HeaderFactory = headers
+        self._session: Optional["aiohttp.ClientSession"] = None
+        self._is_closed: bool = False
+        self._close_lock = threading.Lock()
+
+    def _raise_if_closed(self) -> None:
+        if self._is_closed:
+            raise AlreadyClosedError()
+
+    async def _get_session(self) -> "aiohttp.ClientSession":
+        if self._session is None or self._session.closed:
+            self._session = aiohttp.ClientSession()
+        return self._session
+
+    def _timeout(self) -> "aiohttp.ClientTimeout":
+        # sock_connect/sock_read rather than total, because requests' scalar
+        # timeout bounds each socket operation and not the whole request. Under
+        # `total` a large feature payload over a slow but healthy link would
+        # start failing at a request_timeout that works today.
+        seconds = self._config.request_timeout
+        return aiohttp.ClientTimeout(
+            total=None, sock_connect=seconds, sock_read=seconds
+        )
+
+    async def aclose(self) -> None:
+        """
+        Close the pooled session and put the transport out of service.
+
+        Every later request raises :class:`AlreadyClosedError`. Closing a
+        transport that is already closed does nothing.
+        """
+        with self._close_lock:
+            if self._is_closed:
+                return
+
+            self._is_closed = True
+            session, self._session = self._session, None
+
+        if session is not None and not session.closed:
+            await session.close()
+
+    # pylint: disable=broad-except
+    # TODO: narrow the except clause to the same set of errors the sync transport
+    # so TransportError becomes part of the API of transports.
+    async def fetch_features(self, etag: str = "") -> FetchResult:
+        """
+        Fetch feature state, sending ``If-None-Match`` when an etag is known.
+
+        :class:`AlreadyClosedError` is the only error this raises. Every other
+        failure is logged and returned as an empty result, so a polling job can
+        keep running against a server that is down.
+
+        :param etag: the cached etag, or "" to fetch unconditionally.
+        :raises AlreadyClosedError: if the transport has been closed.
+        """
+        self._raise_if_closed()
+
+        config = self._config
+        try:
+            LOGGER.info("Getting feature flags.")
+
+            headers = self._headers.polling()
+
+            if etag:
+                headers["If-None-Match"] = etag
+
+            base_url = _normalized_url(config.url, FEATURES_URL)
+            base_params = {}
+
+            if config.project_name:
+                base_params = {"project": config.project_name}
+
+            session = await self._get_session()
+            # aiohttp has no equivalent of the HTTPAdapter/Retry the sync
+            # transport mounts, so the loop is here. urllib3's Retry defaults to
+            # backoff_factor=0, so neither path sleeps between attempts.
+            attempts = 1 + max(config.request_retries, 0)
+
+            for attempt in range(attempts):
+                last_attempt = attempt == attempts - 1
+                try:
+                    async with session.get(
+                        base_url,
+                        headers=headers,
+                        params=base_params,
+                        timeout=self._timeout(),
+                    ) as resp:
+                        if resp.status in RETRY_STATUSES and not last_attempt:
+                            continue
+
+                        if resp.status not in [200, 304]:
+                            await _log_resp_info(resp)
+                            LOGGER.warning(
+                                "Unleash Client feature fetch failed due to unexpected HTTP status code: %s",
+                                resp.status,
+                            )
+                            raise Exception(  # pylint: disable=broad-exception-raised
+                                "Unleash Client feature fetch failed!"
+                            )
+
+                        fetched_etag = resp.headers.get("etag", "")
+
+                        if resp.status == 304:
+                            return FetchResult(None, fetched_etag, not_modified=True)
+
+                        return FetchResult(await resp.text(), fetched_etag)
+                except RETRYABLE_ERRORS:
+                    if last_attempt:
+                        raise
+        except Exception as exc:
+            LOGGER.exception(
+                "Unleash Client feature fetch failed due to exception: %s", exc
+            )
+
+        return FetchResult(None, "")
+
+    async def register(self, payload: Dict[str, Any]) -> bool:
+        """
+        Register this client with the server.
+
+        Returns True on 200 or 202, False on any other status and on a general
+        ``ClientError``. Re-raises the two errors aiohttp uses for a url it
+        cannot make a request against at all, which is what makes
+        ``initialize_client()`` fail loudly on a malformed URL instead of
+        starting a client that can never reach the server.
+
+        :param payload: as built by
+                        :func:`UnleashClient.payloads.build_register_payload`.
+        :raises AlreadyClosedError: if the transport has been closed.
+        """
+        self._raise_if_closed()
+
+        config = self._config
+        try:
+            LOGGER.info("Registering unleash client with unleash @ %s", config.url)
+            LOGGER.info("Registration request information: %s", payload)
+
+            session = await self._get_session()
+            # No retry loop, matching the sync register: only fetch_features
+            # mounts the retry adapter.
+            async with session.post(
+                _normalized_url(config.url, REGISTER_URL),
+                data=json.dumps(payload),
+                headers=self._headers.base(),
+                timeout=self._timeout(),
+            ) as resp:
+                if resp.status not in {200, 202}:
+                    await _log_resp_info(resp)
+                    LOGGER.warning(
+                        "Unleash Client registration failed due to unexpected HTTP status code: %s",
+                        resp.status,
+                    )
+                    return False
+
+                LOGGER.info("Unleash Client successfully registered!")
+
+                return True
+        # Ahead of the ClientError clause below: both subclass it, and Python
+        # matches the first clause that fits.
+        except FATAL_URL_ERRORS as exc:
+            LOGGER.exception(
+                "Unleash Client registration failed fatally due to exception: %s", exc
+            )
+            raise exc
+        except aiohttp.ClientError as exc:
+            LOGGER.exception(
+                "Unleash Client registration failed due to exception: %s", exc
+            )
+
+        return False
+
+    async def send_metrics(self, payload: Dict[str, Any]) -> bool:
+        """
+        Send one metrics bucket.
+
+        Returns True only on 202; every other status is a failure, which is what
+        the caller's impact-metrics restore path keys off.
+
+        :param payload: the metrics request body.
+        :raises AlreadyClosedError: if the transport has been closed.
+        """
+        self._raise_if_closed()
+
+        config = self._config
+        try:
+            LOGGER.info("Sending messages to with unleash @ %s", config.url)
+            LOGGER.info("unleash metrics information: %s", payload)
+
+            session = await self._get_session()
+            async with session.post(
+                _normalized_url(config.url, METRICS_URL),
+                data=json.dumps(payload),
+                headers=self._headers.metrics(),
+                timeout=self._timeout(),
+            ) as resp:
+                if resp.status != 202:
+                    await _log_resp_info(resp)
+                    LOGGER.warning(
+                        "Unleash Client metrics submission due to unexpected HTTP status code: %s",
+                        resp.status,
+                    )
+                    return False
+
+                LOGGER.info("Unleash Client metrics successfully sent!")
+
+                return True
+        except aiohttp.ClientError as exc:
+            LOGGER.warning(
+                "Unleash Client metrics submission failed due to exception: %s", exc
+            )
+
+        return False

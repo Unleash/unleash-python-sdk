@@ -27,6 +27,17 @@ class FetchResult(NamedTuple):
     not_modified: bool = False
 
 
+class AlreadyClosedError(Exception):
+    """
+    Raised on any use of a transport or client that has already been closed.
+
+    :param message: What was used after being closed.
+    """
+
+    def __init__(self, message: str = "cannot use a closed transport") -> None:
+        super().__init__(message)
+
+
 def _normalized_url(url: str, path: str) -> str:
     # config.url can carry a trailing slash: the UnleashClient.unleash_url setter
     # writes it without re-normalizing.
