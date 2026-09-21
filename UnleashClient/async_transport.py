@@ -58,22 +58,13 @@ class AsyncTransport:
     request rather than capturing either, because the ``unleash_*`` properties
     that back them are public and writable.
 
-    Two things differ from the sync class, both forced by aiohttp:
-
-    - ``custom_options`` are ``requests`` keyword arguments and do not transfer.
-      ``verify``, ``cert`` and ``proxies`` all raise ``TypeError`` here; the
-      aiohttp spellings are ``ssl`` and ``proxy``.
-    - One pooled ``ClientSession`` is held rather than a session per request,
-      and it is built on first use, not in ``__init__`` -- aiohttp resolves the
-      running loop eagerly, and ``AsyncUnleashClient.__init__`` is synchronous.
-      That binds a transport to whichever loop first used it, and makes
-      ``aclose()`` an obligation on the caller.
+    An important difference from the sync client is that this class has to hand
+    roll retries.
     """
 
     def __init__(self, config: UnleashConfig, headers: HeaderFactory) -> None:
         """
-        :param config: read for the url, timeouts, retries, project and custom
-                       options.
+        :param config: read for the url, timeouts, retries and project.
         :param headers: builds the header set each request needs.
         """
         self._config: UnleashConfig = config
@@ -115,8 +106,7 @@ class AsyncTransport:
         """
         Fetch feature state, sending ``If-None-Match`` when an etag is known.
 
-        Never raises. Any failure -- an unexpected status, a connection error, a
-        bad key in ``custom_options`` -- is logged and returned as an empty
+        Never raises. Any failure is logged and returned as an empty
         result, so a polling job can keep running against a server that is down.
 
         :param etag: the cached etag, or "" to fetch unconditionally.
@@ -165,7 +155,6 @@ class AsyncTransport:
                         headers=headers,
                         params=base_params,
                         timeout=self._timeout(),
-                        **config.custom_options,
                     ) as resp:
                         if resp.status in RETRY_STATUSES and not last_attempt:
                             continue
@@ -222,7 +211,6 @@ class AsyncTransport:
                 data=json.dumps(payload),
                 headers=self._headers.base(),
                 timeout=self._timeout(),
-                **config.custom_options,
             ) as resp:
                 if resp.status not in {200, 202}:
                     await _log_resp_info(resp)
@@ -254,9 +242,7 @@ class AsyncTransport:
         Send one metrics bucket.
 
         Returns True only on 202; every other status is a failure, which is what
-        the caller's impact-metrics restore path keys off. Catches only
-        ``ClientError``, so a bad key in ``custom_options`` still surfaces as a
-        ``TypeError`` to the caller rather than being reported as a failed send.
+        the caller's impact-metrics restore path keys off.
 
         :param payload: the metrics request body.
         """
@@ -271,7 +257,6 @@ class AsyncTransport:
                 data=json.dumps(payload),
                 headers=self._headers.metrics(),
                 timeout=self._timeout(),
-                **config.custom_options,
             ) as resp:
                 if resp.status != 202:
                     await _log_resp_info(resp)

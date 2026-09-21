@@ -14,7 +14,6 @@ from tests.utilities.mocks.mock_features import (
 from tests.utilities.mocks.mock_metrics import MOCK_METRICS_REQUEST
 from tests.utilities.testing_constants import (
     APP_NAME,
-    ASYNC_CUSTOM_OPTIONS,
     CUSTOM_HEADERS,
     ETAG_VALUE,
     INSTANCE_ID,
@@ -67,7 +66,6 @@ async def build_transport(server: FakeUnleash):
         defaults = {
             "instance_id": INSTANCE_ID,
             "custom_headers": CUSTOM_HEADERS,
-            "custom_options": ASYNC_CUSTOM_OPTIONS,
             "request_timeout": REQUEST_TIMEOUT,
             "request_retries": REQUEST_RETRIES,
         }
@@ -269,20 +267,6 @@ async def test_fetch_features_strips_a_trailing_slash_from_the_url(server, trans
     assert result.etag == ETAG_VALUE
 
 
-@mark.asyncio
-async def test_fetch_features_swallows_a_bad_custom_option(server, build_transport):
-    transport = build_transport(custom_options={"verify": False})
-    server.on("GET", FEATURES_PATH, status=200, payload=MOCK_FEATURE_RESPONSE)
-
-    # `verify` is a requests keyword; aiohttp rejects it while binding the
-    # call. It is a TypeError, not a ClientError, and fetch_features
-    # swallows everything.
-    result = await transport.fetch_features()
-
-    assert result == (None, "", False)
-    assert server.calls("GET", FEATURES_PATH) == []
-
-
 # register
 
 
@@ -354,17 +338,6 @@ async def test_register_reraises_a_missing_scheme_as_a_value_error(transport):
         await transport.register({})
 
 
-@mark.asyncio
-async def test_register_lets_a_bad_custom_option_escape(server, build_transport):
-    transport = build_transport(custom_options={"verify": False})
-    server.on("POST", REGISTER_PATH, status=202, payload={})
-
-    # A TypeError is not a ClientError, so unlike fetch_features this
-    # propagates and fails initialize_client().
-    with pytest.raises(TypeError):
-        await transport.register({})
-
-
 # send_metrics
 
 
@@ -400,15 +373,6 @@ async def test_send_metrics_strips_a_trailing_slash_from_the_url(server, transpo
 
     assert len(server.calls("POST", METRICS_PATH)) == 1
     assert result is True
-
-
-@mark.asyncio
-async def test_send_metrics_lets_a_bad_custom_option_escape(server, build_transport):
-    transport = build_transport(custom_options={"verify": False})
-    server.on("POST", METRICS_PATH, status=202, payload={})
-
-    with pytest.raises(TypeError):
-        await transport.send_metrics({})
 
 
 # config read-through
