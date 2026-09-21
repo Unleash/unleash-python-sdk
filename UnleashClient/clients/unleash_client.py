@@ -470,10 +470,6 @@ class UnleashClient:
             try:
                 start_scheduler = False
 
-                # Ahead of the app registration, so a malformed strategy fails
-                # before any request goes out.  The engine joins implementations
-                # to definitions at evaluation time, so this need not precede
-                # take_state.
                 if self._config.custom_strategies:
                     self._engine.register_custom_strategies(
                         self._config.custom_strategies

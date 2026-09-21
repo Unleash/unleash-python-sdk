@@ -26,8 +26,6 @@ VARIANT_FLAG = "testVariations"
 
 
 class FailingDispatcher:
-    """A dispatcher whose delivery is broken."""
-
     def emit_event(self, event):
         raise RuntimeError("dispatcher is broken")
 
@@ -61,9 +59,7 @@ def test_is_enabled_enriches_the_context_before_asking_the_engine():
     evaluator = build_evaluator()
     before_the_deadline = datetime(2020, 1, 1, tzinfo=timezone.utc)
 
-    # testConstraintFlag is gated on currentTime being before 2022-01-22, and the
-    # engine only understands that as a string: passing a datetime works because
-    # the enricher isoformatted it on the way through.
+    # testConstraintFlag is gated on currentTime being before 2022-01-22.
     assert (
         evaluator.is_enabled("testConstraintFlag", {"currentTime": before_the_deadline})
         is True
@@ -107,7 +103,6 @@ def test_get_variant_drops_the_variants_empty_fields():
 
     result = evaluator.get_variant("notAFlag")
 
-    # The engine reports payload=None on a miss; the public shape omits it.
     assert "payload" not in result.variant
 
 
@@ -160,7 +155,6 @@ def test_no_impression_event_for_a_flag_that_did_not_ask_for_one(dispatcher, rec
     evaluator.is_enabled(SILENT_FLAG)
     evaluator.is_enabled(IMPRESSION_FLAG)
 
-    # Waiting on the second call's event is what proves the first produced none.
     assert recorder.wait_for(UnleashEventType.FEATURE_FLAG) is not None
     assert len(recorder.of_type(UnleashEventType.FEATURE_FLAG)) == 1
 
@@ -185,8 +179,6 @@ def test_a_failing_dispatcher_does_not_break_evaluation(caplog):
 
 
 def test_the_verbose_log_level_is_read_on_every_call(caplog):
-    # UnleashClient.unleash_verbose_log_level has a setter, so a client can
-    # change it after the evaluator was constructed.
     config = UnleashConfig(URL, APP_NAME)
     engine = UnleashEngine()
     engine.take_state(FEATURES)

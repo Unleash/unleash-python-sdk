@@ -113,7 +113,6 @@ def test_empty_custom_dicts_become_fresh_dicts():
 
 
 def test_custom_strategies_are_not_copied():
-    # The client registers these objects on the engine as they were given.
     strategies = {"amIACat": object()}
     config = UnleashConfig(URL, APP_NAME, custom_strategies=strategies)
 

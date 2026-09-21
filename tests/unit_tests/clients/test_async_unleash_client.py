@@ -264,17 +264,12 @@ def test_async_client_builds_a_transport_over_its_config_and_headers(tmpdir):
 
 
 def test_constructing_the_async_client_opens_no_session(tmpdir):
-    # No event loop is running here, and none is needed: aiohttp resolves the
-    # loop when a ClientSession is built, so the transport has to defer that to
-    # the first request.
     client = build_async_client(tmpdir, url=URL, app_name=APP_NAME)
 
     assert client._transport._session is None
 
 
 def test_the_async_client_cannot_evaluate_yet(tmpdir):
-    # The evaluator is wired up, but nothing can load state into the engine
-    # until initialize_client() lands, so the public surface stays closed.
     client = build_async_client(tmpdir, url=URL, app_name=APP_NAME)
 
     with pytest.raises(NotImplementedError):
@@ -332,11 +327,9 @@ def test_both_clients_evaluate_identically(tmpdir):
         sync_client._store.load_from_cache()
         async_client._store.load_from_cache()
 
-        # Through the collaborator on both sides: the async client's own methods
-        # raise until initialization lands.
         context = {"userId": "2"}
-        # testFlag2 is a 50% gradualRolloutRandom, so it is left out: the two
-        # clients would disagree on it however identically they evaluate.
+        # testFlag2 is a 50% gradualRolloutRandom, so the two clients disagree
+        # on it however identically they evaluate.
         for feature_name in (
             "testFlag",
             "testConstraintFlag",

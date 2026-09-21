@@ -89,8 +89,6 @@ def test_uc_customstrategy_deprecation_error(tmp_path):
         cache_directory=str(tmp_path),
     )
 
-    # The strategies reach the engine at initialization, and registering them is
-    # what rejects a class that was handed over without being instantiated.
     try:
         with pytest.raises(ValueError):
             unleash_client.initialize_client()

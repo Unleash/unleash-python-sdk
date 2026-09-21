@@ -56,7 +56,6 @@ class UnleashConfig:
     sdk_flavor_version: Optional[str] = None
     experimental_mode: Optional[ExperimentalMode] = None
     connection_id: str = field(default_factory=lambda: str(uuid.uuid4()))
-    # Appended after connection_id so no existing positional argument shifts.
     custom_strategies: Optional[dict] = None
     static_context: Dict[str, Any] = field(init=False, default_factory=dict)
 

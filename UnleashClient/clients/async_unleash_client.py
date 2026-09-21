@@ -105,8 +105,6 @@ class AsyncUnleashClient:
         )
         self._transport: AsyncTransport = AsyncTransport(self._config, self._headers)
         self._scheduler: Scheduler = Scheduler()
-        # config.custom_strategies are registered on the engine by
-        # initialize_client(), which does not exist yet.
 
     def is_enabled(
         self,
@@ -116,11 +114,6 @@ class AsyncUnleashClient:
     ) -> bool:
         """
         Checks if a feature toggle is enabled.
-
-        Not a coroutine: evaluation is an in-process call into the engine, and
-        stays synchronous on both clients.  Raises until initialization lands --
-        the evaluator is wired up, but a client that cannot fetch state has
-        nothing to evaluate against.
 
         Notes:
 
@@ -137,9 +130,6 @@ class AsyncUnleashClient:
         """
         Checks if a feature toggle is enabled.  If so, return variant.
 
-        Not a coroutine, and raises until initialization lands; see
-        :meth:`is_enabled`.
-
         Notes:
 
         * If client hasn't been initialized yet or an error occurs, flag will default to false.
@@ -155,8 +145,6 @@ class AsyncUnleashClient:
         Returns a dict containing all feature definitions known to the SDK at the time of calling.
         Normally this would be a pared down version of the response from the Unleash API but this
         may also be a result from bootstrapping or loading from backup.
-
-        Raises until initialization lands; see :meth:`is_enabled`.
 
         Example response:
 

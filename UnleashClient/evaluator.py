@@ -17,35 +17,14 @@ from UnleashClient.utils import LOGGER
 
 
 class VariantResult(NamedTuple):
-    """
-    The outcome of one variant lookup.
-
-    ``variant`` is the dict the clients return to their callers; ``is_found`` is
-    the engine's answer to whether it knew the toggle at all.  The second field
-    exists because ``UnleashClient.get_variant`` logs on a miss, but only when
-    the client itself is bootstrapped or initialized -- run state the evaluator
-    does not have.
-    """
+    """The variant a lookup resolved to, and whether the engine knew the toggle."""
 
     variant: Dict[str, Any]
     is_found: bool
 
 
 class Evaluator:
-    """
-    Answers flag questions: enriches the context, asks the engine, and emits the
-    impression event the engine asks for.
-
-    This is an uncolored object.  Evaluation is an in-process FFI call into
-    Yggdrasil, so both clients share this class and both keep ``is_enabled`` and
-    ``get_variant`` synchronous.
-
-    The config is read on every call rather than captured, because
-    ``unleash_verbose_log_level`` is public and writable.
-
-    Registering custom strategies is not handled here: the clients do that
-    against the engine directly, at initialization.
-    """
+    """Answers flag questions and emits the impression events they call for."""
 
     def __init__(
         self,
@@ -57,7 +36,7 @@ class Evaluator:
         """
         :param engine: Feature evaluation engine instance (UnleashEngine).
         :param enricher: Builds the context the engine is asked with.
-        :param config: Read for the verbose log level.
+        :param config: The configuration the client was built with.
         :param events: Optional dispatcher that delivers events to the user's callback.
         """
         self._engine: UnleashEngine = engine
@@ -72,13 +51,7 @@ class Evaluator:
         context: Optional[dict] = None,
         fallback_function: Callable = None,
     ) -> bool:
-        """
-        Resolves a feature toggle.
-
-        The engine never raises and never needs the client to have been
-        initialized: an unknown toggle, a failed evaluation and a fallback that
-        raises all come back as disabled.
-        """
+        """Resolves a feature toggle."""
         context = self._enricher.build(context)
         result = self._engine.is_enabled(
             feature_name, context, fallback_function=fallback_function
@@ -108,13 +81,7 @@ class Evaluator:
     def get_variant(
         self, feature_name: str, context: Optional[dict] = None
     ) -> VariantResult:
-        """
-        Resolves a feature toggle's variant.
-
-        Returns the variant with its None fields dropped, alongside whether the
-        engine knew the toggle.  Callers that want to report a miss decide that
-        for themselves; nothing is logged here.
-        """
+        """Resolves a feature toggle's variant."""
         context = self._enricher.build(context)
         result = self._engine.get_variant(feature_name, context)
 
@@ -137,17 +104,11 @@ class Evaluator:
                 excep,
             )
 
-        # This can probably become a to_dict method of the Variant type.
         variant = {k: v for k, v in asdict(result.variant).items() if v is not None}
         return VariantResult(variant=variant, is_found=result.is_found)
 
     def feature_definitions(self) -> dict:
-        """
-        Every feature definition the engine currently holds, keyed by name.
-
-        The state may have come from the server, from a bootstrap or from the
-        cache; the engine does not distinguish.
-        """
+        """Every feature definition the engine currently holds, keyed by name."""
         toggles = self._engine.list_known_toggles()
         return {
             toggle.name: {"type": toggle.type, "project": toggle.project}
