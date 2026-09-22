@@ -16,14 +16,14 @@ from UnleashClient.events import (
 from UnleashClient.utils import LOGGER
 
 
-class VariantResult(NamedTuple):
+class _VariantResult(NamedTuple):
     """The variant a lookup resolved to, and whether the engine knew the toggle."""
 
     variant: Dict[str, Any]
     is_found: bool
 
 
-class Evaluator:
+class _Evaluator:
     """Answers flag questions and emits the impression events they call for."""
 
     def __init__(
@@ -80,7 +80,7 @@ class Evaluator:
     # pylint: disable=broad-except
     def get_variant(
         self, feature_name: str, context: Optional[dict] = None
-    ) -> VariantResult:
+    ) -> _VariantResult:
         """Resolves a feature toggle's variant."""
         context = self._enricher.build(context)
         result = self._engine.get_variant(feature_name, context)
@@ -105,7 +105,7 @@ class Evaluator:
             )
 
         variant = {k: v for k, v in asdict(result.variant).items() if v is not None}
-        return VariantResult(variant=variant, is_found=result.is_found)
+        return _VariantResult(variant=variant, is_found=result.is_found)
 
     def feature_definitions(self) -> dict:
         """Every feature definition the engine currently holds, keyed by name."""

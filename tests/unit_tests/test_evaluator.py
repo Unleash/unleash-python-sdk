@@ -8,9 +8,9 @@ from tests.utilities.mocks.mock_features import (
     MOCK_FEATURE_RESPONSE,
     MOCK_FEATURE_RESPONSE_PROJECT,
 )
+from UnleashClient._evaluator import _Evaluator
 from UnleashClient.config import UnleashConfig
 from UnleashClient.context import ContextEnricher
-from UnleashClient.evaluator import Evaluator
 from UnleashClient.events import UnleashEventType
 
 URL = "http://localhost:4242/api"
@@ -35,7 +35,7 @@ def build_evaluator(state=FEATURES, events=None, **kwargs):
     engine = UnleashEngine()
     if state:
         engine.take_state(state)
-    return Evaluator(
+    return _Evaluator(
         engine=engine,
         enricher=ContextEnricher(config),
         config=config,
@@ -182,7 +182,7 @@ def test_the_verbose_log_level_is_read_on_every_call(caplog):
     config = UnleashConfig(URL, APP_NAME)
     engine = UnleashEngine()
     engine.take_state(FEATURES)
-    evaluator = Evaluator(
+    evaluator = _Evaluator(
         engine=engine,
         enricher=ContextEnricher(config),
         config=config,

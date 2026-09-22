@@ -9,6 +9,7 @@ from typing import Any, Callable, Dict, Optional
 from apscheduler.schedulers.base import BaseScheduler
 from yggdrasil_engine.engine import UnleashEngine
 
+from UnleashClient._evaluator import _Evaluator
 from UnleashClient.cache import BaseCache, FileCache
 from UnleashClient.config import (
     ExperimentalMode,
@@ -29,7 +30,6 @@ from UnleashClient.constants import (
     REQUEST_TIMEOUT,
 )
 from UnleashClient.context import ContextEnricher
-from UnleashClient.evaluator import Evaluator
 from UnleashClient.events import (
     BaseEvent,
     EventDispatcher,
@@ -212,7 +212,7 @@ class UnleashClient:
             engine=self._engine, cache=self._cache, events=self.__events
         )
 
-        self._evaluator = Evaluator(
+        self._evaluator = _Evaluator(
             engine=self._engine,
             enricher=self._enricher,
             config=self._config,

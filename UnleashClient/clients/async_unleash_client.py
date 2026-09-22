@@ -16,12 +16,12 @@ from typing import Callable, Optional
 
 from yggdrasil_engine.engine import UnleashEngine
 
+from UnleashClient._evaluator import _Evaluator
 from UnleashClient.async_transport import AsyncTransport
 from UnleashClient.cache import BaseCache, FileCache
 from UnleashClient.config import ExperimentalMode, UnleashConfig
 from UnleashClient.constants import REQUEST_RETRIES, REQUEST_TIMEOUT
 from UnleashClient.context import ContextEnricher
-from UnleashClient.evaluator import Evaluator
 from UnleashClient.events import BaseEvent, EventDispatcher
 from UnleashClient.headers import HeaderFactory
 from UnleashClient.scheduler import Scheduler
@@ -97,7 +97,7 @@ class AsyncUnleashClient:
         self._store: FeatureStore = FeatureStore(
             engine=self._engine, cache=self._cache, events=self._event_dispatcher
         )
-        self._evaluator: Evaluator = Evaluator(
+        self._evaluator: _Evaluator = _Evaluator(
             engine=self._engine,
             enricher=self._enricher,
             config=self._config,
