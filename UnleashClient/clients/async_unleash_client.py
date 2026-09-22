@@ -1,14 +1,5 @@
 """
-Asynchronous Unleash client.
-
-Work in progress.  This class builds the collaborators it shares with
-:class:`UnleashClient.clients.unleash_client.UnleashClient`, plus its own
-:class:`~UnleashClient.async_transport.AsyncTransport`.  Nothing calls that
-transport yet, so constructing the client still performs no I/O and opens no
-session, and the class is not exported from the package root.  See
-``docs/object-composition.md``.
-
-Importing this module requires the optional ``aiohttp`` dependency:
+Asynchronous Unleash client. Requires the optional ``aiohttp`` dependency:
 ``pip install UnleashClient[async]``.
 """
 
@@ -34,7 +25,11 @@ _NOT_IMPLEMENTED = (
 
 
 class AsyncUnleashClient:
-    """An asyncio-native client for the Unleash feature toggle system."""
+    """
+    An asyncio-native client for the Unleash feature toggle system.
+
+    Not implemented yet: every method raises :class:`NotImplementedError`.
+    """
 
     def __init__(  # noqa: PLR0913, PLR0917
         self,
@@ -117,7 +112,9 @@ class AsyncUnleashClient:
 
         Notes:
 
-        * If client hasn't been initialized yet or an error occurs, flag will default to false.
+        * A toggle the client does not know, which is every toggle before the
+          client has fetched state, resolves to ``fallback_function``'s answer,
+          or to false when no fallback function is given.
 
         :param feature_name: Name of the feature
         :param context: Dictionary with context (e.g. IPs, email) for feature toggle.
@@ -128,11 +125,11 @@ class AsyncUnleashClient:
 
     def get_variant(self, feature_name: str, context: Optional[dict] = None) -> dict:
         """
-        Checks if a feature toggle is enabled.  If so, return variant.
+        Checks if a feature toggle is enabled. If so, return variant.
 
         Notes:
 
-        * If client hasn't been initialized yet or an error occurs, flag will default to false.
+        * A toggle the client does not know resolves to the disabled variant.
 
         :param feature_name: Name of the feature
         :param context: Dictionary with context (e.g. IPs, email) for feature toggle.

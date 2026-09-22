@@ -20,19 +20,10 @@ except ImportError as exc:  # pragma: no cover
     ) from exc
 
 
-# The statuses urllib3's Retry is given in Transport.fetch_features.
 RETRY_STATUSES = frozenset({500, 502, 504})
 
-# What a retry is worth attempting for. Deliberately narrower than
-# aiohttp.ClientError: InvalidUrlClientError and NonHttpUrlClientError also
-# subclass it, and a malformed url is not going to fix itself on attempt two.
 RETRYABLE_ERRORS = (aiohttp.ClientConnectionError, asyncio.TimeoutError)
 
-# The two aiohttp raises for a url it cannot use at all -- the analogue of the
-# requests quartet Transport.register re-raises. Both subclass ClientError, so
-# they have to be caught ahead of it. aiohttp has no InvalidHeader: an illegal
-# header surfaces as a bare ValueError, which is not a ClientError and so
-# escapes register() without a clause of its own.
 FATAL_URL_ERRORS = (aiohttp.InvalidURL, aiohttp.NonHttpUrlClientError)
 
 
@@ -43,13 +34,7 @@ async def _log_resp_info(resp: "aiohttp.ClientResponse") -> None:
 
 
 class AsyncTransport:
-    """
-    The asyncio twin of :class:`UnleashClient.transport.Transport`.
-
-
-    An important difference from the sync client is that this class has to hand
-    roll retries.
-    """
+    """The asyncio twin of :class:`UnleashClient.transport.Transport`."""
 
     def __init__(self, config: UnleashConfig, headers: HeaderFactory) -> None:
         """
@@ -72,10 +57,8 @@ class AsyncTransport:
         return self._session
 
     def _timeout(self) -> "aiohttp.ClientTimeout":
-        # sock_connect/sock_read rather than total, because requests' scalar
-        # timeout bounds each socket operation and not the whole request. Under
-        # `total` a large feature payload over a slow but healthy link would
-        # start failing at a request_timeout that works today.
+        # sock_connect/sock_read rather than total: the sync client's scalar
+        # timeout bounds each socket operation, not the whole request.
         seconds = self._config.request_timeout
         return aiohttp.ClientTimeout(
             total=None, sock_connect=seconds, sock_read=seconds
@@ -100,7 +83,7 @@ class AsyncTransport:
 
     # pylint: disable=broad-except
     # TODO: narrow the except clause to the same set of errors the sync transport
-    # so TransportError becomes part of the API of transports.
+    # raises, so TransportError becomes part of the API of transports.
     async def fetch_features(self, etag: str = "") -> FetchResult:
         """
         Fetch feature state, sending ``If-None-Match`` when an etag is known.
@@ -130,9 +113,6 @@ class AsyncTransport:
                 base_params = {"project": config.project_name}
 
             session = await self._get_session()
-            # aiohttp has no equivalent of the HTTPAdapter/Retry the sync
-            # transport mounts, so the loop is here. urllib3's Retry defaults to
-            # backoff_factor=0, so neither path sleeps between attempts.
             attempts = 1 + max(config.request_retries, 0)
 
             for attempt in range(attempts):
@@ -178,10 +158,8 @@ class AsyncTransport:
         Register this client with the server.
 
         Returns True on 200 or 202, False on any other status and on a general
-        ``ClientError``. Re-raises the two errors aiohttp uses for a url it
-        cannot make a request against at all, which is what makes
-        ``initialize_client()`` fail loudly on a malformed URL instead of
-        starting a client that can never reach the server.
+        ``ClientError``. The two errors aiohttp uses for a url it cannot make a
+        request against at all are re-raised rather than swallowed.
 
         :param payload: as built by
                         :func:`UnleashClient.payloads.build_register_payload`.
@@ -195,8 +173,6 @@ class AsyncTransport:
             LOGGER.info("Registration request information: %s", payload)
 
             session = await self._get_session()
-            # No retry loop, matching the sync register: only fetch_features
-            # mounts the retry adapter.
             async with session.post(
                 _normalized_url(config.url, REGISTER_URL),
                 data=json.dumps(payload),
@@ -214,8 +190,6 @@ class AsyncTransport:
                 LOGGER.info("Unleash Client successfully registered!")
 
                 return True
-        # Ahead of the ClientError clause below: both subclass it, and Python
-        # matches the first clause that fits.
         except FATAL_URL_ERRORS as exc:
             LOGGER.exception(
                 "Unleash Client registration failed fatally due to exception: %s", exc
@@ -232,8 +206,7 @@ class AsyncTransport:
         """
         Send one metrics bucket.
 
-        Returns True only on 202; every other status is a failure, which is what
-        the caller's impact-metrics restore path keys off.
+        Returns True only on 202; every other status is a failure.
 
         :param payload: the metrics request body.
         :raises AlreadyClosedError: if the transport has been closed.

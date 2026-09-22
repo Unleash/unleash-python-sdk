@@ -36,9 +36,7 @@ dependencies=[
 ]
 
 [project.optional-dependencies]
-# Required by the in-progress AsyncUnleashClient only.  3.9 is the floor because
-# it introduced InvalidUrlClientError/NonHttpUrlClientError, which
-# AsyncTransport.register re-raises.
+# 3.9 is the floor: it introduced InvalidUrlClientError/NonHttpUrlClientError.
 async = ["aiohttp >= 3.9"]
 
 [project.urls]
