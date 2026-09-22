@@ -95,7 +95,6 @@ def test_metrics_payload_carries_the_bucket_it_was_given():
 
 
 def test_metrics_payload_carries_an_absent_bucket_as_none():
-    # A client that recorded only impact metrics has no toggle bucket at all.
     payload = build_metrics_payload(build_config(), None, [{"name": "purchases"}])
 
     assert payload["bucket"] is None
@@ -142,8 +141,6 @@ def test_metrics_payload_omits_sdk_flavor_when_unset():
 
 
 def test_metrics_payload_reads_the_config_at_call_time():
-    # UnleashClient.unleash_app_name has a setter, and the reporter builds a fresh
-    # payload per send rather than capturing one at startup.
     config = build_config()
 
     first = build_metrics_payload(config, BUCKET)

@@ -69,8 +69,7 @@ class ImpactMetrics:
         """
         Drains the impact metrics recorded since the last collection.
 
-        Returns None when the engine cannot produce them, so a failure here costs the
-        impact metrics rather than the whole metrics submission.
+        Returns None when the engine cannot produce them.
         """
         try:
             return self._engine.collect_impact_metrics()
@@ -79,7 +78,7 @@ class ImpactMetrics:
             return None
 
     def restore(self, metrics: Any) -> None:
-        """Hands metrics back to the engine after a send that did not land."""
+        """Hands metrics back to the engine after a failed send."""
         self._engine.restore_impact_metrics(metrics)
 
     def _variant_label(self, flag_name: str, context: Dict[str, Any]) -> str:

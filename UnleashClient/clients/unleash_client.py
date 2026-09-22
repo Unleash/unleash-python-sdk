@@ -578,8 +578,6 @@ class UnleashClient:
             if self.connector:
                 self.connector.stop()
 
-            # Flush metrics before shutting down.  A no-op when no job was
-            # registered.
             self._metrics.stop()
 
             try:

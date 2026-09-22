@@ -226,5 +226,4 @@ class TestCollectAndRestore:
 
         impact_metrics.restore(collected)
 
-        # Back where they were, so a failed send does not lose them.
         assert impact_metrics.collect()[0]["samples"][0]["value"] == 3

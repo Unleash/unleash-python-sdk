@@ -53,9 +53,7 @@ def build_metrics_payload(
     Build the body of a metrics submission.
 
     :param config: read for the app name, instance id, connection id and the two SDK
-                   flavor fields.  Read at call time rather than captured, so a client
-                   whose ``unleash_app_name`` is reassigned reports the new name on its
-                   next send.
+                   flavor fields.
     :param bucket: the engine's toggle metrics bucket, or None when nothing was counted.
     :param impact_metrics: impact metrics collected for this send, if any.
     """

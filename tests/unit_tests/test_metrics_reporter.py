@@ -17,15 +17,11 @@ APP_NAME = "pytest"
 
 FULL_METRICS_URL = URL + METRICS_URL
 
-# Any flag will do; the bucket only has to be non-empty for a send to happen.
 COUNTED_FLAG = "something-to-make-sure-metrics-get-sent"
 
 
 class RecordingScheduler(BackgroundScheduler):
-    """
-    Captures what reached add_job.  Mirrors the fake in test_scheduler.py, so a change
-    to how the reporter describes its job shows up here rather than in the client tests.
-    """
+    """Captures what reached add_job."""
 
     def __init__(self):
         super().__init__()
@@ -53,10 +49,7 @@ class MinimalScheduler:
 
 
 class SilentImpactMetrics:
-    """
-    Impact metrics that never yield anything -- what a client that records none looks
-    like, and what a failed collection degrades to.
-    """
+    """Impact metrics that never yield anything."""
 
     def __init__(self):
         self.restored = []
@@ -171,9 +164,6 @@ def test_flush_omits_sdk_flavor_when_unset():
 
 @responses.activate
 def test_the_config_is_read_on_every_flush():
-    # UnleashClient.unleash_app_name has a setter, so a client can change it after the
-    # reporter was constructed.  The body used to be captured when the job was
-    # registered, which made a reassignment invisible.
     responses.add(responses.POST, FULL_METRICS_URL, json={}, status=202)
     reporter = build_reporter()
 
@@ -217,9 +207,6 @@ def test_start_registers_the_flush():
 
 
 def test_start_coerces_the_metrics_interval():
-    # Scheduler.every does not coerce -- a str interval would raise there.  The metrics
-    # call site has always int()ed its own, and a client can be built with
-    # metrics_interval="30" because the constructor does not validate types.
     recording = RecordingScheduler()
     reporter = build_reporter(scheduler=Scheduler(recording, "default"))
     reporter._config.metrics_interval = "30"
@@ -244,8 +231,6 @@ def test_start_exposes_the_registered_job():
 
 @responses.activate
 def test_stop_flushes_what_is_left_and_cancels_the_job():
-    # A short-lived client can be destroyed before its first interval elapses, so the
-    # bucket has to go out on the way down.
     responses.add(responses.POST, FULL_METRICS_URL, json={}, status=202)
     scheduler = Scheduler(BackgroundScheduler(), "default")
     reporter = build_reporter(scheduler=scheduler)
@@ -261,7 +246,6 @@ def test_stop_flushes_what_is_left_and_cancels_the_job():
 
 @responses.activate
 def test_stop_sends_nothing_when_no_job_was_ever_registered():
-    # Metrics disabled, or destroy() on a client that was never initialized.
     responses.add(responses.POST, FULL_METRICS_URL, json={}, status=202)
     reporter = build_reporter()
     reporter._engine.count_toggle(COUNTED_FLAG, True)
@@ -301,7 +285,6 @@ def test_impact_metrics_go_out_with_the_bucket():
 
 @responses.activate
 def test_impact_metrics_alone_are_enough_to_trigger_a_send():
-    # Nothing was evaluated, so there is no toggle bucket at all.
     responses.add(responses.POST, FULL_METRICS_URL, json={}, status=202)
     reporter = build_reporter()
     reporter._impact_metrics.define_counter("purchases", "Number of purchases")
@@ -330,7 +313,7 @@ def test_impact_metrics_are_restored_when_the_send_fails():
 
 
 @responses.activate
-def test_impact_metrics_are_not_restored_when_the_send_lands():
+def test_impact_metrics_are_not_restored_when_the_send_succeeds():
     responses.add(responses.POST, FULL_METRICS_URL, json={}, status=202)
     reporter = build_reporter()
     reporter._impact_metrics.define_counter("my_counter", "Test counter")
@@ -339,8 +322,8 @@ def test_impact_metrics_are_not_restored_when_the_send_lands():
     reporter.flush()
     reporter.flush()
 
-    # The engine keeps the counter definition, so a second send still describes it --
-    # but back at zero, rather than replaying the 5 the server already took.
+    # The engine keeps the counter definition, so a second send still describes the
+    # counter, back at zero.
     second = json.loads(responses.calls[1].request.body)["impactMetrics"][0]
     assert second["samples"][0]["value"] == 0
 
@@ -360,8 +343,6 @@ def test_nothing_is_restored_when_there_were_no_impact_metrics():
 
 @responses.activate
 def test_the_bucket_still_goes_out_when_impact_collection_yields_nothing():
-    # ImpactMetrics.collect() returns None on a broken engine; that must not take the
-    # toggle metrics down with it.
     responses.add(responses.POST, FULL_METRICS_URL, json={}, status=202)
     reporter = build_reporter(impact_metrics=SilentImpactMetrics())
     reporter._engine.count_toggle(COUNTED_FLAG, True)
