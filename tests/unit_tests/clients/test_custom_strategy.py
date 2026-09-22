@@ -81,14 +81,19 @@ def test_uc_customstrategy_deprecation_error(tmp_path):
 
     custom_strategies_dict = {"amIACat": CatTest, "amIADog": DogTest}
 
-    with pytest.raises(ValueError):
-        UnleashClient(
-            URL,
-            APP_NAME,
-            environment="prod",
-            custom_strategies=custom_strategies_dict,
-            cache_directory=str(tmp_path),
-        )
+    unleash_client = UnleashClient(
+        URL,
+        APP_NAME,
+        environment="prod",
+        custom_strategies=custom_strategies_dict,
+        cache_directory=str(tmp_path),
+    )
+
+    try:
+        with pytest.raises(ValueError):
+            unleash_client.initialize_client()
+    finally:
+        unleash_client.destroy()
 
 
 @responses.activate

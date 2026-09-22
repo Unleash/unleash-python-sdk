@@ -1,14 +1,5 @@
 """
-Asynchronous Unleash client.
-
-Work in progress.  This class builds the collaborators it shares with
-:class:`UnleashClient.clients.unleash_client.UnleashClient`, plus its own
-:class:`~UnleashClient.async_transport.AsyncTransport`.  Nothing calls that
-transport yet, so constructing the client still performs no I/O and opens no
-session, and the class is not exported from the package root.  See
-``docs/object-composition.md``.
-
-Importing this module requires the optional ``aiohttp`` dependency:
+Asynchronous Unleash client. Requires the optional ``aiohttp`` dependency:
 ``pip install UnleashClient[async]``.
 """
 
@@ -16,6 +7,7 @@ from typing import Callable, Optional
 
 from yggdrasil_engine.engine import UnleashEngine
 
+from UnleashClient._evaluator import _Evaluator
 from UnleashClient.async_transport import AsyncTransport
 from UnleashClient.cache import BaseCache, FileCache
 from UnleashClient.config import ExperimentalMode, UnleashConfig
@@ -33,7 +25,11 @@ _NOT_IMPLEMENTED = (
 
 
 class AsyncUnleashClient:
-    """An asyncio-native client for the Unleash feature toggle system."""
+    """
+    An asyncio-native client for the Unleash feature toggle system.
+
+    Not implemented yet: every method raises :class:`NotImplementedError`.
+    """
 
     def __init__(  # noqa: PLR0913, PLR0917
         self,
@@ -81,6 +77,7 @@ class AsyncUnleashClient:
             sdk_flavor=sdk_flavor,
             sdk_flavor_version=sdk_flavor_version,
             experimental_mode=experimental_mode,
+            custom_strategies=custom_strategies,
         )
         self._enricher: ContextEnricher = ContextEnricher(self._config)
         self._headers: HeaderFactory = HeaderFactory(self._config)
@@ -95,8 +92,67 @@ class AsyncUnleashClient:
         self._store: FeatureStore = FeatureStore(
             engine=self._engine, cache=self._cache, events=self._event_dispatcher
         )
+        self._evaluator: _Evaluator = _Evaluator(
+            engine=self._engine,
+            enricher=self._enricher,
+            config=self._config,
+            events=self._event_dispatcher,
+        )
         self._transport: AsyncTransport = AsyncTransport(self._config, self._headers)
         self._scheduler: Scheduler = Scheduler()
+
+    def is_enabled(
+        self,
+        feature_name: str,
+        context: Optional[dict] = None,
+        fallback_function: Callable = None,
+    ) -> bool:
+        """
+        Checks if a feature toggle is enabled.
+
+        Notes:
+
+        * A toggle the client does not know, which is every toggle before the
+          client has fetched state, resolves to ``fallback_function``'s answer,
+          or to false when no fallback function is given.
+
+        :param feature_name: Name of the feature
+        :param context: Dictionary with context (e.g. IPs, email) for feature toggle.
+        :param fallback_function: Allows users to provide a custom function to set default value.
+        :return: Feature flag result
+        """
+        raise NotImplementedError(_NOT_IMPLEMENTED)
+
+    def get_variant(self, feature_name: str, context: Optional[dict] = None) -> dict:
+        """
+        Checks if a feature toggle is enabled. If so, return variant.
+
+        Notes:
+
+        * A toggle the client does not know resolves to the disabled variant.
+
+        :param feature_name: Name of the feature
+        :param context: Dictionary with context (e.g. IPs, email) for feature toggle.
+        :return: Variant and feature flag status.
+        """
+        raise NotImplementedError(_NOT_IMPLEMENTED)
+
+    def feature_definitions(self) -> dict:
+        """
+        Returns a dict containing all feature definitions known to the SDK at the time of calling.
+        Normally this would be a pared down version of the response from the Unleash API but this
+        may also be a result from bootstrapping or loading from backup.
+
+        Example response:
+
+        {
+            "feature1": {
+                "project": "default",
+                "type": "release",
+            }
+        }
+        """
+        raise NotImplementedError(_NOT_IMPLEMENTED)
 
     async def initialize_client(self) -> None:
         raise NotImplementedError(_NOT_IMPLEMENTED)
