@@ -12,10 +12,10 @@ from apscheduler.triggers.interval import IntervalTrigger
 
 from UnleashClient.utils import LOGGER
 
-ScheduledJob = Optional[Any]
+_ScheduledJob = Optional[Any]
 """
-An opaque handle on a job registered with :meth:`Scheduler.every`. Pass it to
-:meth:`Scheduler.cancel` to remove the job.
+An opaque handle on a job registered with :meth:`_Scheduler.every`. Pass it to
+:meth:`_Scheduler.cancel` to remove the job.
 """
 
 
@@ -24,7 +24,7 @@ def _generated_executor_name() -> str:
     return f"unleash_executor_{suffix}"
 
 
-class Scheduler:
+class _Scheduler:
     """
     Runs the client's recurring jobs, such as refreshing feature flags and sending
     metrics.
@@ -71,7 +71,7 @@ class Scheduler:
         jitter_seconds: Optional[int],
         fn: Callable[..., Any],
         kwargs: Optional[Dict[str, Any]] = None,
-    ) -> ScheduledJob:
+    ) -> _ScheduledJob:
         """
         Runs ``fn`` repeatedly at a fixed interval.
 
@@ -89,7 +89,7 @@ class Scheduler:
             kwargs=kwargs,
         )
 
-    def cancel(self, job: ScheduledJob) -> None:
+    def cancel(self, job: _ScheduledJob) -> None:
         """
         Removes a job registered with :meth:`every`. Does nothing if the job is
         ``None`` or has already been removed.

@@ -1,6 +1,6 @@
 from typing import Optional
 
-from UnleashClient.scheduler import ScheduledJob, Scheduler
+from UnleashClient._scheduler import _ScheduledJob, _Scheduler
 from UnleashClient.store import FeatureStore
 from UnleashClient.transport import Transport
 
@@ -13,7 +13,7 @@ class PollingConnector(BaseConnector):
     def __init__(
         self,
         store: FeatureStore,
-        scheduler: Scheduler,
+        scheduler: _Scheduler,
         transport: Transport,
         refresh_interval: int = 15,
         refresh_jitter: Optional[int] = None,
@@ -25,11 +25,11 @@ class PollingConnector(BaseConnector):
                                None for no jitter.
         """
         super().__init__(store)
-        self.scheduler: Scheduler = scheduler
+        self.scheduler: _Scheduler = scheduler
         self.transport: Transport = transport
         self.refresh_interval = refresh_interval
         self.refresh_jitter = refresh_jitter
-        self.job: ScheduledJob = None
+        self.job: _ScheduledJob = None
 
     def _fetch_and_load(self) -> None:
         result = self.transport.fetch_features(self._store.cached_etag)
