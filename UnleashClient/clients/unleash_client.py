@@ -10,6 +10,7 @@ from apscheduler.schedulers.base import BaseScheduler
 from yggdrasil_engine.engine import UnleashEngine
 
 from UnleashClient._evaluator import _Evaluator
+from UnleashClient._scheduler import _ScheduledJob, _Scheduler
 from UnleashClient.cache import BaseCache, FileCache
 from UnleashClient.config import (
     ExperimentalMode,
@@ -41,7 +42,6 @@ from UnleashClient.impact_metrics import ImpactMetrics
 from UnleashClient.instance_registry import get_instance
 from UnleashClient.metrics_reporter import MetricsReporter
 from UnleashClient.payloads import build_register_payload
-from UnleashClient.scheduler import ScheduledJob, Scheduler
 from UnleashClient.store import FeatureStore
 from UnleashClient.transport import Transport
 from UnleashClient.utils import (
@@ -220,7 +220,7 @@ class UnleashClient:
 
         self._transport = Transport(self._config, self._headers)
 
-        self._scheduler = Scheduler(scheduler, scheduler_executor)
+        self._scheduler = _Scheduler(scheduler, scheduler_executor)
 
         self._metrics = MetricsReporter(
             config=self._config,
@@ -246,11 +246,11 @@ class UnleashClient:
         self.connector: BaseConnector = None
 
     @property
-    def metric_job(self) -> ScheduledJob:
+    def metric_job(self) -> _ScheduledJob:
         return self._metrics.job
 
     @metric_job.setter
-    def metric_job(self, value: ScheduledJob) -> None:
+    def metric_job(self, value: _ScheduledJob) -> None:
         self._metrics.job = value
 
     @property
@@ -526,7 +526,7 @@ class UnleashClient:
                 self.connector.start()
 
                 if not self.unleash_disable_metrics:
-                    # Scheduler.start() no-ops when it is already running, so this can
+                    # _Scheduler.start() no-ops when it is already running, so this can
                     # be unconditional.
                     start_scheduler = True
 

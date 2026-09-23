@@ -2,10 +2,10 @@
 
 from yggdrasil_engine.engine import UnleashEngine
 
+from UnleashClient._scheduler import _ScheduledJob, _Scheduler
 from UnleashClient.config import UnleashConfig
 from UnleashClient.impact_metrics import ImpactMetrics
 from UnleashClient.payloads import build_metrics_payload
-from UnleashClient.scheduler import ScheduledJob, Scheduler
 from UnleashClient.transport import Transport
 from UnleashClient.utils import LOGGER
 
@@ -20,24 +20,24 @@ class MetricsReporter:
         self,
         config: UnleashConfig,
         transport: Transport,
-        scheduler: Scheduler,
+        scheduler: _Scheduler,
         engine: UnleashEngine,
         impact_metrics: ImpactMetrics,
     ) -> None:
         self._config: UnleashConfig = config
         self._transport: Transport = transport
-        self._scheduler: Scheduler = scheduler
+        self._scheduler: _Scheduler = scheduler
         self._engine: UnleashEngine = engine
         self._impact_metrics: ImpactMetrics = impact_metrics
-        self._job: ScheduledJob = None
+        self._job: _ScheduledJob = None
 
     @property
-    def job(self) -> ScheduledJob:
+    def job(self) -> _ScheduledJob:
         """The registered job, or None before :meth:`start` and after :meth:`stop`."""
         return self._job
 
     @job.setter
-    def job(self, value: ScheduledJob) -> None:
+    def job(self, value: _ScheduledJob) -> None:
         self._job = value
 
     def start(self) -> None:
