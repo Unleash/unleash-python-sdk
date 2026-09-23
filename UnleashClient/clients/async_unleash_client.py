@@ -7,6 +7,7 @@ from typing import Callable, Optional
 
 from yggdrasil_engine.engine import UnleashEngine
 
+from UnleashClient._async_scheduler import _AsyncScheduler
 from UnleashClient._evaluator import _Evaluator
 from UnleashClient.async_metrics_reporter import AsyncMetricsReporter
 from UnleashClient.async_transport import AsyncTransport
@@ -17,7 +18,6 @@ from UnleashClient.context import ContextEnricher
 from UnleashClient.events import BaseEvent, EventDispatcher
 from UnleashClient.headers import HeaderFactory
 from UnleashClient.impact_metrics import ImpactMetrics
-from UnleashClient.scheduler import Scheduler
 from UnleashClient.store import FeatureStore
 
 _NOT_IMPLEMENTED = (
@@ -106,10 +106,11 @@ class AsyncUnleashClient:
             events=self._event_dispatcher,
         )
         self._transport: AsyncTransport = AsyncTransport(self._config, self._headers)
-        self._scheduler: Scheduler = Scheduler()
+        self._scheduler: _AsyncScheduler = _AsyncScheduler()
         self._metrics: AsyncMetricsReporter = AsyncMetricsReporter(
             config=self._config,
             transport=self._transport,
+            scheduler=self._scheduler,
             engine=self._engine,
             impact_metrics=self.impact_metrics,
         )
