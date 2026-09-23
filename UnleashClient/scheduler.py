@@ -14,12 +14,8 @@ from UnleashClient.utils import LOGGER
 
 ScheduledJob = Optional[Any]
 """
-An opaque handle on a registered job.  Callers only store it and hand it back to
-:meth:`Scheduler.cancel`.
-
-``Any`` rather than ``apscheduler.job.Job`` for two reasons: APScheduler ships no
-``py.typed``, so its ``Job`` is untyped to a strict checker and would leak into every
-caller; and a custom scheduler's ``add_job`` is free to return ``None``.
+An opaque handle on a job registered with :meth:`Scheduler.every`. Pass it to
+:meth:`Scheduler.cancel` to remove the job.
 """
 
 
@@ -30,13 +26,8 @@ def _generated_executor_name() -> str:
 
 class Scheduler:
     """
-    Owns the recurring jobs the client runs: the provisioning refresh and the metrics
-    send.
-
-    This is the only module that imports APScheduler.  Callers describe a job as an
-    interval in seconds, a jitter in seconds and a callable, and get back an opaque
-    handle they can pass to :meth:`cancel`; the trigger and the executor are this
-    class's business.
+    Runs the client's recurring jobs, such as refreshing feature flags and sending
+    metrics.
     """
 
     scheduler: BaseScheduler
@@ -48,10 +39,11 @@ class Scheduler:
         executor_name: Optional[str] = None,
     ) -> None:
         """
-        :param scheduler: Custom APScheduler instance.  When unset, a
-                          ``BackgroundScheduler`` is built with a dedicated executor.
-        :param executor_name: Name of the executor to run jobs on.  Required with a
-                              custom scheduler, meaningless without one.
+        :param scheduler: Custom APScheduler instance. When unset, a
+                          ``BackgroundScheduler`` with its own executor is used.
+        :param executor_name: Name of the executor to run jobs on. Required with a
+                              custom scheduler, ignored with a warning otherwise.
+        :raises ValueError: If ``scheduler`` is given without ``executor_name``.
         """
         if scheduler and executor_name:
             self.executor_name = executor_name
@@ -81,16 +73,14 @@ class Scheduler:
         kwargs: Optional[Dict[str, Any]] = None,
     ) -> ScheduledJob:
         """
-        Registers ``fn`` to run on a repeating interval.
+        Runs ``fn`` repeatedly at a fixed interval.
 
-        :param interval_seconds: Seconds between runs.  Passed to the trigger
-                                 uncoerced, which is what each call site has always
-                                 done: the metrics interval is ``int()``-ed by its
-                                 caller, the refresh interval is not.
-        :param jitter_seconds: Maximum seconds to randomly offset each run by, or None
-                               for no jitter.
+        :param interval_seconds: Seconds between runs.
+        :param jitter_seconds: Maximum seconds to randomly offset each run by, or
+                               ``None`` for no jitter.
         :param fn: The callable to run.
         :param kwargs: Keyword arguments to call ``fn`` with.
+        :return: A handle to pass to :meth:`cancel`.
         """
         return self.scheduler.add_job(
             fn,
@@ -101,10 +91,10 @@ class Scheduler:
 
     def cancel(self, job: ScheduledJob) -> None:
         """
-        Removes a job registered through :meth:`every`.
+        Removes a job registered with :meth:`every`. Does nothing if the job is
+        ``None`` or has already been removed.
 
-        Tolerates a job that is already gone, and a scheduler whose ``add_job`` returned
-        nothing to begin with.
+        :param job: The handle returned by :meth:`every`.
         """
         if job is None:
             return
@@ -116,11 +106,7 @@ class Scheduler:
 
     def start(self) -> None:
         """
-        Starts the underlying scheduler, unless it is already running.
-
-        The state is read with ``getattr`` because a custom scheduler need not be an
-        APScheduler one, and duck-typed schedulers without a ``state`` attribute are
-        supported.
+        Starts the scheduler. Does nothing if it is already running.
         """
         if getattr(self.scheduler, "state", None) == STATE_RUNNING:
             return
@@ -129,10 +115,10 @@ class Scheduler:
 
     def shutdown(self, wait: bool = True) -> None:
         """
-        Drops every job, then shuts the scheduler down.
+        Removes every job and stops the scheduler.
 
-        Raises ``SchedulerNotRunningError`` when the scheduler was never started; the
-        caller decides whether that is worth reporting.
+        :param wait: Whether to wait for running jobs to finish.
+        :raises SchedulerNotRunningError: If the scheduler was never started.
         """
         self.scheduler.remove_all_jobs()
         self.scheduler.shutdown(wait=wait)
