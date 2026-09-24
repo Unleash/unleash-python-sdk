@@ -16,8 +16,8 @@ class AsyncMetricsReporter:
     """
     Sends feature and impact metrics to Unleash on a recurring interval.
 
-    :meth:`start` and :meth:`stop` must be awaited from the event loop the client runs
-    on, and the loop must stay open for as long as metrics are being reported.
+    :meth:`start` must be called, and :meth:`stop` awaited, from the event loop the client
+    runs on, and the loop must stay open for as long as metrics are being reported.
 
     Example::
 
@@ -28,7 +28,7 @@ class AsyncMetricsReporter:
             engine=engine,
             impact_metrics=impact_metrics,
         )
-        await reporter.start()
+        reporter.start()
 
         await reporter.flush()
 
@@ -50,7 +50,7 @@ class AsyncMetricsReporter:
         self._impact_metrics: ImpactMetrics = impact_metrics
         self._job: Optional[_AsyncJob] = None
 
-    async def start(self) -> None:
+    def start(self) -> None:
         """Schedules a send every ``metrics_interval`` seconds, with ``metrics_jitter`` of jitter."""
         self._job = self._scheduler.every(
             interval_seconds=int(self._config.metrics_interval),

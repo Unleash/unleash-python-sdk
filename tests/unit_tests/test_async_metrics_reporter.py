@@ -260,7 +260,7 @@ async def test_start_registers_the_flush_with_the_metrics_interval_and_jitter(
 ):
     reporter = build_reporter(metrics_interval=30, metrics_jitter=10)
 
-    await reporter.start()
+    reporter.start()
 
     (call,) = reporter._scheduler.registered
     assert call["interval_seconds"] == 30
@@ -275,7 +275,7 @@ async def test_start_coerces_the_metrics_interval(build_reporter):
     reporter = build_reporter()
     reporter._config.metrics_interval = "30"
 
-    await reporter.start()
+    reporter.start()
 
     (call,) = reporter._scheduler.registered
     assert call["interval_seconds"] == 30
@@ -287,7 +287,7 @@ async def test_stop_flushes_what_is_left_and_cancels_the_job(server, build_repor
     # bucket has to go out on the way down.
     reporter = build_reporter()
     server.on("POST", METRICS_PATH, status=202, payload={})
-    await reporter.start()
+    reporter.start()
     reporter._engine.count_toggle(COUNTED_FLAG, True)
 
     await reporter.stop()
@@ -312,7 +312,7 @@ async def test_stop_sends_nothing_when_start_was_never_called(server, reporter):
 async def test_stop_is_idempotent(server, build_reporter):
     reporter = build_reporter()
     server.on("POST", METRICS_PATH, status=202, payload={}, repeat=True)
-    await reporter.start()
+    reporter.start()
     reporter._engine.count_toggle(COUNTED_FLAG, True)
 
     await reporter.stop()
