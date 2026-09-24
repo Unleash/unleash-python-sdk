@@ -144,7 +144,10 @@ async def test_cancel_tolerates_a_job_that_is_already_gone(scheduler):
     scheduler.start()
 
     scheduler.cancel(handle)
-    scheduler.cancel(handle)
+    try:
+        scheduler.cancel(handle)
+    except Exception:
+        pytest.fail("Canceling a job that is already gone should not raise an exception")
 
 
 @mark.asyncio
