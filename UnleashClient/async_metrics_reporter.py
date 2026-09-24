@@ -1,8 +1,4 @@
-"""Metrics reporting for the asynchronous Unleash client.
-
-Importing this module requires the optional ``aiohttp`` dependency:
-``pip install UnleashClient[async]``.
-"""
+"""Metrics reporting, for the async Unleash client."""
 
 from typing import Optional
 
@@ -23,9 +19,20 @@ class AsyncMetricsReporter:
     :meth:`start` and :meth:`stop` must be awaited from the event loop the client runs
     on, and the loop must stay open for as long as metrics are being reported.
 
-    The request is built from the :class:`~UnleashClient.config.UnleashConfig` at send
-    time, so reassigning a client's ``unleash_*`` attributes takes effect from the next
-    send.  ``metrics_interval`` and ``metrics_jitter`` are read once, by :meth:`start`.
+    Example::
+
+        reporter = AsyncMetricsReporter(
+            config=config,
+            transport=transport,
+            scheduler=scheduler,
+            engine=engine,
+            impact_metrics=impact_metrics,
+        )
+        await reporter.start()
+
+        await reporter.flush()
+
+        await reporter.stop()
     """
 
     def __init__(
@@ -36,16 +43,6 @@ class AsyncMetricsReporter:
         engine: UnleashEngine,
         impact_metrics: ImpactMetrics,
     ) -> None:
-        """
-        :param config: read on every send for the request body, and by :meth:`start`
-                       for the interval and the jitter.
-        :param transport: sends the request.
-        :param scheduler: runs the recurring send.
-        :param engine: read for the feature metrics bucket.  Separate from
-                       ``impact_metrics``, which is a different set of numbers that
-                       happens to be stored in the same engine.
-        :param impact_metrics: drained for each send, and restored when a send fails.
-        """
         self._config: UnleashConfig = config
         self._transport: AsyncTransport = transport
         self._scheduler: _AsyncScheduler = scheduler
@@ -54,7 +51,7 @@ class AsyncMetricsReporter:
         self._job: Optional[_AsyncJob] = None
 
     async def start(self) -> None:
-        """Registers the recurring send with the scheduler."""
+        """Schedules a send every ``metrics_interval`` seconds, with ``metrics_jitter`` of jitter."""
         self._job = self._scheduler.every(
             interval_seconds=int(self._config.metrics_interval),
             jitter_seconds=self._config.metrics_jitter,
@@ -65,8 +62,8 @@ class AsyncMetricsReporter:
         """
         Sends one bucket of feature and impact metrics.
 
-        Sends nothing when neither has anything to report.  Impact metrics are handed
-        back to the engine when the send fails, so the next send carries them instead.
+        Sends nothing when neither has anything to report. When a send fails, its impact
+        metrics are restored so the next send carries them.
         """
         bucket = self._engine.get_metrics()
         impact_metrics = self._impact_metrics.collect()
@@ -83,7 +80,7 @@ class AsyncMetricsReporter:
         """
         Stops the recurring send and flushes whatever is left.
 
-        Does nothing when :meth:`start` was never called.  Metrics drained by a send
+        Does nothing when :meth:`start` was never called. Metrics drained by a send
         that is still in flight are lost with it.
         """
         if self._job is None:
