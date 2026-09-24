@@ -10,7 +10,16 @@ _AsyncJobFn = Callable[..., Awaitable[Any]]
 
 
 class _AsyncJob:
-    """A job registered with :meth:`_AsyncScheduler.every`."""
+    """
+    A job registered with :meth:`_AsyncScheduler.every`. Pass it to
+    :meth:`_AsyncScheduler.cancel` or :meth:`_AsyncScheduler.cancel_and_wait` to
+    remove the job.
+
+    Example::
+
+        job = scheduler.every(15, None, refresh)
+        scheduler.cancel(job)
+    """
 
     __slots__ = ("interval", "jitter", "fn", "kwargs", "task")
 
@@ -26,14 +35,6 @@ class _AsyncJob:
         self.fn = fn
         self.kwargs = kwargs
         self.task: Optional["asyncio.Task[None]"] = None
-
-
-_AsyncScheduledJob = Optional[_AsyncJob]
-"""
-An opaque handle on a job registered with :meth:`_AsyncScheduler.every`. Pass it to
-:meth:`_AsyncScheduler.cancel` or :meth:`_AsyncScheduler.cancel_and_wait` to remove
-the job.
-"""
 
 
 class _AsyncScheduler:
@@ -64,7 +65,7 @@ class _AsyncScheduler:
         jitter_seconds: Optional[float],
         fn: _AsyncJobFn,
         kwargs: Optional[Dict[str, Any]] = None,
-    ) -> _AsyncScheduledJob:
+    ) -> _AsyncJob:
         """
         Runs ``fn`` repeatedly at a fixed interval. The job starts right away when
         the scheduler is running, and on :meth:`start` otherwise.
@@ -74,7 +75,7 @@ class _AsyncScheduler:
                                ``None`` for no jitter.
         :param fn: The coroutine function to run.
         :param kwargs: Keyword arguments to call ``fn`` with.
-        :return: A handle to pass to :meth:`cancel` or :meth:`cancel_and_wait`.
+        :return: The job, to pass to :meth:`cancel` or :meth:`cancel_and_wait`.
         """
         job = _AsyncJob(interval_seconds or 1, jitter_seconds, fn, dict(kwargs or {}))
         self._jobs.add(job)
@@ -82,29 +83,25 @@ class _AsyncScheduler:
             self._spawn(job)
         return job
 
-    def cancel(self, job: _AsyncScheduledJob) -> None:
+    def cancel(self, job: _AsyncJob) -> None:
         """
         Removes a job registered with :meth:`every`, interrupting a run in progress.
-        Does nothing if the job is ``None`` or has already been removed.
+        Does nothing if the job has already been removed.
 
-        :param job: The handle returned by :meth:`every`.
+        :param job: The job returned by :meth:`every`.
         """
-        if job is None:
-            return
         self._jobs.discard(job)
         if job.task is not None:
             job.task.cancel()
 
-    async def cancel_and_wait(self, job: _AsyncScheduledJob) -> None:
+    async def cancel_and_wait(self, job: _AsyncJob) -> None:
         """
         Removes a job like :meth:`cancel`, and returns once a run in progress has
         fully unwound. When a job cancels itself, the cancellation takes effect at
         its next ``await`` instead.
 
-        :param job: The handle returned by :meth:`every`.
+        :param job: The job returned by :meth:`every`.
         """
-        if job is None:
-            return
         task = job.task
         self.cancel(job)
         if task is None or task is asyncio.current_task():

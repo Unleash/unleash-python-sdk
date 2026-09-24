@@ -133,11 +133,6 @@ async def test_cancel_stops_further_runs(scheduler):
 
 
 @mark.asyncio
-async def test_cancel_tolerates_a_job_that_was_never_registered(scheduler):
-    scheduler.cancel(None)
-
-
-@mark.asyncio
 async def test_cancel_tolerates_a_job_that_is_already_gone(scheduler):
     job, _, _ = counting_job(1)
     handle = scheduler.every(INTERVAL, None, job)
@@ -147,7 +142,9 @@ async def test_cancel_tolerates_a_job_that_is_already_gone(scheduler):
     try:
         scheduler.cancel(handle)
     except Exception:
-        pytest.fail("Canceling a job that is already gone should not raise an exception")
+        pytest.fail(
+            "Canceling a job that is already gone should not raise an exception"
+        )
 
 
 @mark.asyncio
@@ -166,7 +163,6 @@ async def test_cancel_and_wait_returns_once_the_run_in_progress_has_unwound(
 
 @mark.asyncio
 async def test_a_job_can_cancel_and_wait_for_itself(scheduler):
-    handle = None
     runs = []
     finished = asyncio.Event()
 
