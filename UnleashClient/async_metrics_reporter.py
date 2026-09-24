@@ -62,8 +62,8 @@ class AsyncMetricsReporter:
         """
         Sends one bucket of feature and impact metrics.
 
-        Sends nothing when neither has anything to report. When a send fails, its impact
-        metrics are restored so the next send carries them.
+        Sends nothing when neither has anything to report. When a send fails or is
+        cancelled, its impact metrics are restored so the next send carries them.
         """
         bucket = self._engine.get_metrics()
         impact_metrics = self._impact_metrics.collect()
@@ -73,15 +73,20 @@ class AsyncMetricsReporter:
             return
 
         payload = build_metrics_payload(self._config, bucket, impact_metrics)
-        if not await self._transport.send_metrics(payload) and impact_metrics:
-            self._impact_metrics.restore(impact_metrics)
+        sent = False
+        try:
+            sent = await self._transport.send_metrics(payload)
+        finally:
+            if not sent and impact_metrics:
+                self._impact_metrics.restore(impact_metrics)
 
     async def stop(self) -> None:
         """
         Stops the recurring send and flushes whatever is left.
 
-        Does nothing when :meth:`start` was never called. Metrics drained by a send
-        that is still in flight are lost with it.
+        Does nothing when :meth:`start` was never called. A send still in flight is
+        cancelled: its impact metrics go out with the final flush, and its feature
+        metrics are lost.
         """
         if self._job is None:
             return

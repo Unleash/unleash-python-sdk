@@ -2,6 +2,7 @@ import asyncio
 import json
 from typing import Callable, List, Optional, TypedDict
 
+import pytest
 import pytest_asyncio
 from pytest import mark
 from yggdrasil_engine.engine import UnleashEngine
@@ -145,6 +146,11 @@ async def reporter(
 
 def metrics_body(server: FakeUnleash, index: int = 0) -> dict:
     return json.loads(server.calls("POST", METRICS_PATH)[index].body)
+
+
+async def until_requested(server: FakeUnleash, count: int = 1) -> None:
+    while len(server.calls("POST", METRICS_PATH)) < count:
+        await asyncio.sleep(0.01)
 
 
 # flush
@@ -376,6 +382,42 @@ async def test_impact_metrics_are_restored_when_the_send_fails(server, reporter)
     resent = metrics_body(server, 1)["impactMetrics"][0]
     assert resent["name"] == "my_counter"
     assert resent["samples"][0]["value"] == 5
+
+
+@mark.asyncio
+async def test_impact_metrics_are_restored_when_the_send_is_cancelled(server, reporter):
+    server.on("POST", METRICS_PATH, hang=True)
+    server.on("POST", METRICS_PATH, status=202, payload={})
+    reporter._impact_metrics.define_counter("my_counter", "Test counter")
+    reporter._impact_metrics.increment_counter("my_counter", 5)
+    flush = asyncio.create_task(reporter.flush())
+    await until_requested(server)
+
+    flush.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await flush
+    await reporter.flush()
+
+    resent = metrics_body(server, 1)["impactMetrics"][0]
+    assert resent["name"] == "my_counter"
+    assert resent["samples"][0]["value"] == 5
+
+
+@mark.asyncio
+async def test_stop_during_a_send_resends_its_impact_metrics(server, build_reporter):
+    reporter = build_reporter(metrics_interval=1)
+    server.on("POST", METRICS_PATH, hang=True)
+    server.on("POST", METRICS_PATH, status=202, payload={})
+    reporter._impact_metrics.define_counter("my_counter", "Test counter")
+    reporter._impact_metrics.increment_counter("my_counter", 5)
+    reporter.start()
+    reporter._scheduler.start()
+    await until_requested(server)
+
+    await asyncio.wait_for(reporter.stop(), timeout=5)
+
+    assert len(server.calls("POST", METRICS_PATH)) == 2
+    assert metrics_body(server, 1)["impactMetrics"][0]["samples"][0]["value"] == 5
 
 
 @mark.asyncio

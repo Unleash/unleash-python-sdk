@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from collections import deque
 from typing import Any, Deque, Dict, List, NamedTuple, Optional, Tuple
@@ -27,6 +28,7 @@ class _Reply(NamedTuple):
     payload: Optional[Any]
     headers: Dict[str, str]
     disconnect: bool
+    hang: bool
 
 
 class FakeUnleash:
@@ -51,6 +53,7 @@ class FakeUnleash:
         self._repeated: Dict[_Route, _Reply] = {}
         self._server: Optional[TestServer] = None
         self._server_log_level: Optional[int] = None
+        self._released = asyncio.Event()
 
     def on(
         self,
@@ -62,6 +65,7 @@ class FakeUnleash:
         headers: Optional[Dict[str, str]] = None,
         repeat: bool = False,
         disconnect: bool = False,
+        hang: bool = False,
     ) -> None:
         """
         Script one reply.
@@ -78,8 +82,11 @@ class FakeUnleash:
                        once.
         :param disconnect: close the connection without answering, which the
                            client sees as a ``ClientConnectionError``.
+        :param hang: hold the answer back until the server is closed, which
+                     keeps the client's request in flight until it times out
+                     or is cancelled.
         """
-        reply = _Reply(status, payload, headers or {}, disconnect)
+        reply = _Reply(status, payload, headers or {}, disconnect, hang)
         route = (method.upper(), path)
 
         if repeat:
@@ -127,6 +134,8 @@ class FakeUnleash:
 
     async def close(self) -> None:
         """Stop listening and restore the aiohttp server log level."""
+        self._released.set()
+
         if self._server_log_level is not None:
             logging.getLogger("aiohttp.server").setLevel(self._server_log_level)
             self._server_log_level = None
@@ -152,6 +161,9 @@ class FakeUnleash:
             return web.Response(
                 status=UNEXPECTED_REQUEST_STATUS, text=f"unscripted {request.rel_url}"
             )
+
+        if reply.hang:
+            await self._released.wait()
 
         if reply.disconnect:
             request.transport.abort()

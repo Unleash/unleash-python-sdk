@@ -1,3 +1,4 @@
+import asyncio
 import json
 from typing import Callable
 
@@ -324,6 +325,32 @@ async def test_send_metrics_strips_a_trailing_slash_from_the_url(server, transpo
 
     assert len(server.calls("POST", METRICS_PATH)) == 1
     assert result is True
+
+
+@mark.asyncio
+async def test_send_metrics_returns_false_when_the_request_times_out(
+    server, build_transport
+):
+    transport = build_transport(request_timeout=0.1)
+    server.on("POST", METRICS_PATH, hang=True)
+
+    result = await transport.send_metrics(MOCK_METRICS_REQUEST)
+
+    assert len(server.calls("POST", METRICS_PATH)) == 1
+    assert result is False
+
+
+@mark.asyncio
+async def test_send_metrics_raises_when_cancelled(server, transport):
+    server.on("POST", METRICS_PATH, hang=True)
+    send = asyncio.create_task(transport.send_metrics(MOCK_METRICS_REQUEST))
+    while not server.calls("POST", METRICS_PATH):
+        await asyncio.sleep(0.01)
+
+    send.cancel()
+
+    with pytest.raises(asyncio.CancelledError):
+        await send
 
 
 @mark.asyncio
