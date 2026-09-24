@@ -206,10 +206,12 @@ class AsyncTransport:
         """
         Send one metrics bucket.
 
-        Returns True only on 202; every other status is a failure.
+        Returns True only on 202. Every other status, a ``ClientError`` and a
+        timeout all return False.
 
         :param payload: the metrics request body.
         :raises AlreadyClosedError: if the transport has been closed.
+        :raises asyncio.CancelledError: if the send is cancelled.
         """
         self._raise_if_closed()
 
@@ -240,5 +242,10 @@ class AsyncTransport:
             LOGGER.warning(
                 "Unleash Client metrics submission failed due to exception: %s", exc
             )
+        except asyncio.TimeoutError:
+            LOGGER.warning("Unleash Client metrics submission timed out.")
+        except asyncio.CancelledError:
+            LOGGER.warning("Unleash Client metrics submission was cancelled.")
+            raise
 
         return False

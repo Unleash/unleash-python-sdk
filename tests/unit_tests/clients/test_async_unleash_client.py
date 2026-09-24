@@ -6,9 +6,11 @@ import pytest
 from tests.utilities.mocks.mock_features import MOCK_FEATURE_RESPONSE
 from tests.utilities.testing_constants import APP_NAME, URL
 from UnleashClient import INSTANCES, UnleashClient
+from UnleashClient.async_metrics_reporter import AsyncMetricsReporter
 from UnleashClient.cache import FileCache
 from UnleashClient.clients.async_unleash_client import AsyncUnleashClient
 from UnleashClient.constants import FEATURES_URL
+from UnleashClient.metrics_reporter import MetricsReporter
 
 
 @pytest.fixture(autouse=True)
@@ -199,63 +201,6 @@ def test_both_clients_load_the_same_state(tmpdir):
         sync_client.destroy()
 
 
-def test_both_clients_build_the_same_kind_of_scheduler(tmpdir):
-    sync_client = UnleashClient(
-        URL,
-        APP_NAME,
-        disable_metrics=True,
-        disable_registration=True,
-        cache_directory=str(tmpdir),
-    )
-    try:
-        async_client = build_async_client(tmpdir, url=URL, app_name=APP_NAME)
-
-        assert type(async_client._scheduler) is type(sync_client._scheduler)
-    finally:
-        sync_client.destroy()
-
-
-def test_the_async_client_gets_its_own_scheduler(tmpdir):
-    sync_client = UnleashClient(
-        URL,
-        APP_NAME,
-        disable_metrics=True,
-        disable_registration=True,
-        cache_directory=str(tmpdir),
-    )
-    try:
-        async_client = build_async_client(tmpdir, url=URL, app_name=APP_NAME)
-
-        assert async_client._scheduler is not sync_client._scheduler
-        assert async_client._scheduler.scheduler is not sync_client._scheduler.scheduler
-        assert (
-            async_client._scheduler.executor_name
-            != sync_client._scheduler.executor_name
-        )
-    finally:
-        sync_client.destroy()
-
-
-def test_the_async_client_can_register_and_cancel_a_job(tmpdir):
-    client = build_async_client(tmpdir, url=URL, app_name=APP_NAME)
-
-    job = client._scheduler.every(
-        interval_seconds=15, jitter_seconds=None, fn=client._store.load_from_cache
-    )
-    client._scheduler.cancel(job)
-
-    assert job is not None
-    assert client._scheduler.scheduler.get_jobs() == []
-
-
-def test_constructing_the_async_client_does_not_start_the_scheduler(tmpdir):
-    # No event loop is running here, and none is needed: the scheduler is built in
-    # __init__ but only started by initialize_client().
-    client = build_async_client(tmpdir, url=URL, app_name=APP_NAME)
-
-    assert not client._scheduler.scheduler.running
-
-
 def test_the_async_client_cannot_evaluate_yet(tmpdir):
     client = build_async_client(tmpdir, url=URL, app_name=APP_NAME)
 
@@ -349,3 +294,53 @@ def test_the_async_client_gets_its_own_evaluator(tmpdir):
         assert async_client._evaluator._engine is async_client._engine
     finally:
         sync_client.destroy()
+
+
+def test_async_client_exposes_impact_metrics(tmpdir):
+    client = build_async_client(tmpdir, url=URL, app_name=APP_NAME)
+
+    client.impact_metrics.define_counter("purchases", "Number of purchases")
+    client.impact_metrics.increment_counter("purchases", 3)
+
+    (collected,) = client._engine.collect_impact_metrics()
+    assert collected["name"] == "purchases"
+
+
+def test_both_clients_build_the_same_impact_metrics(tmpdir):
+    kwargs = dict(url=URL, app_name=APP_NAME, environment="unit")
+
+    sync_client = UnleashClient(
+        cache=FileCache(APP_NAME, directory=str(tmpdir)),
+        disable_metrics=True,
+        disable_registration=True,
+        **kwargs,
+    )
+    try:
+        async_client = build_async_client(tmpdir, **kwargs)
+
+        # Both label from config.impact_metrics_environment, which applies the header
+        # override, rather than from `environment` directly.
+        assert (
+            async_client.impact_metrics._base_labels
+            == sync_client.impact_metrics._base_labels
+        )
+    finally:
+        sync_client.destroy()
+
+
+def test_async_client_builds_a_metrics_reporter_over_its_own_collaborators(tmpdir):
+    client = build_async_client(tmpdir, url=URL, app_name=APP_NAME)
+
+    assert client._metrics._config is client._config
+    assert client._metrics._transport is client._transport
+    assert client._metrics._engine is client._engine
+    assert client._metrics._impact_metrics is client.impact_metrics
+
+
+def test_the_async_client_gets_the_async_reporter(tmpdir):
+    # The flush runs on the client's event loop, so the requests-backed reporter would
+    # block it for the length of every metrics POST.
+    client = build_async_client(tmpdir, url=URL, app_name=APP_NAME)
+
+    assert isinstance(client._metrics, AsyncMetricsReporter)
+    assert not isinstance(client._metrics, MetricsReporter)
