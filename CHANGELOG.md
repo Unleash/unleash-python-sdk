@@ -2,7 +2,7 @@
 
 > Note: this section of the changelog as-is it's working as a registry of all that
 > went on. It needs to be consolidated into what will eventually become the
-> final changelog + documentation chagnes (if any).
+> final changelog + documentation changes (if any).
 
 
 * (Minor): The in-progress asynchronous client gains an internal `_AsyncScheduler`, in the private `UnleashClient._async_scheduler` module, which runs recurring jobs as tasks on the event loop with the same interval, first-run delay and one-sided jitter as the synchronous `_Scheduler`. The module is not part of the public API and may change or disappear without notice. Nothing uses it yet, and nothing changes for code using `UnleashClient`.
