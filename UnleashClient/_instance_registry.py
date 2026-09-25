@@ -59,10 +59,8 @@ class _InstanceRegistry:
 
     def increment(self, key: str) -> None:
         with self.lock:
-            if key in self:
-                self.instances[key] += 1
-            else:
-                self.instances[key] = 1
+            self.instances[key] = self.instances.get(key, 0) + 1
+
 
     def _reset(self) -> None:
         with self.lock:
