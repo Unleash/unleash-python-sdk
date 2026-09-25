@@ -61,7 +61,6 @@ class _InstanceRegistry:
         with self.lock:
             self.instances[key] = self.instances.get(key, 0) + 1
 
-
     def _reset(self) -> None:
         with self.lock:
             self.instances = {}
