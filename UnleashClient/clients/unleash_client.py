@@ -10,7 +10,7 @@ from apscheduler.schedulers.base import BaseScheduler
 from yggdrasil_engine.engine import UnleashEngine
 
 from UnleashClient._evaluator import _Evaluator
-from UnleashClient._instance_registry import _get_instance
+from UnleashClient._instance_registry import _get_instance_registry
 from UnleashClient.cache import BaseCache, FileCache
 from UnleashClient.config import (
     ExperimentalMode,
@@ -49,7 +49,7 @@ from UnleashClient.utils import (
     InstanceAllowType,
 )
 
-INSTANCES = _get_instance()
+INSTANCES = _get_instance_registry()
 
 
 class _RunState(IntEnum):
@@ -188,7 +188,7 @@ class UnleashClient:
         self._lifecycle_lock = threading.RLock()
         self._closed = threading.Event()
 
-        _get_instance().register(
+        _get_instance_registry().register(
             identifier=self._config.instance_identifier, mode=multiple_instance_mode
         )
 

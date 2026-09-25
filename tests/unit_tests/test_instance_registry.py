@@ -1,7 +1,7 @@
 import pytest
 
 from UnleashClient import INSTANCES
-from UnleashClient._instance_registry import _get_instance, _InstanceRegistry
+from UnleashClient._instance_registry import _get_instance_registry, _InstanceRegistry
 from UnleashClient.utils import InstanceAllowType
 
 IDENTIFIER = "apiKey:None appName:pytest instanceId:123"
@@ -137,9 +137,9 @@ def test_reset_clears_every_identifier():
 
 
 def test_get_instance_returns_the_same_registry_every_time():
-    assert _get_instance() is _get_instance()
+    assert _get_instance_registry() is _get_instance_registry()
 
 
 def test_the_exported_instances_object_is_that_registry():
-    assert INSTANCES is _get_instance()
+    assert INSTANCES is _get_instance_registry()
     assert isinstance(INSTANCES, _InstanceRegistry)

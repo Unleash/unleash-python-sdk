@@ -72,6 +72,6 @@ class _InstanceRegistry:
 _REGISTRY = _InstanceRegistry()
 
 
-def _get_instance() -> _InstanceRegistry:
+def _get_instance_registry() -> _InstanceRegistry:
     """Return the process-wide registry every Unleash client registers into."""
     return _REGISTRY
