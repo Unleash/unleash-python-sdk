@@ -9,6 +9,7 @@ from yggdrasil_engine.engine import UnleashEngine
 
 from UnleashClient._async_scheduler import _AsyncScheduler
 from UnleashClient._evaluator import _Evaluator
+from UnleashClient._instance_registry import _get_instance_registry
 from UnleashClient.async_metrics_reporter import AsyncMetricsReporter
 from UnleashClient.async_transport import AsyncTransport
 from UnleashClient.cache import BaseCache, FileCache
@@ -19,6 +20,7 @@ from UnleashClient.events import BaseEvent, EventDispatcher
 from UnleashClient.headers import HeaderFactory
 from UnleashClient.impact_metrics import ImpactMetrics
 from UnleashClient.store import FeatureStore
+from UnleashClient.utils import InstanceAllowType
 
 _NOT_IMPLEMENTED = (
     "AsyncUnleashClient is a work in progress and does not do anything yet. "
@@ -54,6 +56,7 @@ class AsyncUnleashClient:
         project_name: Optional[str] = None,
         verbose_log_level: int = 30,
         cache: Optional[BaseCache] = None,
+        multiple_instance_mode: InstanceAllowType = InstanceAllowType.WARN,
         event_callback: Optional[Callable[[BaseEvent], None]] = None,
         experimental_mode: Optional[ExperimentalMode] = None,
         sdk_flavor: Optional[str] = None,
@@ -87,6 +90,11 @@ class AsyncUnleashClient:
         self._event_dispatcher: Optional[EventDispatcher] = (
             EventDispatcher(event_callback) if event_callback is not None else None
         )
+
+        _get_instance_registry().register(
+            identifier=self._config.instance_identifier, mode=multiple_instance_mode
+        )
+
         self._engine: UnleashEngine = UnleashEngine()
         self.impact_metrics: ImpactMetrics = ImpactMetrics(
             self._engine,

@@ -10,6 +10,7 @@ from apscheduler.schedulers.base import BaseScheduler
 from yggdrasil_engine.engine import UnleashEngine
 
 from UnleashClient._evaluator import _Evaluator
+from UnleashClient._instance_registry import _get_instance_registry
 from UnleashClient.cache import BaseCache, FileCache
 from UnleashClient.config import (
     ExperimentalMode,
@@ -46,10 +47,9 @@ from UnleashClient.transport import Transport
 from UnleashClient.utils import (
     LOGGER,
     InstanceAllowType,
-    InstanceCounter,
 )
 
-INSTANCES = InstanceCounter()
+INSTANCES = _get_instance_registry()
 
 
 class _RunState(IntEnum):
@@ -188,7 +188,9 @@ class UnleashClient:
         self._lifecycle_lock = threading.RLock()
         self._closed = threading.Event()
 
-        self._do_instance_check(multiple_instance_mode)
+        _get_instance_registry().register(
+            identifier=self._config.instance_identifier, mode=multiple_instance_mode
+        )
 
         # Class objects
         self._engine = UnleashEngine()
@@ -647,16 +649,6 @@ class UnleashClient:
             )
 
         return result.variant
-
-    def _do_instance_check(self, multiple_instance_mode):
-        identifier = self._config.instance_identifier
-        if identifier in INSTANCES:
-            msg = f"You already have {INSTANCES.count(identifier)} instance(s) configured for this config: {identifier}, please double check the code where this client is being instantiated."
-            if multiple_instance_mode == InstanceAllowType.BLOCK:
-                raise Exception(msg)  # pylint: disable=broad-exception-raised
-            if multiple_instance_mode == InstanceAllowType.WARN:
-                LOGGER.error(msg)
-        INSTANCES.increment(identifier)
 
     def __enter__(self) -> "UnleashClient":
         self.initialize_client()
