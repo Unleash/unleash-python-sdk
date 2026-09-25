@@ -55,7 +55,7 @@ class _InstanceRegistry:
 
     def count(self, key: str) -> int:
         with self.lock:
-            return self.instances.get(key) or 0
+            return self.instances.get(key, 0)
 
     def increment(self, key: str) -> None:
         with self.lock:
