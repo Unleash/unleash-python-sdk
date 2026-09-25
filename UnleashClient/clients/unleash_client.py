@@ -10,6 +10,7 @@ from apscheduler.schedulers.base import BaseScheduler
 from yggdrasil_engine.engine import UnleashEngine
 
 from UnleashClient._evaluator import _Evaluator
+from UnleashClient._instance_registry import _get_instance
 from UnleashClient.cache import BaseCache, FileCache
 from UnleashClient.config import (
     ExperimentalMode,
@@ -38,7 +39,6 @@ from UnleashClient.events import (
 )
 from UnleashClient.headers import HeaderFactory
 from UnleashClient.impact_metrics import ImpactMetrics
-from UnleashClient.instance_registry import get_instance
 from UnleashClient.metrics_reporter import MetricsReporter
 from UnleashClient.payloads import build_register_payload
 from UnleashClient.scheduler import ScheduledJob, Scheduler
@@ -49,7 +49,7 @@ from UnleashClient.utils import (
     InstanceAllowType,
 )
 
-INSTANCES = get_instance()
+INSTANCES = _get_instance()
 
 
 class _RunState(IntEnum):
@@ -188,8 +188,8 @@ class UnleashClient:
         self._lifecycle_lock = threading.RLock()
         self._closed = threading.Event()
 
-        get_instance().register(
-            self._config.instance_identifier, multiple_instance_mode
+        _get_instance().register(
+            identifier=self._config.instance_identifier, mode=multiple_instance_mode
         )
 
         # Class objects

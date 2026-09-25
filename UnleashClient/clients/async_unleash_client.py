@@ -9,6 +9,7 @@ from yggdrasil_engine.engine import UnleashEngine
 
 from UnleashClient._async_scheduler import _AsyncScheduler
 from UnleashClient._evaluator import _Evaluator
+from UnleashClient._instance_registry import _get_instance
 from UnleashClient.async_metrics_reporter import AsyncMetricsReporter
 from UnleashClient.async_transport import AsyncTransport
 from UnleashClient.cache import BaseCache, FileCache
@@ -18,7 +19,6 @@ from UnleashClient.context import ContextEnricher
 from UnleashClient.events import BaseEvent, EventDispatcher
 from UnleashClient.headers import HeaderFactory
 from UnleashClient.impact_metrics import ImpactMetrics
-from UnleashClient.instance_registry import get_instance
 from UnleashClient.store import FeatureStore
 from UnleashClient.utils import InstanceAllowType
 
@@ -91,8 +91,8 @@ class AsyncUnleashClient:
             EventDispatcher(event_callback) if event_callback is not None else None
         )
 
-        get_instance().register(
-            self._config.instance_identifier, multiple_instance_mode
+        _get_instance().register(
+            identifier=self._config.instance_identifier, mode=multiple_instance_mode
         )
 
         self._engine: UnleashEngine = UnleashEngine()

@@ -6,7 +6,7 @@ from typing import Dict
 from UnleashClient.utils import LOGGER, InstanceAllowType
 
 
-class InstanceRegistry:
+class _InstanceRegistry:
     """
     Counts live client configurations and applies the duplicate-instance policy.
 
@@ -18,7 +18,7 @@ class InstanceRegistry:
 
     Example::
 
-        registry = get_instance()
+        registry = _get_instance()
         registry.register(
             identifier=config.instance_identifier, mode=InstanceAllowType.WARN
         )
@@ -69,9 +69,9 @@ class InstanceRegistry:
             self.instances = {}
 
 
-_REGISTRY = InstanceRegistry()
+_REGISTRY = _InstanceRegistry()
 
 
-def get_instance() -> InstanceRegistry:
+def _get_instance() -> _InstanceRegistry:
     """Return the process-wide registry every Unleash client registers into."""
     return _REGISTRY

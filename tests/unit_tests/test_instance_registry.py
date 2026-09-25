@@ -1,7 +1,7 @@
 import pytest
 
 from UnleashClient import INSTANCES
-from UnleashClient.instance_registry import InstanceRegistry, get_instance
+from UnleashClient._instance_registry import _get_instance, _InstanceRegistry
 from UnleashClient.utils import InstanceAllowType
 
 IDENTIFIER = "apiKey:None appName:pytest instanceId:123"
@@ -17,7 +17,7 @@ def duplicate_warnings(caplog) -> list:
     [InstanceAllowType.BLOCK, InstanceAllowType.WARN, InstanceAllowType.SILENTLY_ALLOW],
 )
 def test_a_first_registration_is_silent_under_every_mode(caplog, mode):
-    registry = InstanceRegistry()
+    registry = _InstanceRegistry()
 
     registry.register(IDENTIFIER, mode)
 
@@ -26,7 +26,7 @@ def test_a_first_registration_is_silent_under_every_mode(caplog, mode):
 
 
 def test_a_repeat_registration_warns_with_the_count_before_it(caplog):
-    registry = InstanceRegistry()
+    registry = _InstanceRegistry()
     registry.register(IDENTIFIER, InstanceAllowType.WARN)
 
     registry.register(IDENTIFIER, InstanceAllowType.WARN)
@@ -38,7 +38,7 @@ def test_a_repeat_registration_warns_with_the_count_before_it(caplog):
 
 
 def test_the_warning_reports_a_growing_count(caplog):
-    registry = InstanceRegistry()
+    registry = _InstanceRegistry()
     for _ in range(3):
         registry.register(IDENTIFIER, InstanceAllowType.WARN)
 
@@ -49,7 +49,7 @@ def test_the_warning_reports_a_growing_count(caplog):
 
 
 def test_the_warning_is_logged_as_an_error(caplog):
-    registry = InstanceRegistry()
+    registry = _InstanceRegistry()
     registry.register(IDENTIFIER, InstanceAllowType.WARN)
 
     registry.register(IDENTIFIER, InstanceAllowType.WARN)
@@ -60,7 +60,7 @@ def test_the_warning_is_logged_as_an_error(caplog):
 
 
 def test_block_raises_on_a_repeat_registration():
-    registry = InstanceRegistry()
+    registry = _InstanceRegistry()
     registry.register(IDENTIFIER, InstanceAllowType.BLOCK)
 
     with pytest.raises(Exception, match="You already have 1 instance"):
@@ -68,7 +68,7 @@ def test_block_raises_on_a_repeat_registration():
 
 
 def test_a_blocked_registration_is_not_counted():
-    registry = InstanceRegistry()
+    registry = _InstanceRegistry()
     registry.register(IDENTIFIER, InstanceAllowType.BLOCK)
 
     with pytest.raises(Exception):
@@ -78,7 +78,7 @@ def test_a_blocked_registration_is_not_counted():
 
 
 def test_silently_allow_neither_logs_nor_raises(caplog):
-    registry = InstanceRegistry()
+    registry = _InstanceRegistry()
     registry.register(IDENTIFIER, InstanceAllowType.SILENTLY_ALLOW)
 
     registry.register(IDENTIFIER, InstanceAllowType.SILENTLY_ALLOW)
@@ -88,7 +88,7 @@ def test_silently_allow_neither_logs_nor_raises(caplog):
 
 
 def test_different_identifiers_do_not_collide(caplog):
-    registry = InstanceRegistry()
+    registry = _InstanceRegistry()
 
     registry.register(IDENTIFIER, InstanceAllowType.WARN)
     registry.register(OTHER_IDENTIFIER, InstanceAllowType.WARN)
@@ -99,7 +99,7 @@ def test_different_identifiers_do_not_collide(caplog):
 
 
 def test_the_mode_of_the_registration_that_repeats_is_the_one_applied(caplog):
-    registry = InstanceRegistry()
+    registry = _InstanceRegistry()
     registry.register(IDENTIFIER, InstanceAllowType.SILENTLY_ALLOW)
 
     registry.register(IDENTIFIER, InstanceAllowType.WARN)
@@ -108,14 +108,14 @@ def test_the_mode_of_the_registration_that_repeats_is_the_one_applied(caplog):
 
 
 def test_an_unknown_identifier_counts_zero_and_is_not_contained():
-    registry = InstanceRegistry()
+    registry = _InstanceRegistry()
 
     assert registry.count(IDENTIFIER) == 0
     assert IDENTIFIER not in registry
 
 
 def test_increment_counts_without_applying_any_policy(caplog):
-    registry = InstanceRegistry()
+    registry = _InstanceRegistry()
 
     registry.increment(IDENTIFIER)
     registry.increment(IDENTIFIER)
@@ -126,7 +126,7 @@ def test_increment_counts_without_applying_any_policy(caplog):
 
 
 def test_reset_clears_every_identifier():
-    registry = InstanceRegistry()
+    registry = _InstanceRegistry()
     registry.register(IDENTIFIER, InstanceAllowType.WARN)
     registry.register(OTHER_IDENTIFIER, InstanceAllowType.WARN)
 
@@ -137,9 +137,9 @@ def test_reset_clears_every_identifier():
 
 
 def test_get_instance_returns_the_same_registry_every_time():
-    assert get_instance() is get_instance()
+    assert _get_instance() is _get_instance()
 
 
 def test_the_exported_instances_object_is_that_registry():
-    assert INSTANCES is get_instance()
-    assert isinstance(INSTANCES, InstanceRegistry)
+    assert INSTANCES is _get_instance()
+    assert isinstance(INSTANCES, _InstanceRegistry)
