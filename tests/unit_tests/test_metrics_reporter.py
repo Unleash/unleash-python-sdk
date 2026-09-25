@@ -4,12 +4,12 @@ import responses
 from apscheduler.schedulers.background import BackgroundScheduler
 from yggdrasil_engine.engine import UnleashEngine
 
+from UnleashClient._scheduler import _Scheduler
 from UnleashClient.config import UnleashConfig
 from UnleashClient.constants import CLIENT_SPEC_VERSION, METRICS_URL
 from UnleashClient.headers import HeaderFactory
 from UnleashClient.impact_metrics import ImpactMetrics
 from UnleashClient.metrics_reporter import MetricsReporter
-from UnleashClient.scheduler import Scheduler
 from UnleashClient.transport import Transport
 
 URL = "http://localhost:4242/api"
@@ -67,7 +67,7 @@ def build_reporter(scheduler=None, impact_metrics=None, **kwargs) -> MetricsRepo
     return MetricsReporter(
         config=config,
         transport=Transport(config, HeaderFactory(config)),
-        scheduler=scheduler if scheduler is not None else Scheduler(),
+        scheduler=scheduler if scheduler is not None else _Scheduler(),
         engine=engine,
         impact_metrics=(
             impact_metrics
@@ -184,7 +184,7 @@ def test_the_config_is_read_on_every_flush():
 def test_start_builds_an_interval_trigger_from_the_metrics_interval_and_jitter():
     recording = RecordingScheduler()
     reporter = build_reporter(
-        scheduler=Scheduler(recording, "default"),
+        scheduler=_Scheduler(recording, "default"),
         metrics_interval=30,
         metrics_jitter=10,
     )
@@ -198,7 +198,7 @@ def test_start_builds_an_interval_trigger_from_the_metrics_interval_and_jitter()
 
 def test_start_registers_the_flush():
     recording = RecordingScheduler()
-    reporter = build_reporter(scheduler=Scheduler(recording, "default"))
+    reporter = build_reporter(scheduler=_Scheduler(recording, "default"))
 
     reporter.start()
 
@@ -208,7 +208,7 @@ def test_start_registers_the_flush():
 
 def test_start_coerces_the_metrics_interval():
     recording = RecordingScheduler()
-    reporter = build_reporter(scheduler=Scheduler(recording, "default"))
+    reporter = build_reporter(scheduler=_Scheduler(recording, "default"))
     reporter._config.metrics_interval = "30"
 
     reporter.start()
@@ -218,7 +218,7 @@ def test_start_coerces_the_metrics_interval():
 
 
 def test_start_exposes_the_registered_job():
-    reporter = build_reporter(scheduler=Scheduler(BackgroundScheduler(), "default"))
+    reporter = build_reporter(scheduler=_Scheduler(BackgroundScheduler(), "default"))
 
     assert reporter.job is None
     reporter.start()
@@ -232,7 +232,7 @@ def test_start_exposes_the_registered_job():
 @responses.activate
 def test_stop_flushes_what_is_left_and_cancels_the_job():
     responses.add(responses.POST, FULL_METRICS_URL, json={}, status=202)
-    scheduler = Scheduler(BackgroundScheduler(), "default")
+    scheduler = _Scheduler(BackgroundScheduler(), "default")
     reporter = build_reporter(scheduler=scheduler)
     reporter.start()
     reporter._engine.count_toggle(COUNTED_FLAG, True)
@@ -258,7 +258,7 @@ def test_stop_sends_nothing_when_no_job_was_ever_registered():
 @responses.activate
 def test_stop_tolerates_a_scheduler_that_registered_no_job():
     responses.add(responses.POST, FULL_METRICS_URL, json={}, status=202)
-    reporter = build_reporter(scheduler=Scheduler(MinimalScheduler(), "default"))
+    reporter = build_reporter(scheduler=_Scheduler(MinimalScheduler(), "default"))
     reporter.start()
     reporter._engine.count_toggle(COUNTED_FLAG, True)
 
