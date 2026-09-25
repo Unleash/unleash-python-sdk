@@ -3,6 +3,7 @@
 import threading
 from typing import Dict
 
+from UnleashClient.errors import MultipleInstancesNotAllowedError
 from UnleashClient.utils import LOGGER, InstanceAllowType
 
 
@@ -18,7 +19,7 @@ class _InstanceRegistry:
 
     Example::
 
-        registry = _get_instance()
+        registry = _get_instance_registry()
         registry.register(
             identifier=config.instance_identifier, mode=InstanceAllowType.WARN
         )
@@ -37,14 +38,15 @@ class _InstanceRegistry:
         error on :attr:`~UnleashClient.utils.InstanceAllowType.WARN`, and is
         silent on :attr:`~UnleashClient.utils.InstanceAllowType.SILENTLY_ALLOW`.
 
-        :raises Exception: if ``identifier`` is already registered and ``mode``
-            is :attr:`~UnleashClient.utils.InstanceAllowType.BLOCK`.
+        :raises MultipleInstancesNotAllowedError: if ``identifier`` is already
+            registered and ``mode`` is
+            :attr:`~UnleashClient.utils.InstanceAllowType.BLOCK`.
         """
         with self.lock:
             if identifier in self:
                 msg = f"You already have {self.count(identifier)} instance(s) configured for this config: {identifier}, please double check the code where this client is being instantiated."
                 if mode == InstanceAllowType.BLOCK:
-                    raise Exception(msg)  # pylint: disable=broad-exception-raised
+                    raise MultipleInstancesNotAllowedError(msg)
                 if mode == InstanceAllowType.WARN:
                     LOGGER.error(msg)
             self.increment(identifier)

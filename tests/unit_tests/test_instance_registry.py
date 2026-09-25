@@ -2,6 +2,7 @@ import pytest
 
 from UnleashClient import INSTANCES
 from UnleashClient._instance_registry import _get_instance_registry, _InstanceRegistry
+from UnleashClient.errors import MultipleInstancesNotAllowedError, UnleashClientError
 from UnleashClient.utils import InstanceAllowType
 
 IDENTIFIER = "apiKey:None appName:pytest instanceId:123"
@@ -63,7 +64,17 @@ def test_block_raises_on_a_repeat_registration():
     registry = _InstanceRegistry()
     registry.register(IDENTIFIER, InstanceAllowType.BLOCK)
 
-    with pytest.raises(Exception, match="You already have 1 instance"):
+    with pytest.raises(
+        MultipleInstancesNotAllowedError, match="You already have 1 instance"
+    ):
+        registry.register(IDENTIFIER, InstanceAllowType.BLOCK)
+
+
+def test_a_blocked_registration_is_an_unleash_client_error():
+    registry = _InstanceRegistry()
+    registry.register(IDENTIFIER, InstanceAllowType.BLOCK)
+
+    with pytest.raises(UnleashClientError):
         registry.register(IDENTIFIER, InstanceAllowType.BLOCK)
 
 
@@ -71,7 +82,7 @@ def test_a_blocked_registration_is_not_counted():
     registry = _InstanceRegistry()
     registry.register(IDENTIFIER, InstanceAllowType.BLOCK)
 
-    with pytest.raises(Exception):
+    with pytest.raises(MultipleInstancesNotAllowedError):
         registry.register(IDENTIFIER, InstanceAllowType.BLOCK)
 
     assert registry.count(IDENTIFIER) == 1

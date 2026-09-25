@@ -45,6 +45,7 @@ from tests.utilities.testing_constants import (
 from UnleashClient import INSTANCES, UnleashClient
 from UnleashClient.cache import BaseCache, FileCache
 from UnleashClient.constants import FEATURES_URL, METRICS_URL, REGISTER_URL
+from UnleashClient.errors import MultipleInstancesNotAllowedError
 from UnleashClient.events import UnleashEventType
 from UnleashClient.utils import InstanceAllowType
 
@@ -1105,7 +1106,7 @@ def test_uc_custom_scheduler(cache):
 def test_multiple_instances_blocks_client_instantiation(tmp_path):
     client1 = None
     client2 = None
-    with pytest.raises(Exception):
+    with pytest.raises(MultipleInstancesNotAllowedError):
         client1 = UnleashClient(
             URL,
             APP_NAME,

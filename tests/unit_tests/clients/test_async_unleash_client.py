@@ -10,6 +10,7 @@ from UnleashClient.async_metrics_reporter import AsyncMetricsReporter
 from UnleashClient.cache import FileCache
 from UnleashClient.clients.async_unleash_client import AsyncUnleashClient
 from UnleashClient.constants import FEATURES_URL
+from UnleashClient.errors import MultipleInstancesNotAllowedError
 from UnleashClient.metrics_reporter import MetricsReporter
 from UnleashClient.utils import InstanceAllowType
 
@@ -368,7 +369,9 @@ def test_a_second_async_client_on_the_same_config_can_be_blocked(tmpdir):
         multiple_instance_mode=InstanceAllowType.BLOCK,
     )
 
-    with pytest.raises(Exception, match="You already have 1 instance"):
+    with pytest.raises(
+        MultipleInstancesNotAllowedError, match="You already have 1 instance"
+    ):
         build_async_client(
             tmpdir,
             url=URL,
