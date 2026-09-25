@@ -68,8 +68,6 @@ def test_block_raises_on_a_repeat_registration():
 
 
 def test_a_blocked_registration_is_not_counted():
-    # The raise comes before the increment, so a client that never got built
-    # does not inflate the count reported to the next one.
     registry = InstanceRegistry()
     registry.register(IDENTIFIER, InstanceAllowType.BLOCK)
 
@@ -101,17 +99,12 @@ def test_different_identifiers_do_not_collide(caplog):
 
 
 def test_the_mode_of_the_registration_that_repeats_is_the_one_applied(caplog):
-    # The mode belongs to the client being constructed, not to the one already
-    # registered.
     registry = InstanceRegistry()
     registry.register(IDENTIFIER, InstanceAllowType.SILENTLY_ALLOW)
 
     registry.register(IDENTIFIER, InstanceAllowType.WARN)
 
     assert len(duplicate_warnings(caplog)) == 1
-
-
-# The counter surface INSTANCES has always exposed.
 
 
 def test_an_unknown_identifier_counts_zero_and_is_not_contained():
@@ -143,15 +136,10 @@ def test_reset_clears_every_identifier():
     assert OTHER_IDENTIFIER not in registry
 
 
-# The process-wide instance.
-
-
 def test_get_instance_returns_the_same_registry_every_time():
     assert get_instance() is get_instance()
 
 
 def test_the_exported_instances_object_is_that_registry():
-    # UnleashClient.INSTANCES is public and the test suite resets it; it has to
-    # be the object the clients register into.
     assert INSTANCES is get_instance()
     assert isinstance(INSTANCES, InstanceRegistry)

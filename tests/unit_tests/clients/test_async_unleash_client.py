@@ -386,8 +386,6 @@ def test_async_clients_on_different_configs_do_not_warn(tmpdir, caplog):
 
 
 def test_the_two_flavors_share_one_registry(tmpdir, caplog):
-    # A sync and an async client on one config both register and both report
-    # metrics, so they are duplicates of each other.
     sync_client = UnleashClient(
         url=URL, app_name=APP_NAME, cache=FileCache(APP_NAME, directory=str(tmpdir))
     )

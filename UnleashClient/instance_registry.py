@@ -15,6 +15,14 @@ class InstanceRegistry:
     redacts the API key. A client rejected under
     :attr:`~UnleashClient.utils.InstanceAllowType.BLOCK` is not counted, so the
     count only ever covers clients that were actually built.
+
+    Example::
+
+        registry = get_instance()
+        registry.register(
+            identifier=config.instance_identifier, mode=InstanceAllowType.WARN
+        )
+        registry.count(key=config.instance_identifier)
     """
 
     def __init__(self) -> None:
@@ -28,6 +36,9 @@ class InstanceRegistry:
         Raises on :attr:`~UnleashClient.utils.InstanceAllowType.BLOCK`, logs an
         error on :attr:`~UnleashClient.utils.InstanceAllowType.WARN`, and is
         silent on :attr:`~UnleashClient.utils.InstanceAllowType.SILENTLY_ALLOW`.
+
+        :raises Exception: if ``identifier`` is already registered and ``mode``
+            is :attr:`~UnleashClient.utils.InstanceAllowType.BLOCK`.
         """
         with self.lock:
             if identifier in self:

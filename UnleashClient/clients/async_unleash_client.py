@@ -91,8 +91,6 @@ class AsyncUnleashClient:
             EventDispatcher(event_callback) if event_callback is not None else None
         )
 
-        # The registry is process-wide, so a synchronous and an asynchronous
-        # client on the same configuration count as duplicates of each other.
         get_instance().register(
             self._config.instance_identifier, multiple_instance_mode
         )
