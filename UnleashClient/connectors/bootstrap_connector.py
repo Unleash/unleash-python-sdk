@@ -11,7 +11,7 @@ class BootstrapConnector(BaseConnector):
         super().__init__(store)
         self.job = None
 
-    # TODO: the client hands this connector a store with no EventDispatcher, so
+    # TODO: the client hands this connector a store with no _EventDispatcher, so
     # bootstrapping does not emit a READY event. Bootstrapped clients only see
     # READY once initialize_client() builds a polling, streaming or offline
     # connector. Passing the dispatcher here would emit READY from

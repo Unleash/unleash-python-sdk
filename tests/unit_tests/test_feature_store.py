@@ -11,10 +11,11 @@ from tests.utilities.mocks.mock_features import (
     MOCK_FEATURE_RESPONSE_PROJECT,
 )
 from tests.utilities.testing_constants import ETAG_VALUE
+from UnleashClient._event_dispatcher import _EventDispatcher
 from UnleashClient._feature_store import _FeatureStore
 from UnleashClient.cache import BaseCache
 from UnleashClient.constants import ETAG, FEATURES_URL
-from UnleashClient.events import EventDispatcher, UnleashEventType
+from UnleashClient.events import UnleashEventType
 
 FEATURES = json.dumps(MOCK_FEATURE_RESPONSE)
 OTHER_FEATURES = json.dumps(MOCK_FEATURE_RESPONSE_PROJECT)
@@ -77,7 +78,7 @@ def test_load_from_cache_emits_ready(cache_empty, dispatcher, recorder):
 
 
 def test_load_from_cache_on_an_empty_cache_neither_raises_nor_emits(
-    cache_empty, dispatcher: EventDispatcher, recorder: EventRecorder
+    cache_empty, dispatcher: _EventDispatcher, recorder: EventRecorder
 ):
     engine = UnleashEngine()
 

@@ -6,9 +6,9 @@ import pytest
 from tests.utilities.events import EventRecorder
 from tests.utilities.mocks import MOCK_ALL_FEATURES, MOCK_CUSTOM_STRATEGY
 from tests.utilities.mocks.mock_features import MOCK_FEATURES_WITH_SEGMENTS_RESPONSE
+from UnleashClient._event_dispatcher import _EventDispatcher
 from UnleashClient.cache import FileCache
 from UnleashClient.constants import ETAG, FEATURES_URL, METRIC_LAST_SENT_TIME
-from UnleashClient.events import EventDispatcher
 
 
 @pytest.fixture()
@@ -22,7 +22,7 @@ def dispatcher(recorder):
     A dispatcher wired to the `recorder` fixture, closed on teardown so a wedged
     worker can't leak into the next test.
     """
-    event_dispatcher = EventDispatcher(recorder)
+    event_dispatcher = _EventDispatcher(recorder)
     yield event_dispatcher
     event_dispatcher.close(timeout=1)
 

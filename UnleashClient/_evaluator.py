@@ -7,9 +7,9 @@ from typing import Any, Callable, Dict, NamedTuple, Optional
 from yggdrasil_engine.engine import UnleashEngine
 
 from UnleashClient._context import _ContextEnricher
+from UnleashClient._event_dispatcher import _EventDispatcher
 from UnleashClient.config import UnleashConfig
 from UnleashClient.events import (
-    EventDispatcher,
     UnleashEvent,
     UnleashEventType,
 )
@@ -31,7 +31,7 @@ class _Evaluator:
         engine: UnleashEngine,
         enricher: _ContextEnricher,
         config: UnleashConfig,
-        events: Optional[EventDispatcher] = None,
+        events: Optional[_EventDispatcher] = None,
     ) -> None:
         """
         :param engine: Feature evaluation engine instance (UnleashEngine).
@@ -42,7 +42,7 @@ class _Evaluator:
         self._engine: UnleashEngine = engine
         self._enricher: _ContextEnricher = enricher
         self._config: UnleashConfig = config
-        self._events: Optional[EventDispatcher] = events
+        self._events: Optional[_EventDispatcher] = events
 
     # pylint: disable=broad-except
     def is_enabled(
