@@ -28,18 +28,18 @@ def dispatcher(recorder):
 
 
 @pytest.fixture()
-def cache_empty():
+def cache_empty(tmp_path):
     cache_name = "pytest_%s" % uuid.uuid4()
-    temporary_cache = FileCache(cache_name)
+    temporary_cache = FileCache(cache_name, directory=str(tmp_path))
     temporary_cache.mset({METRIC_LAST_SENT_TIME: datetime.now(timezone.utc), ETAG: ""})
     yield temporary_cache
     temporary_cache.destroy()
 
 
 @pytest.fixture()
-def cache_full():
+def cache_full(tmp_path):
     cache_name = "pytest_%s" % uuid.uuid4()
-    temporary_cache = FileCache(cache_name)
+    temporary_cache = FileCache(cache_name, directory=str(tmp_path))
     temporary_cache.mset(
         {
             FEATURES_URL: MOCK_ALL_FEATURES,
@@ -52,9 +52,9 @@ def cache_full():
 
 
 @pytest.fixture()
-def cache_custom():
+def cache_custom(tmp_path):
     cache_name = "pytest_%s" % uuid.uuid4()
-    temporary_cache = FileCache(cache_name)
+    temporary_cache = FileCache(cache_name, directory=str(tmp_path))
     temporary_cache.mset(
         {
             FEATURES_URL: MOCK_CUSTOM_STRATEGY,
@@ -67,9 +67,9 @@ def cache_custom():
 
 
 @pytest.fixture()
-def cache_segments():
+def cache_segments(tmp_path):
     cache_name = "pytest_%s" % uuid.uuid4()
-    temporary_cache = FileCache(cache_name)
+    temporary_cache = FileCache(cache_name, directory=str(tmp_path))
     temporary_cache.mset(
         {
             FEATURES_URL: MOCK_FEATURES_WITH_SEGMENTS_RESPONSE,
