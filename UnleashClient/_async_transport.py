@@ -5,9 +5,10 @@ import json
 import threading
 from typing import Any, Dict, Optional
 
-from UnleashClient._transport import AlreadyClosedError, FetchResult, _normalized_url
+from UnleashClient._transport import FetchResult, _normalized_url
 from UnleashClient.config import UnleashConfig
 from UnleashClient.constants import FEATURES_URL, METRICS_URL, REGISTER_URL
+from UnleashClient.errors import AlreadyClosedError
 from UnleashClient.headers import HeaderFactory
 from UnleashClient.utils import LOGGER
 
@@ -81,9 +82,6 @@ class _AsyncTransport:
         if session is not None and not session.closed:
             await session.close()
 
-    # pylint: disable=broad-except
-    # TODO: narrow the except clause to the same set of errors the sync transport
-    # raises, so TransportError becomes part of the API of transports.
     async def fetch_features(self, etag: str = "") -> FetchResult:
         """
         Fetch feature state, sending ``If-None-Match`` when an etag is known.
