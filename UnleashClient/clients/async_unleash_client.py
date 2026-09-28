@@ -34,11 +34,6 @@ from UnleashClient.events import BaseEvent
 from UnleashClient.impact_metrics import ImpactMetrics
 from UnleashClient.utils import LOGGER, InstanceAllowType
 
-_NOT_IMPLEMENTED = (
-    "AsyncUnleashClient is a work in progress and does not support this yet. "
-    "Use UnleashClient."
-)
-
 
 class AsyncUnleashClient:
     """
@@ -47,8 +42,6 @@ class AsyncUnleashClient:
     The client keeps feature state fresh by polling the Unleash server on the
     event loop it was initialized on, and reports metrics on the same loop.
     Streaming, offline mode and bootstrapping are not supported.
-    :meth:`feature_definitions` is not implemented yet and raises
-    :class:`NotImplementedError`.
 
     Example::
 
@@ -61,6 +54,8 @@ class AsyncUnleashClient:
                 ...
 
             variant = client.get_variant("checkout-button", {"userId": "42"})
+
+            definitions = client.feature_definitions()
 
             client.impact_metrics.define_counter("purchases", "Number of purchases")
             client.impact_metrics.increment_counter("purchases")
@@ -213,20 +208,29 @@ class AsyncUnleashClient:
 
     def feature_definitions(self) -> dict:
         """
-        Returns a dict containing all feature definitions known to the SDK at the time of calling.
-        Normally this would be a pared down version of the response from the Unleash API but this
-        may also be a result from bootstrapping or loading from backup.
+        Returns a dict containing all feature definitions known to the client at
+        the time of calling, keyed by feature name. This is a pared down version
+        of the response from the Unleash server, or of the cached state before
+        the client has fetched from the server.
 
-        Example response:
+        Notes:
 
-        {
-            "feature1": {
-                "project": "default",
-                "type": "release",
+        * It is a plain method, not a coroutine, and does not wait for the
+          server. Before the client has any feature state, it returns an empty
+          dict.
+
+        Example response::
+
+            {
+                "feature1": {
+                    "project": "default",
+                    "type": "release",
+                }
             }
-        }
+
+        :return: Feature definitions keyed by feature name.
         """
-        raise NotImplementedError(_NOT_IMPLEMENTED)
+        return self._evaluator.feature_definitions()
 
     async def initialize_client(self, fetch_toggles: bool = True) -> None:
         """

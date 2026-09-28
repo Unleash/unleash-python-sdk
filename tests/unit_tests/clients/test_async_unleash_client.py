@@ -8,7 +8,10 @@ import pytest_asyncio
 
 from tests.utilities.events import WAIT_TIMEOUT, EventRecorder
 from tests.utilities.fake_unleash_server import FakeUnleash
-from tests.utilities.mocks.mock_features import MOCK_FEATURE_RESPONSE
+from tests.utilities.mocks.mock_features import (
+    MOCK_FEATURE_RESPONSE,
+    MOCK_FEATURE_RESPONSE_PROJECT,
+)
 from tests.utilities.testing_constants import APP_NAME, URL
 from UnleashClient import INSTANCES, UnleashClient
 from UnleashClient._metrics import _AsyncMetricsReporter, _MetricsReporter
@@ -211,13 +214,6 @@ def test_both_clients_load_the_same_state(tmpdir):
         assert known_toggles(async_client._engine)
     finally:
         sync_client.destroy()
-
-
-def test_the_async_client_cannot_evaluate_yet(tmpdir):
-    client = build_async_client(tmpdir, url=URL, app_name=APP_NAME)
-
-    with pytest.raises(NotImplementedError):
-        client.feature_definitions()
 
 
 def test_async_client_builds_an_evaluator_over_its_engine_and_config(tmpdir):
@@ -737,3 +733,27 @@ async def test_get_variant_emits_impression_events(tmpdir, build_running_client)
     assert event.enabled is True
     assert event.variant == "VarA"
     assert event.context["userId"] == "2"
+
+
+@pytest.mark.asyncio
+async def test_feature_definitions_reports_the_toggles_in_the_cached_state(
+    tmpdir, build_running_client
+):
+    cache = FileCache(APP_NAME, directory=str(tmpdir))
+    cache.set(FEATURES_URL, json.dumps(MOCK_FEATURE_RESPONSE_PROJECT))
+    client = build_running_client(refresh_interval=3600, cache=cache)
+
+    await client.initialize_client()
+
+    assert client.feature_definitions() == {
+        "ivan-project": {"type": "release", "project": "default"}
+    }
+
+
+@pytest.mark.asyncio
+async def test_feature_definitions_is_empty_without_any_state(build_running_client):
+    client = build_running_client(refresh_interval=3600)
+
+    await client.initialize_client()
+
+    assert client.feature_definitions() == {}
