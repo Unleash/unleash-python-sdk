@@ -1,3 +1,4 @@
+from UnleashClient._headers import _HeaderFactory
 from UnleashClient.config import UnleashConfig
 from UnleashClient.constants import (
     APPLICATION_HEADERS,
@@ -5,19 +6,18 @@ from UnleashClient.constants import (
     SDK_NAME,
     SDK_VERSION,
 )
-from UnleashClient.headers import HeaderFactory
 
 TEST_URL = "http://localhost:4242/api"
 TEST_APP_NAME = "pytest"
 
 
-def build_factory(**kwargs) -> HeaderFactory:
-    return HeaderFactory(UnleashConfig(TEST_URL, TEST_APP_NAME, **kwargs))
+def build_factory(**kwargs) -> _HeaderFactory:
+    return _HeaderFactory(UnleashConfig(TEST_URL, TEST_APP_NAME, **kwargs))
 
 
 def test_base_carries_the_identification_headers():
     config = UnleashConfig(TEST_URL, TEST_APP_NAME, instance_id="123")
-    factory = HeaderFactory(config)
+    factory = _HeaderFactory(config)
 
     headers = factory.base()
 
@@ -64,7 +64,7 @@ def test_custom_headers_are_read_on_every_call():
     # UnleashClient.unleash_custom_headers has a setter, so a client can swap
     # the dict out after the factory was constructed.
     config = UnleashConfig(TEST_URL, TEST_APP_NAME)
-    factory = HeaderFactory(config)
+    factory = _HeaderFactory(config)
 
     config.custom_headers = {"Authorization": "replaced"}
 
@@ -73,7 +73,7 @@ def test_custom_headers_are_read_on_every_call():
 
 def test_custom_headers_mutated_in_place_are_picked_up():
     config = UnleashConfig(TEST_URL, TEST_APP_NAME, custom_headers={"name": "header"})
-    factory = HeaderFactory(config)
+    factory = _HeaderFactory(config)
 
     config.custom_headers["extra"] = "another"
 
@@ -82,7 +82,7 @@ def test_custom_headers_mutated_in_place_are_picked_up():
 
 def test_identity_is_read_on_every_call():
     config = UnleashConfig(TEST_URL, TEST_APP_NAME)
-    factory = HeaderFactory(config)
+    factory = _HeaderFactory(config)
 
     config.app_name = "renamed"
     config.instance_id = "456"
@@ -95,7 +95,7 @@ def test_identity_is_read_on_every_call():
 def test_each_call_returns_a_fresh_dict():
     # The returned dicts are handed to collaborators that hold on to them.
     config = UnleashConfig(TEST_URL, TEST_APP_NAME, custom_headers={"name": "header"})
-    factory = HeaderFactory(config)
+    factory = _HeaderFactory(config)
 
     first = factory.base()
     first["injected"] = "value"

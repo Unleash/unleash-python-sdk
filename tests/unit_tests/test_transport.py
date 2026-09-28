@@ -23,6 +23,7 @@ from tests.utilities.testing_constants import (
     REQUEST_TIMEOUT,
     URL,
 )
+from UnleashClient._headers import _HeaderFactory
 from UnleashClient._transport import _Transport
 from UnleashClient.config import UnleashConfig
 from UnleashClient.constants import (
@@ -31,7 +32,6 @@ from UnleashClient.constants import (
     METRICS_URL,
     REGISTER_URL,
 )
-from UnleashClient.headers import HeaderFactory
 
 FULL_FEATURE_URL = URL + FEATURES_URL
 FULL_REGISTER_URL = URL + REGISTER_URL
@@ -52,7 +52,7 @@ def build_transport():
         }
         defaults.update(kwargs)
         config = UnleashConfig(URL, APP_NAME, **defaults)
-        return _Transport(config, HeaderFactory(config))
+        return _Transport(config, _HeaderFactory(config))
 
     return _build_transport
 

@@ -5,11 +5,11 @@ import json
 import threading
 from typing import Any, Dict, Optional
 
+from UnleashClient._headers import _HeaderFactory
 from UnleashClient._transport import FetchResult, _normalized_url
 from UnleashClient.config import UnleashConfig
 from UnleashClient.constants import FEATURES_URL, METRICS_URL, REGISTER_URL
 from UnleashClient.errors import AlreadyClosedError
-from UnleashClient.headers import HeaderFactory
 from UnleashClient.utils import LOGGER
 
 try:
@@ -37,13 +37,13 @@ async def _log_resp_info(resp: "aiohttp.ClientResponse") -> None:
 class _AsyncTransport:
     """The asyncio twin of :class:`UnleashClient._transport._Transport`."""
 
-    def __init__(self, config: UnleashConfig, headers: HeaderFactory) -> None:
+    def __init__(self, config: UnleashConfig, headers: _HeaderFactory) -> None:
         """
         :param config: read for the url, timeouts, retries and project.
         :param headers: builds the header set each request needs.
         """
         self._config: UnleashConfig = config
-        self._headers: HeaderFactory = headers
+        self._headers: _HeaderFactory = headers
         self._session: Optional["aiohttp.ClientSession"] = None
         self._is_closed: bool = False
         self._close_lock = threading.Lock()

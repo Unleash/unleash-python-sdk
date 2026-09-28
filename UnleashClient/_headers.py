@@ -6,7 +6,7 @@ from UnleashClient.config import UnleashConfig
 from UnleashClient.constants import APPLICATION_HEADERS, SDK_NAME, SDK_VERSION
 
 
-class HeaderFactory:
+class _HeaderFactory:
     """
     Builds the header sets the SDK sends to Unleash.
 
@@ -17,6 +17,11 @@ class HeaderFactory:
     it once per request, so a change reaches the wire on the next poll or send.
     The client still calls ``streaming()`` once, at initialization, and hands the
     dict to the connector; that one keeps the headers it was given.
+
+    Example::
+
+        headers = _HeaderFactory(config)
+        response = requests.get(url, headers=headers.polling())
     """
 
     def __init__(self, config: UnleashConfig) -> None:

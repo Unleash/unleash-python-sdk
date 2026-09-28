@@ -12,13 +12,13 @@ from UnleashClient._async_transport import _AsyncTransport
 from UnleashClient._context import _ContextEnricher
 from UnleashClient._evaluator import _Evaluator
 from UnleashClient._feature_store import _FeatureStore
+from UnleashClient._headers import _HeaderFactory
 from UnleashClient._instance_registry import _get_instance_registry
 from UnleashClient._metrics import _AsyncMetricsReporter
 from UnleashClient.cache import BaseCache, FileCache
 from UnleashClient.config import ExperimentalMode, UnleashConfig
 from UnleashClient.constants import REQUEST_RETRIES, REQUEST_TIMEOUT
 from UnleashClient.events import BaseEvent, EventDispatcher
-from UnleashClient.headers import HeaderFactory
 from UnleashClient.impact_metrics import ImpactMetrics
 from UnleashClient.utils import InstanceAllowType
 
@@ -85,7 +85,7 @@ class AsyncUnleashClient:
             custom_strategies=custom_strategies,
         )
         self._enricher: _ContextEnricher = _ContextEnricher(self._config)
-        self._headers: HeaderFactory = HeaderFactory(self._config)
+        self._headers: _HeaderFactory = _HeaderFactory(self._config)
 
         self._event_dispatcher: Optional[EventDispatcher] = (
             EventDispatcher(event_callback) if event_callback is not None else None
