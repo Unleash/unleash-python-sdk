@@ -20,9 +20,9 @@ from tests.utilities.event_callbacks import (
     variant_event,
     worker_threads,
 )
+from UnleashClient._event_dispatcher import _EventDispatcher
 from UnleashClient.events import (
     BaseEvent,
-    EventDispatcher,
     UnleashEventType,
 )
 
@@ -58,7 +58,7 @@ def ready_deliveries(callback: RecorderCallback) -> List[BaseEvent]:
 
 
 @pytest.fixture()
-def dispatcher_factory() -> Iterator[Callable[..., EventDispatcher]]:
+def dispatcher_factory() -> Iterator[Callable[..., _EventDispatcher]]:
     """
     Builds dispatchers and guarantees they're torn down, so a wedged worker thread
     can't leak into the next test.
@@ -66,10 +66,10 @@ def dispatcher_factory() -> Iterator[Callable[..., EventDispatcher]]:
     Blocking callbacks are released before the close: a test that fails before its own
     release() would otherwise leave the worker parked inside the callback.
     """
-    created: List[Tuple[object, EventDispatcher]] = []
+    created: List[Tuple[object, _EventDispatcher]] = []
 
-    def _build(callback, *args, **kwargs) -> EventDispatcher:
-        dispatcher = EventDispatcher(callback, *args, **kwargs)
+    def _build(callback, *args, **kwargs) -> _EventDispatcher:
+        dispatcher = _EventDispatcher(callback, *args, **kwargs)
         created.append((callback, dispatcher))
         return dispatcher
 
@@ -84,7 +84,7 @@ def dispatcher_factory() -> Iterator[Callable[..., EventDispatcher]]:
 
 class TestDelivery:
     def test_an_emitted_event_reaches_the_callback(
-        self, dispatcher_factory: Callable[..., EventDispatcher]
+        self, dispatcher_factory: Callable[..., _EventDispatcher]
     ):
         callback = RecorderCallback()
         dispatcher = dispatcher_factory(callback)
@@ -95,7 +95,7 @@ class TestDelivery:
         assert callback.feature_names == ["testFlag"]
 
     def test_the_callback_is_handed_the_event_that_was_emitted(
-        self, dispatcher_factory: Callable[..., EventDispatcher]
+        self, dispatcher_factory: Callable[..., _EventDispatcher]
     ):
         callback = RecorderCallback()
         dispatcher = dispatcher_factory(callback)
@@ -107,7 +107,7 @@ class TestDelivery:
         assert callback.events[0] is event
 
     def test_events_arrive_in_the_order_they_were_emitted(
-        self, dispatcher_factory: Callable[..., EventDispatcher]
+        self, dispatcher_factory: Callable[..., _EventDispatcher]
     ):
         callback = RecorderCallback()
         dispatcher = dispatcher_factory(callback)
@@ -119,7 +119,7 @@ class TestDelivery:
         assert callback.feature_names == [str(index) for index in range(20)]
 
     def test_every_kind_of_event_goes_to_the_same_callback(
-        self, dispatcher_factory: Callable[..., EventDispatcher]
+        self, dispatcher_factory: Callable[..., _EventDispatcher]
     ):
         callback = RecorderCallback()
         dispatcher = dispatcher_factory(callback)
@@ -132,7 +132,7 @@ class TestDelivery:
         assert callback.events == emitted
 
     def test_emitting_does_not_wait_for_the_callback(
-        self, dispatcher_factory: Callable[..., EventDispatcher]
+        self, dispatcher_factory: Callable[..., _EventDispatcher]
     ):
         callback = BlockingCallback()
         dispatcher = dispatcher_factory(callback)
@@ -147,10 +147,10 @@ class TestDelivery:
         assert dispatcher.dropped_events == 0  # in the queue, not on the floor
 
     def test_the_emitter_does_not_wait_for_the_whole_callback_duration(
-        self, dispatcher_factory: Callable[..., EventDispatcher]
+        self, dispatcher_factory: Callable[..., _EventDispatcher]
     ):
         callback: SlowCallback = SlowCallback(delay=0.05)
-        dispatcher: EventDispatcher = dispatcher_factory(callback)
+        dispatcher: _EventDispatcher = dispatcher_factory(callback)
 
         for _ in range(20):
             dispatcher.emit_event(flag_event())
@@ -160,10 +160,10 @@ class TestDelivery:
         )  # If emitter had waited for the callback, this would be exactly 20.
 
     def test_emitter_does_not_drop_events_despite_slow_callback(
-        self, dispatcher_factory: Callable[..., EventDispatcher]
+        self, dispatcher_factory: Callable[..., _EventDispatcher]
     ):
         callback: SlowCallback = SlowCallback(delay=0.05)
-        dispatcher: EventDispatcher = dispatcher_factory(callback)
+        dispatcher: _EventDispatcher = dispatcher_factory(callback)
 
         for _ in range(20):
             dispatcher.emit_event(flag_event())
@@ -171,10 +171,10 @@ class TestDelivery:
         assert dispatcher.dropped_events == 0
 
     def test_emitter_eventually_processes_all_events_despite_slow_callback(
-        self, dispatcher_factory: Callable[..., EventDispatcher]
+        self, dispatcher_factory: Callable[..., _EventDispatcher]
     ):
         callback: SlowCallback = SlowCallback(delay=0.05)
-        dispatcher: EventDispatcher = dispatcher_factory(callback)
+        dispatcher: _EventDispatcher = dispatcher_factory(callback)
 
         for _ in range(20):
             dispatcher.emit_event(flag_event())
@@ -184,7 +184,7 @@ class TestDelivery:
 
 class TestWorkerLifecycle:
     def test_no_worker_runs_until_the_first_event(
-        self, dispatcher_factory: Callable[..., EventDispatcher]
+        self, dispatcher_factory: Callable[..., _EventDispatcher]
     ):
         before = len(worker_threads())
         dispatcher = dispatcher_factory(RecorderCallback())
@@ -196,7 +196,7 @@ class TestWorkerLifecycle:
         assert len(worker_threads()) == before + 1
 
     def test_one_worker_serves_every_event(
-        self, dispatcher_factory: Callable[..., EventDispatcher]
+        self, dispatcher_factory: Callable[..., _EventDispatcher]
     ):
         callback = RecorderCallback()
         dispatcher = dispatcher_factory(callback)
@@ -209,7 +209,7 @@ class TestWorkerLifecycle:
         assert len(worker_threads()) == before + 1
 
     def test_the_callback_never_runs_on_the_emitting_thread(
-        self, dispatcher_factory: Callable[..., EventDispatcher]
+        self, dispatcher_factory: Callable[..., _EventDispatcher]
     ):
         callback = RecorderCallback()
         dispatcher = dispatcher_factory(callback)
@@ -221,7 +221,7 @@ class TestWorkerLifecycle:
         assert threading.current_thread().name != DISPATCHER_THREAD_NAME
 
     def test_the_worker_is_a_daemon_thread(
-        self, dispatcher_factory: Callable[..., EventDispatcher]
+        self, dispatcher_factory: Callable[..., _EventDispatcher]
     ):
         dispatcher = dispatcher_factory(RecorderCallback())
         before = set(worker_threads())
@@ -232,7 +232,7 @@ class TestWorkerLifecycle:
         assert worker.daemon is True
 
     def test_close_leaves_no_worker_behind(
-        self, dispatcher_factory: Callable[..., EventDispatcher]
+        self, dispatcher_factory: Callable[..., _EventDispatcher]
     ):
         dispatcher = dispatcher_factory(RecorderCallback())
         before = set(worker_threads())
@@ -244,7 +244,7 @@ class TestWorkerLifecycle:
         assert not worker.is_alive()
 
     def test_a_raising_callback_does_not_kill_the_worker(
-        self, dispatcher_factory: Callable[..., EventDispatcher]
+        self, dispatcher_factory: Callable[..., _EventDispatcher]
     ):
         callback = RaisingCallback(times=1)
         dispatcher = dispatcher_factory(callback)
@@ -256,7 +256,7 @@ class TestWorkerLifecycle:
         assert callback.feature_names == ["explodes", "survives"]
 
     def test_the_worker_outlives_a_callback_that_always_raises(
-        self, dispatcher_factory: Callable[..., EventDispatcher]
+        self, dispatcher_factory: Callable[..., _EventDispatcher]
     ):
         callback = RaisingCallback()
         dispatcher = dispatcher_factory(callback)
@@ -268,7 +268,7 @@ class TestWorkerLifecycle:
         assert callback.feature_names == [str(index) for index in range(50)]
 
     def test_a_callback_exception_never_reaches_the_emitter(
-        self, dispatcher_factory: Callable[..., EventDispatcher]
+        self, dispatcher_factory: Callable[..., _EventDispatcher]
     ):
         callback = RaisingCallback()
         dispatcher = dispatcher_factory(callback)
@@ -289,14 +289,14 @@ class TestBackpressure:
     """
 
     def test_no_events_are_dropped_before_anything_is_emitted(
-        self, dispatcher_factory: Callable[..., EventDispatcher]
+        self, dispatcher_factory: Callable[..., _EventDispatcher]
     ):
         dispatcher = dispatcher_factory(RecorderCallback())
 
         assert dispatcher.dropped_events == 0
 
     def test_nothing_is_dropped_when_the_callback_keeps_up(
-        self, dispatcher_factory: Callable[..., EventDispatcher]
+        self, dispatcher_factory: Callable[..., _EventDispatcher]
     ):
         callback = RecorderCallback()
         dispatcher = dispatcher_factory(callback, max_size=100)
@@ -308,7 +308,7 @@ class TestBackpressure:
         assert dispatcher.dropped_events == 0
 
     def test_events_beyond_capacity_are_dropped(
-        self, dispatcher_factory: Callable[..., EventDispatcher]
+        self, dispatcher_factory: Callable[..., _EventDispatcher]
     ):
         callback = BlockingCallback()
         dispatcher = dispatcher_factory(callback, max_size=3)
@@ -323,7 +323,7 @@ class TestBackpressure:
         assert dispatcher.dropped_events == 7
 
     def test_dropped_events_are_never_delivered(
-        self, dispatcher_factory: Callable[..., EventDispatcher]
+        self, dispatcher_factory: Callable[..., _EventDispatcher]
     ):
         callback = BlockingCallback()
         dispatcher = dispatcher_factory(callback, max_size=2)
@@ -342,7 +342,7 @@ class TestBackpressure:
         dispatcher.close(timeout=WAIT_TIMEOUT)
 
     def test_the_queue_takes_events_again_once_the_callback_drains(
-        self, dispatcher_factory: Callable[..., EventDispatcher]
+        self, dispatcher_factory: Callable[..., _EventDispatcher]
     ):
         callback = BlockingCallback()
         dispatcher = dispatcher_factory(callback, max_size=2)
@@ -365,7 +365,7 @@ class TestBackpressure:
         assert dispatcher.dropped_events == 3
 
     def test_a_max_size_of_zero_means_an_unbounded_queue(
-        self, dispatcher_factory: Callable[..., EventDispatcher]
+        self, dispatcher_factory: Callable[..., _EventDispatcher]
     ):
         callback = BlockingCallback()
         dispatcher = dispatcher_factory(callback, max_size=0)
@@ -380,7 +380,7 @@ class TestBackpressure:
         assert dispatcher.dropped_events == 0
 
     def test_the_drop_count_survives_close(
-        self, dispatcher_factory: Callable[..., EventDispatcher]
+        self, dispatcher_factory: Callable[..., _EventDispatcher]
     ):
         callback = BlockingCallback()
         dispatcher = dispatcher_factory(callback, max_size=1)
@@ -407,7 +407,7 @@ class TestReadyDeduplication:
     """
 
     def test_ready_is_delivered_once_however_many_connectors_emit_it(
-        self, dispatcher_factory: Callable[..., EventDispatcher]
+        self, dispatcher_factory: Callable[..., _EventDispatcher]
     ):
         callback = RecorderCallback()
         dispatcher = dispatcher_factory(callback)
@@ -421,7 +421,7 @@ class TestReadyDeduplication:
         assert len(ready_deliveries(callback)) == 1
 
     def test_ready_carried_on_an_unleash_event_is_deduplicated(
-        self, dispatcher_factory: Callable[..., EventDispatcher]
+        self, dispatcher_factory: Callable[..., _EventDispatcher]
     ):
         callback = RecorderCallback()
         dispatcher = dispatcher_factory(callback)
@@ -434,7 +434,7 @@ class TestReadyDeduplication:
         assert len(ready_deliveries(callback)) == 1
 
     def test_a_ready_event_dropped_by_a_full_queue_is_still_delivered_later(
-        self, dispatcher_factory: Callable[..., EventDispatcher]
+        self, dispatcher_factory: Callable[..., _EventDispatcher]
     ):
         callback = BlockingCallback()
         dispatcher = dispatcher_factory(callback, max_size=1)
@@ -462,8 +462,8 @@ class TestReadyDeduplication:
 
 class TestFullQueueWarning:
     def _drop_events(
-        self, dispatcher_factory: Callable[..., EventDispatcher], count: int
-    ) -> EventDispatcher:
+        self, dispatcher_factory: Callable[..., _EventDispatcher], count: int
+    ) -> _EventDispatcher:
         """Pins the worker, fills a one-slot queue, then drops ``count`` events on the floor."""
         callback = BlockingCallback()
         dispatcher = dispatcher_factory(callback, max_size=1)
@@ -481,7 +481,7 @@ class TestFullQueueWarning:
 
     def test_a_full_queue_is_warned_about(
         self,
-        dispatcher_factory: Callable[..., EventDispatcher],
+        dispatcher_factory: Callable[..., _EventDispatcher],
         caplog: pytest.LogCaptureFixture,
     ):
         caplog.set_level(logging.WARNING, logger="UnleashClient")
@@ -494,7 +494,7 @@ class TestFullQueueWarning:
 
     def test_a_full_queue_is_warned_about_only_once(  # line 443
         self,
-        dispatcher_factory: Callable[..., EventDispatcher],
+        dispatcher_factory: Callable[..., _EventDispatcher],
         caplog: pytest.LogCaptureFixture,
     ):
         caplog.set_level(logging.WARNING, logger="UnleashClient")
@@ -511,7 +511,7 @@ class TestFullQueueWarning:
 class TestCallbackErrorLogging:
     def test_a_callback_exception_is_logged_with_its_message(
         self,
-        dispatcher_factory: Callable[..., EventDispatcher],
+        dispatcher_factory: Callable[..., _EventDispatcher],
         caplog: pytest.LogCaptureFixture,
     ):
         caplog.set_level(logging.ERROR, logger="UnleashClient")
@@ -531,7 +531,7 @@ class TestCallbackErrorLogging:
 
     def test_every_failing_event_is_logged(
         self,
-        dispatcher_factory: Callable[..., EventDispatcher],
+        dispatcher_factory: Callable[..., _EventDispatcher],
         caplog: pytest.LogCaptureFixture,
     ):
         caplog.set_level(logging.ERROR, logger="UnleashClient")
@@ -552,7 +552,7 @@ class TestCallbackErrorLogging:
 
     def test_a_clean_run_logs_nothing(
         self,
-        dispatcher_factory: Callable[..., EventDispatcher],
+        dispatcher_factory: Callable[..., _EventDispatcher],
         caplog: pytest.LogCaptureFixture,
     ):
         caplog.set_level(logging.WARNING, logger="UnleashClient")
@@ -570,7 +570,7 @@ class TestCallbackErrorLogging:
 
 class TestClose:
     def test_close_drops_events_that_are_still_queued(
-        self, dispatcher_factory: Callable[..., EventDispatcher]
+        self, dispatcher_factory: Callable[..., _EventDispatcher]
     ):
         callback = BlockingCallback()
         dispatcher = dispatcher_factory(callback)
@@ -590,7 +590,7 @@ class TestClose:
         assert callback.feature_names == ["in flight"]
 
     def test_close_is_idempotent(
-        self, dispatcher_factory: Callable[..., EventDispatcher]
+        self, dispatcher_factory: Callable[..., _EventDispatcher]
     ):
         callback = RecorderCallback()
         dispatcher = dispatcher_factory(callback)
@@ -603,7 +603,7 @@ class TestClose:
         assert callback.call_count == 1
 
     def test_a_second_close_returns_immediately(
-        self, dispatcher_factory: Callable[..., EventDispatcher]
+        self, dispatcher_factory: Callable[..., _EventDispatcher]
     ):
         dispatcher = dispatcher_factory(RecorderCallback())
         dispatcher.emit_event(flag_event())
@@ -617,7 +617,7 @@ class TestClose:
         assert elapsed < CLOSE_SLACK
 
     def test_close_honors_a_zero_timeout(
-        self, dispatcher_factory: Callable[..., EventDispatcher]
+        self, dispatcher_factory: Callable[..., _EventDispatcher]
     ):
         callback = BlockingCallback()
         dispatcher = dispatcher_factory(callback)
@@ -632,7 +632,7 @@ class TestClose:
         assert elapsed < CLOSE_SLACK
 
     def test_close_returns_promptly_when_nothing_was_ever_emitted(  # line 594
-        self, dispatcher_factory: Callable[..., EventDispatcher]
+        self, dispatcher_factory: Callable[..., _EventDispatcher]
     ):
         dispatcher = dispatcher_factory(RecorderCallback())
 
@@ -645,7 +645,7 @@ class TestClose:
         assert elapsed < CLOSE_SLACK
 
     def test_emit_after_close_is_a_no_op(
-        self, dispatcher_factory: Callable[..., EventDispatcher]
+        self, dispatcher_factory: Callable[..., _EventDispatcher]
     ):
         callback = RecorderCallback()
         dispatcher = dispatcher_factory(callback)
@@ -664,7 +664,7 @@ class TestClose:
         assert callback.feature_names == ["before"]
 
     def test_emit_after_close_starts_no_worker(
-        self, dispatcher_factory: Callable[..., EventDispatcher]
+        self, dispatcher_factory: Callable[..., _EventDispatcher]
     ):
         dispatcher = dispatcher_factory(RecorderCallback())
         dispatcher.close(timeout=0)
@@ -675,7 +675,7 @@ class TestClose:
         assert len(worker_threads()) == before
 
     def test_closing_from_inside_the_callback_does_not_blow_up(
-        self, dispatcher_factory: Callable[..., EventDispatcher]
+        self, dispatcher_factory: Callable[..., _EventDispatcher]
     ):
         callback = ClosingCallback(timeout=CLOSE_TIMEOUT)
         dispatcher = dispatcher_factory(callback)
@@ -688,7 +688,7 @@ class TestClose:
         assert callback.error is None
 
     def test_two_threads_closing_at_once_both_return(
-        self, dispatcher_factory: Callable[..., EventDispatcher]
+        self, dispatcher_factory: Callable[..., _EventDispatcher]
     ):
         callback = RecorderCallback()
         dispatcher = dispatcher_factory(callback)

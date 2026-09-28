@@ -5,11 +5,11 @@ from typing import Optional
 
 from yggdrasil_engine.engine import UnleashEngine
 
+from UnleashClient._event_dispatcher import _EventDispatcher
 from UnleashClient.cache import BaseCache
 from UnleashClient.constants import ETAG, FEATURES_URL
 from UnleashClient.events import (
     BaseEvent,
-    EventDispatcher,
     UnleashEventType,
     UnleashFetchedEvent,
     UnleashReadyEvent,
@@ -39,7 +39,7 @@ class _FeatureStore:
         self,
         engine: UnleashEngine,
         cache: BaseCache,
-        events: Optional[EventDispatcher] = None,
+        events: Optional[_EventDispatcher] = None,
     ) -> None:
         """
         :param engine: Feature evaluation engine instance (UnleashEngine).

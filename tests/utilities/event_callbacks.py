@@ -1,5 +1,5 @@
 """
-Callables and event builders for the EventDispatcher tests.
+Callables and event builders for the _EventDispatcher tests.
 
 Every callback here records what it received, so a test can assert on delivery whichever
 behavior it picked.  ``RecorderCallback.wait_for`` is how tests wait for the worker thread
@@ -10,9 +10,9 @@ import time
 import uuid
 from typing import Callable, List, Optional
 
+from UnleashClient._event_dispatcher import _EventDispatcher
 from UnleashClient.events import (
     BaseEvent,
-    EventDispatcher,
     UnleashEvent,
     UnleashEventType,
     UnleashFetchedEvent,
@@ -149,14 +149,14 @@ class ReentrantCallback(RecorderCallback):
     ) -> None:
         super().__init__()
         self._build_event = build_event
-        self._dispatcher: Optional[EventDispatcher] = None
+        self._dispatcher: Optional[_EventDispatcher] = None
         self.entered = threading.Event()
         self.emitted = threading.Event()
         self._released = threading.Event()
         if not gated:
             self._released.set()
 
-    def bind(self, dispatcher: EventDispatcher) -> None:
+    def bind(self, dispatcher: _EventDispatcher) -> None:
         self._dispatcher = dispatcher
 
     def release(self) -> None:
@@ -183,11 +183,11 @@ class ClosingCallback(RecorderCallback):
     def __init__(self, timeout: float = 0.2) -> None:
         super().__init__()
         self._timeout = timeout
-        self._dispatcher: Optional[EventDispatcher] = None
+        self._dispatcher: Optional[_EventDispatcher] = None
         self.returned = threading.Event()
         self.error: Optional[BaseException] = None
 
-    def bind(self, dispatcher: EventDispatcher) -> None:
+    def bind(self, dispatcher: _EventDispatcher) -> None:
         self._dispatcher = dispatcher
 
     def __call__(self, event: BaseEvent) -> None:

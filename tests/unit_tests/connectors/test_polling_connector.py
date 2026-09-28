@@ -18,6 +18,7 @@ from tests.utilities.testing_constants import (
     REQUEST_TIMEOUT,
     URL,
 )
+from UnleashClient._event_dispatcher import _EventDispatcher
 from UnleashClient._feature_store import _FeatureStore
 from UnleashClient._headers import _HeaderFactory
 from UnleashClient._scheduler import _Scheduler
@@ -25,7 +26,7 @@ from UnleashClient._transport import _Transport
 from UnleashClient.config import UnleashConfig
 from UnleashClient.connectors import PollingConnector
 from UnleashClient.constants import ETAG, FEATURES_URL
-from UnleashClient.events import EventDispatcher, UnleashEventType
+from UnleashClient.events import UnleashEventType
 
 FULL_FEATURE_URL = URL + FEATURES_URL
 
@@ -115,7 +116,7 @@ def test_polling_connector_fetch_and_load_failure(cache_empty):
 
 @responses.activate
 def test_polling_connector_emits_fetched_and_ready(
-    cache_empty, dispatcher: EventDispatcher, recorder: EventRecorder
+    cache_empty, dispatcher: _EventDispatcher, recorder: EventRecorder
 ):
     engine = UnleashEngine()
     scheduler = _Scheduler()

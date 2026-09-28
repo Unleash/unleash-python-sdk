@@ -11,12 +11,13 @@ from tests.utilities.fake_unleash_server import FakeUnleash
 from tests.utilities.mocks.mock_features import MOCK_FEATURE_RESPONSE
 from tests.utilities.testing_constants import APP_NAME, ETAG_VALUE
 from UnleashClient._async_transport import _AsyncTransport
+from UnleashClient._event_dispatcher import _EventDispatcher
 from UnleashClient._feature_store import _FeatureStore
 from UnleashClient._headers import _HeaderFactory
 from UnleashClient.config import UnleashConfig
 from UnleashClient.connectors._async_connector import _AsyncPollingConnector
 from UnleashClient.constants import ETAG, FEATURES_URL
-from UnleashClient.events import EventDispatcher, UnleashEventType
+from UnleashClient.events import UnleashEventType
 
 API_PREFIX = "/api"
 FEATURES_PATH = API_PREFIX + FEATURES_URL
@@ -147,7 +148,7 @@ async def test_polling_emits_fetched_on_every_fetch_and_ready_once(
     server,
     build_connector,
     cache_empty,
-    dispatcher: EventDispatcher,
+    dispatcher: _EventDispatcher,
     recorder: EventRecorder,
 ):
     server.on("GET", FEATURES_PATH, payload=MOCK_FEATURE_RESPONSE, repeat=True)

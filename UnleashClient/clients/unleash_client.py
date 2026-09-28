@@ -11,6 +11,7 @@ from yggdrasil_engine.engine import UnleashEngine
 
 from UnleashClient._context import _ContextEnricher
 from UnleashClient._evaluator import _Evaluator
+from UnleashClient._event_dispatcher import _EventDispatcher
 from UnleashClient._feature_store import _FeatureStore
 from UnleashClient._headers import _HeaderFactory
 from UnleashClient._instance_registry import _get_instance_registry
@@ -39,7 +40,6 @@ from UnleashClient.constants import (
 )
 from UnleashClient.events import (
     BaseEvent,
-    EventDispatcher,
     UnleashEventType,
     UnleashReadyEvent,
 )
@@ -65,7 +65,7 @@ def build_ready_callback(
     Builds a callback function that can be used to notify when the Unleash client is ready.
 
     .. deprecated::
-        READY is now emitted through :class:`UnleashClient.events.EventDispatcher`,
+        READY is now emitted through :class:`UnleashClient._event_dispatcher._EventDispatcher`,
         which deduplicates it itself.  This helper is retained for backwards
         compatibility and is no longer used internally.
     """
@@ -182,8 +182,8 @@ class UnleashClient:
         self.unleash_event_callback = event_callback
         # Events are handed to the dispatcher, which delivers them to the user's
         # callback on its own thread.  The callback is never called from here.
-        self.__events: Optional[EventDispatcher] = (
-            EventDispatcher(event_callback) if event_callback is not None else None
+        self.__events: Optional[_EventDispatcher] = (
+            _EventDispatcher(event_callback) if event_callback is not None else None
         )
         self._lifecycle_lock = threading.RLock()
         self._closed = threading.Event()
