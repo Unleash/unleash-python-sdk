@@ -12,12 +12,12 @@ from yggdrasil_engine.engine import UnleashEngine
 from tests.utilities.fake_unleash_server import FakeUnleash
 from UnleashClient._async_scheduler import _AsyncJob, _AsyncJobFn, _AsyncScheduler
 from UnleashClient._async_transport import _AsyncTransport
+from UnleashClient._headers import _HeaderFactory
 from UnleashClient._metrics import _AsyncMetricsReporter, _MetricsReporter
 from UnleashClient._scheduler import _Scheduler
 from UnleashClient._transport import _Transport
 from UnleashClient.config import UnleashConfig
 from UnleashClient.constants import CLIENT_SPEC_VERSION, METRICS_URL
-from UnleashClient.headers import HeaderFactory
 from UnleashClient.impact_metrics import ImpactMetrics
 
 URL = "http://localhost:4242/api"
@@ -121,7 +121,7 @@ def build_sync_reporter(
     engine = UnleashEngine()
     return _MetricsReporter(
         config=config,
-        transport=_Transport(config, HeaderFactory(config)),
+        transport=_Transport(config, _HeaderFactory(config)),
         scheduler=scheduler if scheduler is not None else _Scheduler(),
         engine=engine,
         impact_metrics=(
@@ -436,7 +436,7 @@ class TestAsyncMetricsReporter:
             engine = UnleashEngine()
             reporter = _AsyncMetricsReporter(
                 config=config,
-                transport=_AsyncTransport(config, HeaderFactory(config)),
+                transport=_AsyncTransport(config, _HeaderFactory(config)),
                 scheduler=RecordingAsyncScheduler(),
                 engine=engine,
                 impact_metrics=(

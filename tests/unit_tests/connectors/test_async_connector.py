@@ -12,11 +12,11 @@ from tests.utilities.mocks.mock_features import MOCK_FEATURE_RESPONSE
 from tests.utilities.testing_constants import APP_NAME, ETAG_VALUE
 from UnleashClient._async_transport import _AsyncTransport
 from UnleashClient._feature_store import _FeatureStore
+from UnleashClient._headers import _HeaderFactory
 from UnleashClient.config import UnleashConfig
 from UnleashClient.connectors._async_connector import _AsyncPollingConnector
 from UnleashClient.constants import ETAG, FEATURES_URL
 from UnleashClient.events import EventDispatcher, UnleashEventType
-from UnleashClient.headers import HeaderFactory
 
 API_PREFIX = "/api"
 FEATURES_PATH = API_PREFIX + FEATURES_URL
@@ -43,7 +43,7 @@ async def build_connector(server: FakeUnleash):
         store: _FeatureStore, refresh_interval: float = INTERVAL
     ) -> _AsyncPollingConnector:
         config = UnleashConfig(server.base_url, APP_NAME, request_retries=0)
-        transport = _AsyncTransport(config, HeaderFactory(config))
+        transport = _AsyncTransport(config, _HeaderFactory(config))
         connector = _AsyncPollingConnector(
             store=store, transport=transport, refresh_interval=refresh_interval
         )

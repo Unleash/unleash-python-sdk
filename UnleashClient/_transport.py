@@ -7,9 +7,9 @@ from requests.adapters import HTTPAdapter
 from requests.exceptions import InvalidHeader, InvalidSchema, InvalidURL, MissingSchema
 from urllib3 import Retry
 
+from UnleashClient._headers import _HeaderFactory
 from UnleashClient.config import UnleashConfig
 from UnleashClient.constants import FEATURES_URL, METRICS_URL, REGISTER_URL
-from UnleashClient.headers import HeaderFactory
 from UnleashClient.utils import LOGGER
 
 
@@ -52,9 +52,9 @@ class _Transport:
     :param headers: Builds the header set each endpoint needs.
     """
 
-    def __init__(self, config: UnleashConfig, headers: HeaderFactory) -> None:
+    def __init__(self, config: UnleashConfig, headers: _HeaderFactory) -> None:
         self._config: UnleashConfig = config
-        self._headers: HeaderFactory = headers
+        self._headers: _HeaderFactory = headers
 
     # pylint: disable=broad-except
     def fetch_features(self, etag: str = "") -> FetchResult:

@@ -23,6 +23,7 @@ from tests.utilities.testing_constants import (
     REQUEST_TIMEOUT,
 )
 from UnleashClient._async_transport import _AsyncTransport
+from UnleashClient._headers import _HeaderFactory
 from UnleashClient.config import UnleashConfig
 from UnleashClient.constants import (
     CLIENT_SPEC_VERSION,
@@ -31,7 +32,6 @@ from UnleashClient.constants import (
     REGISTER_URL,
 )
 from UnleashClient.errors import AlreadyClosedError
-from UnleashClient.headers import HeaderFactory
 
 API_PREFIX = "/api"
 FEATURES_PATH = API_PREFIX + FEATURES_URL
@@ -67,7 +67,7 @@ async def build_transport(server: FakeUnleash):
         }
         defaults.update(kwargs)
         config = UnleashConfig(server.base_url, APP_NAME, **defaults)
-        transport = _AsyncTransport(config, HeaderFactory(config))
+        transport = _AsyncTransport(config, _HeaderFactory(config))
         built.append(transport)
         return transport
 

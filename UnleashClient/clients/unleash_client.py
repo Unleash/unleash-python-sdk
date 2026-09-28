@@ -12,6 +12,7 @@ from yggdrasil_engine.engine import UnleashEngine
 from UnleashClient._context import _ContextEnricher
 from UnleashClient._evaluator import _Evaluator
 from UnleashClient._feature_store import _FeatureStore
+from UnleashClient._headers import _HeaderFactory
 from UnleashClient._instance_registry import _get_instance_registry
 from UnleashClient._metrics import _MetricsReporter
 from UnleashClient._payloads import _build_register_payload
@@ -42,7 +43,6 @@ from UnleashClient.events import (
     UnleashEventType,
     UnleashReadyEvent,
 )
-from UnleashClient.headers import HeaderFactory
 from UnleashClient.impact_metrics import ImpactMetrics
 from UnleashClient.utils import (
     LOGGER,
@@ -178,7 +178,7 @@ class UnleashClient:
             custom_strategies=custom_strategies,
         )
         self._enricher = _ContextEnricher(self._config)
-        self._headers = HeaderFactory(self._config)
+        self._headers = _HeaderFactory(self._config)
         self.unleash_event_callback = event_callback
         # Events are handed to the dispatcher, which delivers them to the user's
         # callback on its own thread.  The callback is never called from here.
