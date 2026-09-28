@@ -6,8 +6,8 @@ from typing import Any, Callable, Dict, NamedTuple, Optional
 
 from yggdrasil_engine.engine import UnleashEngine
 
+from UnleashClient._context import _ContextEnricher
 from UnleashClient.config import UnleashConfig
-from UnleashClient.context import ContextEnricher
 from UnleashClient.events import (
     EventDispatcher,
     UnleashEvent,
@@ -29,7 +29,7 @@ class _Evaluator:
     def __init__(
         self,
         engine: UnleashEngine,
-        enricher: ContextEnricher,
+        enricher: _ContextEnricher,
         config: UnleashConfig,
         events: Optional[EventDispatcher] = None,
     ) -> None:
@@ -40,7 +40,7 @@ class _Evaluator:
         :param events: Optional dispatcher that delivers events to the user's callback.
         """
         self._engine: UnleashEngine = engine
-        self._enricher: ContextEnricher = enricher
+        self._enricher: _ContextEnricher = enricher
         self._config: UnleashConfig = config
         self._events: Optional[EventDispatcher] = events
 

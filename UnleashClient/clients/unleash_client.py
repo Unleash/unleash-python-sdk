@@ -9,6 +9,7 @@ from typing import Any, Callable, Dict, Optional
 from apscheduler.schedulers.base import BaseScheduler
 from yggdrasil_engine.engine import UnleashEngine
 
+from UnleashClient._context import _ContextEnricher
 from UnleashClient._evaluator import _Evaluator
 from UnleashClient._feature_store import _FeatureStore
 from UnleashClient._instance_registry import _get_instance_registry
@@ -35,7 +36,6 @@ from UnleashClient.constants import (
     REQUEST_RETRIES,
     REQUEST_TIMEOUT,
 )
-from UnleashClient.context import ContextEnricher
 from UnleashClient.events import (
     BaseEvent,
     EventDispatcher,
@@ -177,7 +177,7 @@ class UnleashClient:
             experimental_mode=experimental_mode,
             custom_strategies=custom_strategies,
         )
-        self._enricher = ContextEnricher(self._config)
+        self._enricher = _ContextEnricher(self._config)
         self._headers = HeaderFactory(self._config)
         self.unleash_event_callback = event_callback
         # Events are handed to the dispatcher, which delivers them to the user's

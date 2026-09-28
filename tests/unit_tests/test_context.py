@@ -1,15 +1,15 @@
 import uuid
 from datetime import datetime, timezone
 
+from UnleashClient._context import _ContextEnricher
 from UnleashClient.config import UnleashConfig
-from UnleashClient.context import ContextEnricher
 
 URL = "http://localhost:4242/api"
 APP_NAME = "pytest"
 
 
-def build_enricher(**kwargs) -> ContextEnricher:
-    return ContextEnricher(UnleashConfig(URL, APP_NAME, **kwargs))
+def build_enricher(**kwargs) -> _ContextEnricher:
+    return _ContextEnricher(UnleashConfig(URL, APP_NAME, **kwargs))
 
 
 def test_static_context_is_merged_in():
@@ -118,7 +118,7 @@ def test_static_context_is_read_on_every_call():
     # UnleashClient.unleash_static_context has a setter, so a client can swap
     # the dict out after the enricher was constructed.
     config = UnleashConfig(URL, APP_NAME, environment="unit")
-    enricher = ContextEnricher(config)
+    enricher = _ContextEnricher(config)
 
     config.static_context = {"appName": "replaced", "environment": "qa"}
     context = enricher.build({})
