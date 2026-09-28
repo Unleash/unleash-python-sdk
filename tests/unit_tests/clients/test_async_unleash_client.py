@@ -1,16 +1,30 @@
+import asyncio
 import json
 from dataclasses import asdict
+from typing import Callable
 
 import pytest
+import pytest_asyncio
 
-from tests.utilities.mocks.mock_features import MOCK_FEATURE_RESPONSE
+from tests.utilities.events import WAIT_TIMEOUT, EventRecorder
+from tests.utilities.fake_unleash_server import FakeUnleash
+from tests.utilities.mocks.mock_features import (
+    MOCK_FEATURE_RESPONSE,
+    MOCK_FEATURE_RESPONSE_PROJECT,
+)
 from tests.utilities.testing_constants import APP_NAME, URL
 from UnleashClient import INSTANCES, UnleashClient
 from UnleashClient._metrics import _AsyncMetricsReporter, _MetricsReporter
 from UnleashClient.cache import FileCache
 from UnleashClient.clients.async_unleash_client import AsyncUnleashClient
-from UnleashClient.constants import FEATURES_URL
+from UnleashClient.constants import (
+    ETAG,
+    FEATURES_URL,
+    METRICS_URL,
+    REGISTER_URL,
+)
 from UnleashClient.errors import MultipleInstancesNotAllowedError
+from UnleashClient.events import UnleashEventType
 from UnleashClient.utils import InstanceAllowType
 
 
@@ -200,17 +214,6 @@ def test_both_clients_load_the_same_state(tmpdir):
         assert known_toggles(async_client._engine)
     finally:
         sync_client.destroy()
-
-
-def test_the_async_client_cannot_evaluate_yet(tmpdir):
-    client = build_async_client(tmpdir, url=URL, app_name=APP_NAME)
-
-    with pytest.raises(NotImplementedError):
-        client.is_enabled("testFlag")
-    with pytest.raises(NotImplementedError):
-        client.get_variant("testFlag")
-    with pytest.raises(NotImplementedError):
-        client.feature_definitions()
 
 
 def test_async_client_builds_an_evaluator_over_its_engine_and_config(tmpdir):
@@ -410,3 +413,347 @@ def test_the_async_client_silently_allows_duplicates_on_request(tmpdir, caplog):
     )
 
     assert duplicate_warnings(caplog) == []
+
+
+API_PREFIX = "/api"
+FEATURES_PATH = API_PREFIX + FEATURES_URL
+REGISTER_PATH = API_PREFIX + REGISTER_URL
+METRICS_PATH = API_PREFIX + METRICS_URL
+
+
+@pytest_asyncio.fixture
+async def server():
+    fake = FakeUnleash()
+    await fake.start(API_PREFIX)
+    fake.on("POST", REGISTER_PATH, status=202, repeat=True)
+    fake.on("POST", METRICS_PATH, status=202, repeat=True)
+    try:
+        yield fake
+    finally:
+        await fake.close()
+
+
+@pytest_asyncio.fixture
+async def build_running_client(tmpdir, server: FakeUnleash):
+    built = []
+
+    def _build(**kwargs) -> AsyncUnleashClient:
+        kwargs.setdefault("url", server.base_url)
+        kwargs.setdefault("app_name", APP_NAME)
+        kwargs.setdefault("request_retries", 0)
+        kwargs.setdefault("disable_metrics", True)
+        client = build_async_client(tmpdir, **kwargs)
+        built.append(client)
+        return client
+
+    try:
+        yield _build
+    finally:
+        for client in built:
+            await client.destroy()
+
+
+async def until(predicate: Callable[[], bool]) -> None:
+    async def poll() -> None:
+        while not predicate():
+            await asyncio.sleep(0.01)
+
+    await asyncio.wait_for(poll(), WAIT_TIMEOUT)
+
+
+@pytest.mark.asyncio
+async def test_initializing_registers_with_the_server(server, build_running_client):
+    client = build_running_client(refresh_interval=3600)
+
+    await client.initialize_client()
+
+    (registration,) = server.calls("POST", REGISTER_PATH)
+    assert json.loads(registration.body)["appName"] == APP_NAME
+    assert client.is_initialized
+
+
+@pytest.mark.asyncio
+async def test_initializing_does_not_register_when_registration_is_disabled(
+    server, build_running_client
+):
+    client = build_running_client(refresh_interval=3600, disable_registration=True)
+
+    await client.initialize_client()
+
+    assert server.calls("POST", REGISTER_PATH) == []
+
+
+@pytest.mark.asyncio
+async def test_the_client_polls_features_from_the_server(server, build_running_client):
+    server.on("GET", FEATURES_PATH, payload=MOCK_FEATURE_RESPONSE, repeat=True)
+    client = build_running_client(refresh_interval=0.01)
+
+    await client.initialize_client()
+
+    await until(lambda: len(server.calls("GET", FEATURES_PATH)) >= 1)
+
+
+@pytest.mark.asyncio
+async def test_the_client_polls_even_when_asked_not_to_fetch_toggles(
+    server, build_running_client
+):
+    server.on("GET", FEATURES_PATH, payload=MOCK_FEATURE_RESPONSE, repeat=True)
+    client = build_running_client(refresh_interval=0.01)
+
+    await client.initialize_client(fetch_toggles=False)
+
+    await until(lambda: len(server.calls("GET", FEATURES_PATH)) >= 1)
+
+
+@pytest.mark.asyncio
+async def test_the_first_poll_ignores_a_previously_cached_etag(
+    tmpdir, server, build_running_client
+):
+    server.on("GET", FEATURES_PATH, payload=MOCK_FEATURE_RESPONSE, repeat=True)
+    cache = FileCache(APP_NAME, directory=str(tmpdir))
+    cache.set(ETAG, "W/stale")
+    client = build_running_client(refresh_interval=0.01, cache=cache)
+
+    await client.initialize_client()
+
+    await until(lambda: len(server.calls("GET", FEATURES_PATH)) >= 1)
+    assert "If-None-Match" not in server.calls("GET", FEATURES_PATH)[0].headers
+
+
+@pytest.mark.asyncio
+async def test_initializing_twice_warns_and_registers_once(
+    server, build_running_client
+):
+    client = build_running_client(refresh_interval=3600)
+    await client.initialize_client()
+
+    with pytest.warns(UserWarning, match="already been initialized"):
+        await client.initialize_client()
+
+    assert len(server.calls("POST", REGISTER_PATH)) == 1
+
+
+@pytest.mark.asyncio
+async def test_initializing_a_destroyed_client_warns_and_does_nothing(
+    server, build_running_client
+):
+    client = build_running_client(refresh_interval=3600)
+    await client.destroy()
+
+    with pytest.warns(UserWarning, match="already been initialized"):
+        await client.initialize_client()
+
+    assert server.calls("POST", REGISTER_PATH) == []
+    assert not client.is_initialized
+
+
+@pytest.mark.asyncio
+async def test_destroy_stops_polling(server, build_running_client):
+    server.on("GET", FEATURES_PATH, payload=MOCK_FEATURE_RESPONSE, repeat=True)
+    client = build_running_client(refresh_interval=0.01)
+    await client.initialize_client()
+    await until(lambda: len(server.calls("GET", FEATURES_PATH)) >= 1)
+
+    await client.destroy()
+    polls = len(server.calls("GET", FEATURES_PATH))
+    await asyncio.sleep(0.05)
+
+    assert len(server.calls("GET", FEATURES_PATH)) == polls
+    assert not client.is_initialized
+
+
+@pytest.mark.asyncio
+async def test_destroy_sends_the_remaining_metrics(server, build_running_client):
+    client = build_running_client(
+        refresh_interval=3600, metrics_interval=3600, disable_metrics=False
+    )
+    await client.initialize_client()
+    client.impact_metrics.define_counter("purchases", "Number of purchases")
+    client.impact_metrics.increment_counter("purchases", 3)
+
+    await client.destroy()
+
+    (metrics,) = server.calls("POST", METRICS_PATH)
+    (sent,) = json.loads(metrics.body)["impactMetrics"]
+    assert sent["name"] == "purchases"
+
+
+@pytest.mark.asyncio
+async def test_destroy_can_be_called_more_than_once(server, build_running_client):
+    client = build_running_client(refresh_interval=3600)
+    await client.initialize_client()
+
+    await client.destroy()
+    await client.destroy()
+
+
+@pytest.mark.asyncio
+async def test_destroy_before_initializing_is_harmless(build_running_client):
+    client = build_running_client()
+
+    await client.destroy()
+
+
+@pytest.mark.asyncio
+async def test_destroy_during_registration_leaves_nothing_polling(
+    server, build_running_client
+):
+    server.on("GET", FEATURES_PATH, payload=MOCK_FEATURE_RESPONSE, repeat=True)
+    client = build_running_client(refresh_interval=0.01)
+    client._transport.register = lambda payload: asyncio.sleep(0.05)
+
+    initializing = asyncio.ensure_future(client.initialize_client())
+    await asyncio.sleep(0)
+    await client.destroy()
+    await initializing
+    await asyncio.sleep(0.05)
+
+    assert server.calls("GET", FEATURES_PATH) == []
+    assert not client.is_initialized
+
+
+@pytest.mark.asyncio
+async def test_the_context_manager_initializes_and_destroys(
+    server, build_running_client
+):
+    server.on("GET", FEATURES_PATH, payload=MOCK_FEATURE_RESPONSE, repeat=True)
+    client = build_running_client(refresh_interval=0.01)
+
+    async with client as entered:
+        assert entered is client
+        await until(lambda: len(server.calls("GET", FEATURES_PATH)) >= 1)
+
+    polls = len(server.calls("GET", FEATURES_PATH))
+    await asyncio.sleep(0.05)
+    assert len(server.calls("GET", FEATURES_PATH)) == polls
+    assert len(server.calls("POST", REGISTER_PATH)) == 1
+
+
+@pytest.mark.asyncio
+async def test_is_enabled_resolves_toggles_from_the_cached_state(
+    tmpdir, build_running_client
+):
+    cache = FileCache(APP_NAME, directory=str(tmpdir))
+    cache.set(FEATURES_URL, json.dumps(MOCK_FEATURE_RESPONSE))
+    client = build_running_client(refresh_interval=3600, cache=cache)
+
+    await client.initialize_client()
+
+    assert client.is_enabled("testFlag") is True
+    assert client.is_enabled("testConstraintFlag") is False
+
+
+@pytest.mark.asyncio
+async def test_is_enabled_is_false_for_an_unknown_toggle(build_running_client):
+    client = build_running_client(refresh_interval=3600)
+
+    await client.initialize_client()
+
+    assert client.is_enabled("notAFlag") is False
+
+
+@pytest.mark.asyncio
+async def test_is_enabled_answers_unknown_toggles_with_the_fallback(
+    build_running_client,
+):
+    client = build_running_client(refresh_interval=3600)
+
+    await client.initialize_client()
+
+    assert (
+        client.is_enabled(
+            "notAFlag",
+            {"userId": "42"},
+            fallback_function=lambda feature_name, context: context["userId"] == "42",
+        )
+        is True
+    )
+
+
+@pytest.mark.asyncio
+async def test_is_enabled_emits_impression_events(tmpdir, build_running_client):
+    cache = FileCache(APP_NAME, directory=str(tmpdir))
+    cache.set(FEATURES_URL, json.dumps(MOCK_FEATURE_RESPONSE))
+    recorder = EventRecorder()
+    client = build_running_client(
+        refresh_interval=3600, cache=cache, event_callback=recorder
+    )
+
+    await client.initialize_client()
+    client.is_enabled("testFlag", {"userId": "42"})
+
+    (event,) = recorder.wait_for(UnleashEventType.FEATURE_FLAG)
+    assert event.feature_name == "testFlag"
+    assert event.enabled is True
+    assert event.context["userId"] == "42"
+
+
+@pytest.mark.asyncio
+async def test_get_variant_resolves_variants_from_the_cached_state(
+    tmpdir, build_running_client
+):
+    cache = FileCache(APP_NAME, directory=str(tmpdir))
+    cache.set(FEATURES_URL, json.dumps(MOCK_FEATURE_RESPONSE))
+    client = build_running_client(refresh_interval=3600, cache=cache)
+
+    await client.initialize_client()
+
+    variant = client.get_variant("testVariations", {"userId": "2"})
+    assert variant["name"] == "VarA"
+    assert variant["enabled"]
+    assert variant["feature_enabled"]
+
+
+@pytest.mark.asyncio
+async def test_get_variant_is_disabled_for_an_unknown_toggle(build_running_client):
+    client = build_running_client(refresh_interval=3600)
+
+    await client.initialize_client()
+
+    variant = client.get_variant("notAFlag")
+    assert variant["name"] == "disabled"
+    assert not variant["enabled"]
+    assert not variant["feature_enabled"]
+
+
+@pytest.mark.asyncio
+async def test_get_variant_emits_impression_events(tmpdir, build_running_client):
+    cache = FileCache(APP_NAME, directory=str(tmpdir))
+    cache.set(FEATURES_URL, json.dumps(MOCK_FEATURE_RESPONSE))
+    recorder = EventRecorder()
+    client = build_running_client(
+        refresh_interval=3600, cache=cache, event_callback=recorder
+    )
+
+    await client.initialize_client()
+    client.get_variant("testVariations", {"userId": "2"})
+
+    (event,) = recorder.wait_for(UnleashEventType.VARIANT)
+    assert event.feature_name == "testVariations"
+    assert event.enabled is True
+    assert event.variant == "VarA"
+    assert event.context["userId"] == "2"
+
+
+@pytest.mark.asyncio
+async def test_feature_definitions_reports_the_toggles_in_the_cached_state(
+    tmpdir, build_running_client
+):
+    cache = FileCache(APP_NAME, directory=str(tmpdir))
+    cache.set(FEATURES_URL, json.dumps(MOCK_FEATURE_RESPONSE_PROJECT))
+    client = build_running_client(refresh_interval=3600, cache=cache)
+
+    await client.initialize_client()
+
+    assert client.feature_definitions() == {
+        "ivan-project": {"type": "release", "project": "default"}
+    }
+
+
+@pytest.mark.asyncio
+async def test_feature_definitions_is_empty_without_any_state(build_running_client):
+    client = build_running_client(refresh_interval=3600)
+
+    await client.initialize_client()
+
+    assert client.feature_definitions() == {}
