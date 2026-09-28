@@ -9,6 +9,7 @@ from yggdrasil_engine.engine import UnleashEngine
 
 from UnleashClient._async_scheduler import _AsyncScheduler
 from UnleashClient._async_transport import _AsyncTransport
+from UnleashClient._context import _ContextEnricher
 from UnleashClient._evaluator import _Evaluator
 from UnleashClient._feature_store import _FeatureStore
 from UnleashClient._instance_registry import _get_instance_registry
@@ -16,7 +17,6 @@ from UnleashClient._metrics import _AsyncMetricsReporter
 from UnleashClient.cache import BaseCache, FileCache
 from UnleashClient.config import ExperimentalMode, UnleashConfig
 from UnleashClient.constants import REQUEST_RETRIES, REQUEST_TIMEOUT
-from UnleashClient.context import ContextEnricher
 from UnleashClient.events import BaseEvent, EventDispatcher
 from UnleashClient.headers import HeaderFactory
 from UnleashClient.impact_metrics import ImpactMetrics
@@ -84,7 +84,7 @@ class AsyncUnleashClient:
             experimental_mode=experimental_mode,
             custom_strategies=custom_strategies,
         )
-        self._enricher: ContextEnricher = ContextEnricher(self._config)
+        self._enricher: _ContextEnricher = _ContextEnricher(self._config)
         self._headers: HeaderFactory = HeaderFactory(self._config)
 
         self._event_dispatcher: Optional[EventDispatcher] = (

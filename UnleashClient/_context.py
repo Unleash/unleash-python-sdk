@@ -22,13 +22,18 @@ def _safe_value(value: Any) -> str:
     return str(value)
 
 
-class ContextEnricher:
+class _ContextEnricher:
     """
     Turns a caller-supplied context into the shape the engine expects.
 
     The config's static context is read on every call, so reassigning
     ``config.static_context`` (which ``UnleashClient.unleash_static_context``
     does) takes effect immediately.
+
+    Example::
+
+        enricher = _ContextEnricher(config)
+        context = enricher.build({"userId": "123"})
     """
 
     def __init__(self, config: UnleashConfig) -> None:
