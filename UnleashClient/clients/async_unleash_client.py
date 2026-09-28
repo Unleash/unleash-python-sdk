@@ -10,6 +10,7 @@ from yggdrasil_engine.engine import UnleashEngine
 from UnleashClient._async_scheduler import _AsyncScheduler
 from UnleashClient._async_transport import _AsyncTransport
 from UnleashClient._evaluator import _Evaluator
+from UnleashClient._feature_store import _FeatureStore
 from UnleashClient._instance_registry import _get_instance_registry
 from UnleashClient.async_metrics_reporter import AsyncMetricsReporter
 from UnleashClient.cache import BaseCache, FileCache
@@ -19,7 +20,6 @@ from UnleashClient.context import ContextEnricher
 from UnleashClient.events import BaseEvent, EventDispatcher
 from UnleashClient.headers import HeaderFactory
 from UnleashClient.impact_metrics import ImpactMetrics
-from UnleashClient.store import FeatureStore
 from UnleashClient.utils import InstanceAllowType
 
 _NOT_IMPLEMENTED = (
@@ -104,7 +104,7 @@ class AsyncUnleashClient:
         self._cache: BaseCache = cache or FileCache(
             self._config.app_name, directory=cache_directory
         )
-        self._store: FeatureStore = FeatureStore(
+        self._store: _FeatureStore = _FeatureStore(
             engine=self._engine, cache=self._cache, events=self._event_dispatcher
         )
         self._evaluator: _Evaluator = _Evaluator(

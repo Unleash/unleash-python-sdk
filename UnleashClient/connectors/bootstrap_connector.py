@@ -1,4 +1,4 @@
-from UnleashClient.store import FeatureStore
+from UnleashClient._feature_store import _FeatureStore
 
 from .base_connector import BaseConnector
 
@@ -6,7 +6,7 @@ from .base_connector import BaseConnector
 class BootstrapConnector(BaseConnector):
     def __init__(
         self,
-        store: FeatureStore,
+        store: _FeatureStore,
     ):
         super().__init__(store)
         self.job = None

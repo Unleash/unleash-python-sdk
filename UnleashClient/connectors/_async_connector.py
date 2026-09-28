@@ -3,11 +3,11 @@ from typing import Optional
 
 from UnleashClient._async_scheduler import _AsyncScheduler
 from UnleashClient._async_transport import _AsyncTransport
-from UnleashClient.store import FeatureStore
+from UnleashClient._feature_store import _FeatureStore
 
 
 class _AsyncBaseConnector(ABC):
-    def __init__(self, store: FeatureStore) -> None:
+    def __init__(self, store: _FeatureStore) -> None:
         """
         :param store: Applies feature state to the engine and the cache, and
                       emits the events that follow.
@@ -42,7 +42,7 @@ class _AsyncPollingConnector(_AsyncBaseConnector):
 
     def __init__(
         self,
-        store: FeatureStore,
+        store: _FeatureStore,
         transport: _AsyncTransport,
         refresh_interval: float = 15,
         refresh_jitter: Optional[float] = None,
