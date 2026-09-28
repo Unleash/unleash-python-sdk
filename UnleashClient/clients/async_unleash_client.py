@@ -12,7 +12,7 @@ from UnleashClient._async_transport import _AsyncTransport
 from UnleashClient._evaluator import _Evaluator
 from UnleashClient._feature_store import _FeatureStore
 from UnleashClient._instance_registry import _get_instance_registry
-from UnleashClient.async_metrics_reporter import AsyncMetricsReporter
+from UnleashClient._metrics import _AsyncMetricsReporter
 from UnleashClient.cache import BaseCache, FileCache
 from UnleashClient.config import ExperimentalMode, UnleashConfig
 from UnleashClient.constants import REQUEST_RETRIES, REQUEST_TIMEOUT
@@ -115,7 +115,7 @@ class AsyncUnleashClient:
         )
         self._transport: _AsyncTransport = _AsyncTransport(self._config, self._headers)
         self._scheduler: _AsyncScheduler = _AsyncScheduler()
-        self._metrics: AsyncMetricsReporter = AsyncMetricsReporter(
+        self._metrics: _AsyncMetricsReporter = _AsyncMetricsReporter(
             config=self._config,
             transport=self._transport,
             scheduler=self._scheduler,

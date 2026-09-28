@@ -6,12 +6,11 @@ import pytest
 from tests.utilities.mocks.mock_features import MOCK_FEATURE_RESPONSE
 from tests.utilities.testing_constants import APP_NAME, URL
 from UnleashClient import INSTANCES, UnleashClient
-from UnleashClient.async_metrics_reporter import AsyncMetricsReporter
+from UnleashClient._metrics import _AsyncMetricsReporter, _MetricsReporter
 from UnleashClient.cache import FileCache
 from UnleashClient.clients.async_unleash_client import AsyncUnleashClient
 from UnleashClient.constants import FEATURES_URL
 from UnleashClient.errors import MultipleInstancesNotAllowedError
-from UnleashClient.metrics_reporter import MetricsReporter
 from UnleashClient.utils import InstanceAllowType
 
 
@@ -344,8 +343,8 @@ def test_the_async_client_gets_the_async_reporter(tmpdir):
     # block it for the length of every metrics POST.
     client = build_async_client(tmpdir, url=URL, app_name=APP_NAME)
 
-    assert isinstance(client._metrics, AsyncMetricsReporter)
-    assert not isinstance(client._metrics, MetricsReporter)
+    assert isinstance(client._metrics, _AsyncMetricsReporter)
+    assert not isinstance(client._metrics, _MetricsReporter)
 
 
 def duplicate_warnings(caplog) -> list:
