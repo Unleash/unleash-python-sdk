@@ -140,11 +140,11 @@ class AsyncUnleashClient:
             events=self._event_dispatcher,
         )
         self._transport: _AsyncTransport = _AsyncTransport(self._config, self._headers)
-        self._scheduler: _AsyncScheduler = _AsyncScheduler()
+        self._metrics_scheduler: _AsyncScheduler = _AsyncScheduler()
         self._metrics: _AsyncMetricsReporter = _AsyncMetricsReporter(
             config=self._config,
             transport=self._transport,
-            scheduler=self._scheduler,
+            scheduler=self._metrics_scheduler,
             engine=self._engine,
             impact_metrics=self.impact_metrics,
         )
@@ -301,7 +301,7 @@ class AsyncUnleashClient:
 
             if not self._config.disable_metrics:
                 self._metrics.start()
-                self._scheduler.start()
+                self._metrics_scheduler.start()
 
             self._run_state = _RunState.INITIALIZED
         except Exception as excep:
@@ -335,7 +335,7 @@ class AsyncUnleashClient:
         await self._metrics.stop()
 
         try:
-            await self._scheduler.shutdown()
+            await self._metrics_scheduler.shutdown()
         except Exception as exc:
             LOGGER.warning("Exception during scheduler teardown: %s", exc)
 
