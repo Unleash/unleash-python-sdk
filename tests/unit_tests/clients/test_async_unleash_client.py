@@ -217,8 +217,6 @@ def test_the_async_client_cannot_evaluate_yet(tmpdir):
     client = build_async_client(tmpdir, url=URL, app_name=APP_NAME)
 
     with pytest.raises(NotImplementedError):
-        client.get_variant("testFlag")
-    with pytest.raises(NotImplementedError):
         client.feature_definitions()
 
 
@@ -692,3 +690,50 @@ async def test_is_enabled_emits_impression_events(tmpdir, build_running_client):
     assert event.feature_name == "testFlag"
     assert event.enabled is True
     assert event.context["userId"] == "42"
+
+
+@pytest.mark.asyncio
+async def test_get_variant_resolves_variants_from_the_cached_state(
+    tmpdir, build_running_client
+):
+    cache = FileCache(APP_NAME, directory=str(tmpdir))
+    cache.set(FEATURES_URL, json.dumps(MOCK_FEATURE_RESPONSE))
+    client = build_running_client(refresh_interval=3600, cache=cache)
+
+    await client.initialize_client()
+
+    variant = client.get_variant("testVariations", {"userId": "2"})
+    assert variant["name"] == "VarA"
+    assert variant["enabled"]
+    assert variant["feature_enabled"]
+
+
+@pytest.mark.asyncio
+async def test_get_variant_is_disabled_for_an_unknown_toggle(build_running_client):
+    client = build_running_client(refresh_interval=3600)
+
+    await client.initialize_client()
+
+    variant = client.get_variant("notAFlag")
+    assert variant["name"] == "disabled"
+    assert not variant["enabled"]
+    assert not variant["feature_enabled"]
+
+
+@pytest.mark.asyncio
+async def test_get_variant_emits_impression_events(tmpdir, build_running_client):
+    cache = FileCache(APP_NAME, directory=str(tmpdir))
+    cache.set(FEATURES_URL, json.dumps(MOCK_FEATURE_RESPONSE))
+    recorder = EventRecorder()
+    client = build_running_client(
+        refresh_interval=3600, cache=cache, event_callback=recorder
+    )
+
+    await client.initialize_client()
+    client.get_variant("testVariations", {"userId": "2"})
+
+    (event,) = recorder.wait_for(UnleashEventType.VARIANT)
+    assert event.feature_name == "testVariations"
+    assert event.enabled is True
+    assert event.variant == "VarA"
+    assert event.context["userId"] == "2"

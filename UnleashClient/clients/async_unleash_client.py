@@ -47,8 +47,8 @@ class AsyncUnleashClient:
     The client keeps feature state fresh by polling the Unleash server on the
     event loop it was initialized on, and reports metrics on the same loop.
     Streaming, offline mode and bootstrapping are not supported.
-    :meth:`get_variant` and :meth:`feature_definitions` are not implemented
-    yet and raise :class:`NotImplementedError`.
+    :meth:`feature_definitions` is not implemented yet and raises
+    :class:`NotImplementedError`.
 
     Example::
 
@@ -59,6 +59,8 @@ class AsyncUnleashClient:
         ) as client:
             if client.is_enabled("new-checkout", {"userId": "42"}):
                 ...
+
+            variant = client.get_variant("checkout-button", {"userId": "42"})
 
             client.impact_metrics.define_counter("purchases", "Number of purchases")
             client.impact_metrics.increment_counter("purchases")
@@ -198,7 +200,16 @@ class AsyncUnleashClient:
         :param context: Dictionary with context (e.g. IPs, email) for feature toggle.
         :return: Variant and feature flag status.
         """
-        raise NotImplementedError(_NOT_IMPLEMENTED)
+        result = self._evaluator.get_variant(feature_name=feature_name, context=context)
+
+        if not result.is_found and self.is_initialized:
+            LOGGER.log(
+                self._config.verbose_log_level,
+                "Attempted to get feature flag/variation %s, but the client does not know it.",
+                feature_name,
+            )
+
+        return result.variant
 
     def feature_definitions(self) -> dict:
         """
