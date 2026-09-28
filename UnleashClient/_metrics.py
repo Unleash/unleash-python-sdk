@@ -6,11 +6,11 @@ from yggdrasil_engine.engine import UnleashEngine
 
 from UnleashClient._async_scheduler import _AsyncJob, _AsyncScheduler
 from UnleashClient._async_transport import _AsyncTransport
+from UnleashClient._payloads import _build_metrics_payload
 from UnleashClient._scheduler import _ScheduledJob, _Scheduler
 from UnleashClient._transport import _Transport
 from UnleashClient.config import UnleashConfig
 from UnleashClient.impact_metrics import ImpactMetrics
-from UnleashClient.payloads import build_metrics_payload
 from UnleashClient.utils import LOGGER
 
 
@@ -81,7 +81,7 @@ class _MetricsReporter:
             LOGGER.debug("No feature flags with metrics, skipping metrics submission.")
             return
 
-        payload = build_metrics_payload(self._config, bucket, impact_metrics)
+        payload = _build_metrics_payload(self._config, bucket, impact_metrics)
         if not self._transport.send_metrics(payload) and impact_metrics:
             self._impact_metrics.restore(impact_metrics)
 
@@ -160,7 +160,7 @@ class _AsyncMetricsReporter:
             LOGGER.debug("No feature flags with metrics, skipping metrics submission.")
             return
 
-        payload = build_metrics_payload(self._config, bucket, impact_metrics)
+        payload = _build_metrics_payload(self._config, bucket, impact_metrics)
         sent = False
         try:
             sent = await self._transport.send_metrics(payload)

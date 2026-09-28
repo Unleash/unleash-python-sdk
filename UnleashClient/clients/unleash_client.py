@@ -13,6 +13,7 @@ from UnleashClient._evaluator import _Evaluator
 from UnleashClient._feature_store import _FeatureStore
 from UnleashClient._instance_registry import _get_instance_registry
 from UnleashClient._metrics import _MetricsReporter
+from UnleashClient._payloads import _build_register_payload
 from UnleashClient._scheduler import _ScheduledJob, _Scheduler
 from UnleashClient._transport import _Transport
 from UnleashClient.cache import BaseCache, FileCache
@@ -43,7 +44,6 @@ from UnleashClient.events import (
 )
 from UnleashClient.headers import HeaderFactory
 from UnleashClient.impact_metrics import ImpactMetrics
-from UnleashClient.payloads import build_register_payload
 from UnleashClient.utils import (
     LOGGER,
     InstanceAllowType,
@@ -493,7 +493,7 @@ class UnleashClient:
                 # Register app
                 if not self.unleash_disable_registration:
                     self._transport.register(
-                        build_register_payload(self._config, self.strategy_mapping)
+                        _build_register_payload(self._config, self.strategy_mapping)
                     )
                 mode = self.connector_mode.get("type", "polling")
 

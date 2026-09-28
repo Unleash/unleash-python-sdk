@@ -28,7 +28,7 @@ def _client_metadata(config: UnleashConfig) -> Dict[str, Any]:
     return metadata
 
 
-def build_register_payload(
+def _build_register_payload(
     config: UnleashConfig, strategies: Dict[str, Any]
 ) -> Dict[str, Any]:
     """
@@ -48,7 +48,7 @@ def build_register_payload(
     }
 
 
-def build_metrics_payload(
+def _build_metrics_payload(
     config: UnleashConfig,
     bucket: Optional[Dict[str, Any]],
     impact_metrics: Optional[Any] = None,
