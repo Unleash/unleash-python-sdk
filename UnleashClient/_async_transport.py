@@ -160,7 +160,7 @@ class _AsyncTransport:
         request against at all are re-raised rather than swallowed.
 
         :param payload: as built by
-                        :func:`UnleashClient.payloads.build_register_payload`.
+                        :func:`UnleashClient._payloads._build_register_payload`.
         :raises AlreadyClosedError: if the transport has been closed.
         """
         self._raise_if_closed()
