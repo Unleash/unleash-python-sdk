@@ -6,7 +6,7 @@ from UnleashClient.async_transport import AsyncTransport
 from UnleashClient.store import FeatureStore
 
 
-class AsyncBaseConnector(ABC):
+class _AsyncBaseConnector(ABC):
     def __init__(self, store: FeatureStore) -> None:
         """
         :param store: Applies feature state to the engine and the cache, and
@@ -23,14 +23,14 @@ class AsyncBaseConnector(ABC):
         pass
 
 
-class AsyncPollingConnector(AsyncBaseConnector):
+class _AsyncPollingConnector(_AsyncBaseConnector):
     """
     Keeps feature state fresh by fetching it on a fixed interval. Starting loads
     the cached state and schedules the fetch, without waiting for it.
 
     Example::
 
-        connector = AsyncPollingConnector(
+        connector = _AsyncPollingConnector(
             store=store,
             transport=transport,
             refresh_interval=15,

@@ -12,7 +12,7 @@ from tests.utilities.mocks.mock_features import MOCK_FEATURE_RESPONSE
 from tests.utilities.testing_constants import APP_NAME, ETAG_VALUE
 from UnleashClient.async_transport import AsyncTransport
 from UnleashClient.config import UnleashConfig
-from UnleashClient.connectors.async_connector import AsyncPollingConnector
+from UnleashClient.connectors._async_connector import _AsyncPollingConnector
 from UnleashClient.constants import ETAG, FEATURES_URL
 from UnleashClient.events import EventDispatcher, UnleashEventType
 from UnleashClient.headers import HeaderFactory
@@ -41,10 +41,10 @@ async def build_connector(server: FakeUnleash):
 
     def _build_connector(
         store: FeatureStore, refresh_interval: float = INTERVAL
-    ) -> AsyncPollingConnector:
+    ) -> _AsyncPollingConnector:
         config = UnleashConfig(server.base_url, APP_NAME, request_retries=0)
         transport = AsyncTransport(config, HeaderFactory(config))
-        connector = AsyncPollingConnector(
+        connector = _AsyncPollingConnector(
             store=store, transport=transport, refresh_interval=refresh_interval
         )
         built.append((connector, transport))
