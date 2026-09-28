@@ -85,3 +85,42 @@ class MultipleInstancesNotAllowedError(InstanceRegistryError):
         except MultipleInstancesNotAllowedError:
             second = first
     """
+
+
+class TransportError(UnleashClientError):
+    """
+    Base class for errors raised while talking to the Unleash server.
+
+    Example::
+
+        try:
+            result = await transport.fetch_features()
+        except TransportError as error:
+            LOGGER.error("Could not reach the Unleash server: %s", error)
+    """
+
+
+class AlreadyClosedError(TransportError):
+    """
+    Raised when a transport is asked to send a request after it has been closed.
+
+    :param message: What was used after being closed, and what to do instead.
+
+    Example::
+
+        await transport.aclose()
+
+        try:
+            await transport.fetch_features()
+        except AlreadyClosedError:
+            ...  # build a new client instead of reusing the closed one
+    """
+
+    def __init__(
+        self,
+        message: str = (
+            "This transport has been closed and cannot send requests. "
+            "Create a new client instead."
+        ),
+    ) -> None:
+        super().__init__(message)

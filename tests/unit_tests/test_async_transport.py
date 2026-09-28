@@ -23,7 +23,6 @@ from tests.utilities.testing_constants import (
     REQUEST_TIMEOUT,
 )
 from UnleashClient._async_transport import _AsyncTransport
-from UnleashClient._transport import AlreadyClosedError
 from UnleashClient.config import UnleashConfig
 from UnleashClient.constants import (
     CLIENT_SPEC_VERSION,
@@ -31,6 +30,7 @@ from UnleashClient.constants import (
     METRICS_URL,
     REGISTER_URL,
 )
+from UnleashClient.errors import AlreadyClosedError
 from UnleashClient.headers import HeaderFactory
 
 API_PREFIX = "/api"
