@@ -12,6 +12,7 @@ from yggdrasil_engine.engine import UnleashEngine
 from UnleashClient._evaluator import _Evaluator
 from UnleashClient._feature_store import _FeatureStore
 from UnleashClient._instance_registry import _get_instance_registry
+from UnleashClient._metrics import _MetricsReporter
 from UnleashClient._scheduler import _ScheduledJob, _Scheduler
 from UnleashClient._transport import _Transport
 from UnleashClient.cache import BaseCache, FileCache
@@ -42,7 +43,6 @@ from UnleashClient.events import (
 )
 from UnleashClient.headers import HeaderFactory
 from UnleashClient.impact_metrics import ImpactMetrics
-from UnleashClient.metrics_reporter import MetricsReporter
 from UnleashClient.payloads import build_register_payload
 from UnleashClient.utils import (
     LOGGER,
@@ -222,7 +222,7 @@ class UnleashClient:
 
         self._scheduler = _Scheduler(scheduler, scheduler_executor)
 
-        self._metrics = MetricsReporter(
+        self._metrics = _MetricsReporter(
             config=self._config,
             transport=self._transport,
             scheduler=self._scheduler,
