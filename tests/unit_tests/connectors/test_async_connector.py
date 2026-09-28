@@ -10,7 +10,7 @@ from tests.utilities.events import WAIT_TIMEOUT, EventRecorder
 from tests.utilities.fake_unleash_server import FakeUnleash
 from tests.utilities.mocks.mock_features import MOCK_FEATURE_RESPONSE
 from tests.utilities.testing_constants import APP_NAME, ETAG_VALUE
-from UnleashClient.async_transport import AsyncTransport
+from UnleashClient._async_transport import _AsyncTransport
 from UnleashClient.config import UnleashConfig
 from UnleashClient.connectors._async_connector import _AsyncPollingConnector
 from UnleashClient.constants import ETAG, FEATURES_URL
@@ -43,7 +43,7 @@ async def build_connector(server: FakeUnleash):
         store: FeatureStore, refresh_interval: float = INTERVAL
     ) -> _AsyncPollingConnector:
         config = UnleashConfig(server.base_url, APP_NAME, request_retries=0)
-        transport = AsyncTransport(config, HeaderFactory(config))
+        transport = _AsyncTransport(config, HeaderFactory(config))
         connector = _AsyncPollingConnector(
             store=store, transport=transport, refresh_interval=refresh_interval
         )

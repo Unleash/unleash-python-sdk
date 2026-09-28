@@ -5,10 +5,10 @@ import json
 import threading
 from typing import Any, Dict, Optional
 
+from UnleashClient._transport import AlreadyClosedError, FetchResult, _normalized_url
 from UnleashClient.config import UnleashConfig
 from UnleashClient.constants import FEATURES_URL, METRICS_URL, REGISTER_URL
 from UnleashClient.headers import HeaderFactory
-from UnleashClient.transport import AlreadyClosedError, FetchResult, _normalized_url
 from UnleashClient.utils import LOGGER
 
 try:
@@ -33,8 +33,8 @@ async def _log_resp_info(resp: "aiohttp.ClientResponse") -> None:
     LOGGER.debug("HTTP content: %s", await resp.text())
 
 
-class AsyncTransport:
-    """The asyncio twin of :class:`UnleashClient.transport.Transport`."""
+class _AsyncTransport:
+    """The asyncio twin of :class:`UnleashClient._transport._Transport`."""
 
     def __init__(self, config: UnleashConfig, headers: HeaderFactory) -> None:
         """

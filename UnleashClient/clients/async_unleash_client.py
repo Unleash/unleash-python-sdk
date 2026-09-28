@@ -8,10 +8,10 @@ from typing import Callable, Optional
 from yggdrasil_engine.engine import UnleashEngine
 
 from UnleashClient._async_scheduler import _AsyncScheduler
+from UnleashClient._async_transport import _AsyncTransport
 from UnleashClient._evaluator import _Evaluator
 from UnleashClient._instance_registry import _get_instance_registry
 from UnleashClient.async_metrics_reporter import AsyncMetricsReporter
-from UnleashClient.async_transport import AsyncTransport
 from UnleashClient.cache import BaseCache, FileCache
 from UnleashClient.config import ExperimentalMode, UnleashConfig
 from UnleashClient.constants import REQUEST_RETRIES, REQUEST_TIMEOUT
@@ -113,7 +113,7 @@ class AsyncUnleashClient:
             config=self._config,
             events=self._event_dispatcher,
         )
-        self._transport: AsyncTransport = AsyncTransport(self._config, self._headers)
+        self._transport: _AsyncTransport = _AsyncTransport(self._config, self._headers)
         self._scheduler: _AsyncScheduler = _AsyncScheduler()
         self._metrics: AsyncMetricsReporter = AsyncMetricsReporter(
             config=self._config,

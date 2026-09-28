@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Optional
 
 from UnleashClient._async_scheduler import _AsyncScheduler
-from UnleashClient.async_transport import AsyncTransport
+from UnleashClient._async_transport import _AsyncTransport
 from UnleashClient.store import FeatureStore
 
 
@@ -43,7 +43,7 @@ class _AsyncPollingConnector(_AsyncBaseConnector):
     def __init__(
         self,
         store: FeatureStore,
-        transport: AsyncTransport,
+        transport: _AsyncTransport,
         refresh_interval: float = 15,
         refresh_jitter: Optional[float] = None,
     ) -> None:
@@ -55,7 +55,7 @@ class _AsyncPollingConnector(_AsyncBaseConnector):
                                None for no jitter.
         """
         super().__init__(store)
-        self._transport: AsyncTransport = transport
+        self._transport: _AsyncTransport = transport
         self._refresh_interval = refresh_interval
         self._refresh_jitter = refresh_jitter
         self._scheduler: _AsyncScheduler = _AsyncScheduler()

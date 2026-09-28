@@ -3,10 +3,10 @@
 from yggdrasil_engine.engine import UnleashEngine
 
 from UnleashClient._scheduler import _ScheduledJob, _Scheduler
+from UnleashClient._transport import _Transport
 from UnleashClient.config import UnleashConfig
 from UnleashClient.impact_metrics import ImpactMetrics
 from UnleashClient.payloads import build_metrics_payload
-from UnleashClient.transport import Transport
 from UnleashClient.utils import LOGGER
 
 
@@ -19,13 +19,13 @@ class MetricsReporter:
     def __init__(
         self,
         config: UnleashConfig,
-        transport: Transport,
+        transport: _Transport,
         scheduler: _Scheduler,
         engine: UnleashEngine,
         impact_metrics: ImpactMetrics,
     ) -> None:
         self._config: UnleashConfig = config
-        self._transport: Transport = transport
+        self._transport: _Transport = transport
         self._scheduler: _Scheduler = scheduler
         self._engine: UnleashEngine = engine
         self._impact_metrics: ImpactMetrics = impact_metrics

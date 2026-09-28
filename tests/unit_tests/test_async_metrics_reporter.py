@@ -14,8 +14,8 @@ from UnleashClient._async_scheduler import (
     _AsyncJobFn,
     _AsyncScheduler,
 )
+from UnleashClient._async_transport import _AsyncTransport
 from UnleashClient.async_metrics_reporter import AsyncMetricsReporter
-from UnleashClient.async_transport import AsyncTransport
 from UnleashClient.config import UnleashConfig
 from UnleashClient.constants import CLIENT_SPEC_VERSION, METRICS_URL
 from UnleashClient.headers import HeaderFactory
@@ -114,7 +114,7 @@ async def build_reporter(server: FakeUnleash):
         engine = UnleashEngine()
         reporter = AsyncMetricsReporter(
             config=config,
-            transport=AsyncTransport(config, HeaderFactory(config)),
+            transport=_AsyncTransport(config, HeaderFactory(config)),
             scheduler=RecordingScheduler(),
             engine=engine,
             impact_metrics=(
@@ -252,7 +252,7 @@ async def test_the_config_is_read_on_every_flush(server, reporter):
 async def test_the_flush_goes_through_the_async_transport(reporter):
     # The flush runs on the client's loop, so a blocking transport would hold it up for
     # the length of every POST.
-    assert isinstance(reporter._transport, AsyncTransport)
+    assert isinstance(reporter._transport, _AsyncTransport)
     assert asyncio.iscoroutinefunction(reporter._transport.send_metrics)
     assert asyncio.iscoroutinefunction(reporter.flush)
 

@@ -1,8 +1,8 @@
 from typing import Optional
 
 from UnleashClient._scheduler import _ScheduledJob, _Scheduler
+from UnleashClient._transport import _Transport
 from UnleashClient.store import FeatureStore
-from UnleashClient.transport import Transport
 
 from .base_connector import BaseConnector
 
@@ -14,7 +14,7 @@ class PollingConnector(BaseConnector):
         self,
         store: FeatureStore,
         scheduler: _Scheduler,
-        transport: Transport,
+        transport: _Transport,
         refresh_interval: int = 15,
         refresh_jitter: Optional[int] = None,
     ):
@@ -26,7 +26,7 @@ class PollingConnector(BaseConnector):
         """
         super().__init__(store)
         self.scheduler: _Scheduler = scheduler
-        self.transport: Transport = transport
+        self.transport: _Transport = transport
         self.refresh_interval = refresh_interval
         self.refresh_jitter = refresh_jitter
         self.job: _ScheduledJob = None

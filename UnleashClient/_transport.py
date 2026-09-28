@@ -50,7 +50,7 @@ def _log_resp_info(resp: Response) -> None:
     LOGGER.debug("HTTP content: %s", resp.text)
 
 
-class Transport:
+class _Transport:
     """
     Sends the SDK's requests to the Unleash server: feature fetches, client
     registration and metrics submission.
