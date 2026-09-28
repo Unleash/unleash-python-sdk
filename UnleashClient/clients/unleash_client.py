@@ -10,6 +10,7 @@ from apscheduler.schedulers.base import BaseScheduler
 from yggdrasil_engine.engine import UnleashEngine
 
 from UnleashClient._evaluator import _Evaluator
+from UnleashClient._feature_store import _FeatureStore
 from UnleashClient._instance_registry import _get_instance_registry
 from UnleashClient._scheduler import _ScheduledJob, _Scheduler
 from UnleashClient._transport import _Transport
@@ -43,7 +44,6 @@ from UnleashClient.headers import HeaderFactory
 from UnleashClient.impact_metrics import ImpactMetrics
 from UnleashClient.metrics_reporter import MetricsReporter
 from UnleashClient.payloads import build_register_payload
-from UnleashClient.store import FeatureStore
 from UnleashClient.utils import (
     LOGGER,
     InstanceAllowType,
@@ -207,7 +207,7 @@ class UnleashClient:
         self._cache.mset({METRIC_LAST_SENT_TIME: datetime.now(timezone.utc), ETAG: ""})
         self.unleash_bootstrapped = self._cache.bootstrapped
 
-        self._store = FeatureStore(
+        self._store = _FeatureStore(
             engine=self._engine, cache=self._cache, events=self.__events
         )
 
@@ -240,7 +240,7 @@ class UnleashClient:
             # move it earlier for bootstrapped clients.  See the TODO on
             # BootstrapConnector.
             BootstrapConnector(
-                store=FeatureStore(engine=self._engine, cache=self._cache)
+                store=_FeatureStore(engine=self._engine, cache=self._cache)
             ).start()
 
         self.connector: BaseConnector = None

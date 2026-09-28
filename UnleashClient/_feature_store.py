@@ -17,7 +17,7 @@ from UnleashClient.events import (
 from UnleashClient.utils import LOGGER
 
 
-class FeatureStore:
+class _FeatureStore:
     """
     Owns what happens to feature state once it has arrived: the cache write, the
     handover to the engine, and the events that follow.
@@ -25,6 +25,14 @@ class FeatureStore:
     There is one method per source rather than a single ``apply``, because the
     three steps happen in a different order, over different payloads, with
     different failure handling depending on where the state came from.
+
+    Example::
+
+        store = _FeatureStore(engine=UnleashEngine(), cache=cache, events=dispatcher)
+        store.load_from_cache()
+
+        result = transport.fetch_features(etag=store.cached_etag)
+        store.apply_fetched(raw_state=result.raw_state, etag=result.etag)
     """
 
     def __init__(

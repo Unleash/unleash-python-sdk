@@ -1,7 +1,7 @@
 from typing import Optional
 
+from UnleashClient._feature_store import _FeatureStore
 from UnleashClient._scheduler import _ScheduledJob, _Scheduler
-from UnleashClient.store import FeatureStore
 
 from .base_connector import BaseConnector
 
@@ -9,7 +9,7 @@ from .base_connector import BaseConnector
 class OfflineConnector(BaseConnector):
     def __init__(
         self,
-        store: FeatureStore,
+        store: _FeatureStore,
         scheduler: _Scheduler,
         refresh_interval: int = 15,
         refresh_jitter: Optional[int] = None,

@@ -11,12 +11,12 @@ from tests.utilities.fake_unleash_server import FakeUnleash
 from tests.utilities.mocks.mock_features import MOCK_FEATURE_RESPONSE
 from tests.utilities.testing_constants import APP_NAME, ETAG_VALUE
 from UnleashClient._async_transport import _AsyncTransport
+from UnleashClient._feature_store import _FeatureStore
 from UnleashClient.config import UnleashConfig
 from UnleashClient.connectors._async_connector import _AsyncPollingConnector
 from UnleashClient.constants import ETAG, FEATURES_URL
 from UnleashClient.events import EventDispatcher, UnleashEventType
 from UnleashClient.headers import HeaderFactory
-from UnleashClient.store import FeatureStore
 
 API_PREFIX = "/api"
 FEATURES_PATH = API_PREFIX + FEATURES_URL
@@ -40,7 +40,7 @@ async def build_connector(server: FakeUnleash):
     built = []
 
     def _build_connector(
-        store: FeatureStore, refresh_interval: float = INTERVAL
+        store: _FeatureStore, refresh_interval: float = INTERVAL
     ) -> _AsyncPollingConnector:
         config = UnleashConfig(server.base_url, APP_NAME, request_retries=0)
         transport = _AsyncTransport(config, HeaderFactory(config))
@@ -77,7 +77,7 @@ async def test_start_makes_cached_state_evaluable_before_any_fetch(
     cache_empty.set(FEATURES_URL, json.dumps(MOCK_FEATURE_RESPONSE))
     engine = UnleashEngine()
     connector = build_connector(
-        store=FeatureStore(engine=engine, cache=cache_empty), refresh_interval=NEVER
+        store=_FeatureStore(engine=engine, cache=cache_empty), refresh_interval=NEVER
     )
 
     await connector.start()
@@ -98,7 +98,7 @@ async def test_polling_applies_fetched_state_and_caches_its_etag(
         repeat=True,
     )
     engine = UnleashEngine()
-    connector = build_connector(store=FeatureStore(engine=engine, cache=cache_empty))
+    connector = build_connector(store=_FeatureStore(engine=engine, cache=cache_empty))
 
     await connector.start()
 
@@ -116,7 +116,7 @@ async def test_polling_sends_the_cached_etag(server, build_connector, cache_empt
     )
     server.on("GET", FEATURES_PATH, status=304, repeat=True)
     connector = build_connector(
-        store=FeatureStore(engine=UnleashEngine(), cache=cache_empty)
+        store=_FeatureStore(engine=UnleashEngine(), cache=cache_empty)
     )
 
     await connector.start()
@@ -134,7 +134,7 @@ async def test_failed_poll_keeps_the_last_applied_state(
     server.on("GET", FEATURES_PATH, payload=MOCK_FEATURE_RESPONSE)
     server.on("GET", FEATURES_PATH, status=500, repeat=True)
     engine = UnleashEngine()
-    connector = build_connector(store=FeatureStore(engine=engine, cache=cache_empty))
+    connector = build_connector(store=_FeatureStore(engine=engine, cache=cache_empty))
 
     await connector.start()
 
@@ -152,7 +152,9 @@ async def test_polling_emits_fetched_on_every_fetch_and_ready_once(
 ):
     server.on("GET", FEATURES_PATH, payload=MOCK_FEATURE_RESPONSE, repeat=True)
     connector = build_connector(
-        store=FeatureStore(engine=UnleashEngine(), cache=cache_empty, events=dispatcher)
+        store=_FeatureStore(
+            engine=UnleashEngine(), cache=cache_empty, events=dispatcher
+        )
     )
 
     await connector.start()
@@ -167,7 +169,7 @@ async def test_polling_emits_fetched_on_every_fetch_and_ready_once(
 async def test_stop_interrupts_a_fetch_in_flight(server, build_connector, cache_empty):
     server.on("GET", FEATURES_PATH, payload=MOCK_FEATURE_RESPONSE, hang=True)
     engine = UnleashEngine()
-    connector = build_connector(store=FeatureStore(engine=engine, cache=cache_empty))
+    connector = build_connector(store=_FeatureStore(engine=engine, cache=cache_empty))
 
     await connector.start()
     await until(lambda: len(server.calls("GET", FEATURES_PATH)) == 1)
@@ -181,7 +183,7 @@ async def test_stop_interrupts_a_fetch_in_flight(server, build_connector, cache_
 @mark.asyncio
 async def test_stop_is_safe_when_never_started(build_connector, cache_empty):
     connector = build_connector(
-        store=FeatureStore(engine=UnleashEngine(), cache=cache_empty)
+        store=_FeatureStore(engine=UnleashEngine(), cache=cache_empty)
     )
 
     await connector.stop()

@@ -4,16 +4,16 @@ from typing import Optional
 from ld_eventsource import SSEClient
 from ld_eventsource.config import ConnectStrategy, ErrorStrategy, RetryDelayStrategy
 
+from UnleashClient._feature_store import _FeatureStore
 from UnleashClient.connectors.base_connector import BaseConnector
 from UnleashClient.constants import STREAMING_URL
-from UnleashClient.store import FeatureStore
 from UnleashClient.utils import LOGGER
 
 
 class StreamingConnector(BaseConnector):
     def __init__(
         self,
-        store: FeatureStore,
+        store: _FeatureStore,
         url: str,
         headers: dict,
         request_timeout: int,

@@ -4,11 +4,11 @@ from yggdrasil_engine.engine import UnleashEngine
 
 from tests.utilities.events import WAIT_TIMEOUT, EventRecorder
 from tests.utilities.mocks.mock_features import MOCK_FEATURE_RESPONSE
+from UnleashClient._feature_store import _FeatureStore
 from UnleashClient._scheduler import _Scheduler
 from UnleashClient.connectors import OfflineConnector
 from UnleashClient.constants import FEATURES_URL
 from UnleashClient.events import EventDispatcher, UnleashEventType
-from UnleashClient.store import FeatureStore
 
 
 def test_offline_connector_loads_features_on_start(cache_empty):
@@ -19,7 +19,7 @@ def test_offline_connector_loads_features_on_start(cache_empty):
     temp_cache.set(FEATURES_URL, json.dumps(MOCK_FEATURE_RESPONSE))
 
     connector = OfflineConnector(
-        store=FeatureStore(engine=engine, cache=temp_cache),
+        store=_FeatureStore(engine=engine, cache=temp_cache),
         scheduler=scheduler,
     )
 
@@ -36,7 +36,7 @@ def test_offline_connector_start_stop(cache_empty):
     temp_cache.set(FEATURES_URL, json.dumps(MOCK_FEATURE_RESPONSE))
 
     connector = OfflineConnector(
-        store=FeatureStore(engine=engine, cache=temp_cache),
+        store=_FeatureStore(engine=engine, cache=temp_cache),
         scheduler=scheduler,
         refresh_interval=1,
     )
@@ -59,7 +59,7 @@ def test_offline_connector_emits_ready_event(
     temp_cache.set(FEATURES_URL, json.dumps(MOCK_FEATURE_RESPONSE))
 
     connector = OfflineConnector(
-        store=FeatureStore(engine=engine, cache=temp_cache, events=dispatcher),
+        store=_FeatureStore(engine=engine, cache=temp_cache, events=dispatcher),
         scheduler=scheduler,
     )
 
@@ -78,7 +78,7 @@ def test_offline_connector_emits_ready_on_an_empty_cache(
     scheduler = _Scheduler()
 
     connector = OfflineConnector(
-        store=FeatureStore(
+        store=_FeatureStore(
             engine=UnleashEngine(), cache=cache_empty, events=dispatcher
         ),
         scheduler=scheduler,
@@ -100,7 +100,7 @@ def test_offline_connector_without_a_dispatcher_does_not_emit(cache_empty):
     temp_cache.set(FEATURES_URL, json.dumps(MOCK_FEATURE_RESPONSE))
 
     connector = OfflineConnector(
-        store=FeatureStore(engine=engine, cache=temp_cache),
+        store=_FeatureStore(engine=engine, cache=temp_cache),
         scheduler=scheduler,
     )
 
