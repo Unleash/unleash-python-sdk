@@ -47,9 +47,8 @@ class AsyncUnleashClient:
     The client keeps feature state fresh by polling the Unleash server on the
     event loop it was initialized on, and reports metrics on the same loop.
     Streaming, offline mode and bootstrapping are not supported.
-    Flag evaluation is not implemented yet: :meth:`is_enabled`,
-    :meth:`get_variant` and :meth:`feature_definitions` raise
-    :class:`NotImplementedError`.
+    :meth:`get_variant` and :meth:`feature_definitions` are not implemented
+    yet and raise :class:`NotImplementedError`.
 
     Example::
 
@@ -58,6 +57,9 @@ class AsyncUnleashClient:
             app_name="my-app",
             custom_headers={"Authorization": "<API token>"},
         ) as client:
+            if client.is_enabled("new-checkout", {"userId": "42"}):
+                ...
+
             client.impact_metrics.define_counter("purchases", "Number of purchases")
             client.impact_metrics.increment_counter("purchases")
     """
@@ -178,7 +180,11 @@ class AsyncUnleashClient:
         :param fallback_function: Allows users to provide a custom function to set default value.
         :return: Feature flag result
         """
-        raise NotImplementedError(_NOT_IMPLEMENTED)
+        return self._evaluator.is_enabled(
+            feature_name=feature_name,
+            context=context,
+            fallback_function=fallback_function,
+        )
 
     def get_variant(self, feature_name: str, context: Optional[dict] = None) -> dict:
         """

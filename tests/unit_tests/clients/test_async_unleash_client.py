@@ -6,7 +6,7 @@ from typing import Callable
 import pytest
 import pytest_asyncio
 
-from tests.utilities.events import WAIT_TIMEOUT
+from tests.utilities.events import WAIT_TIMEOUT, EventRecorder
 from tests.utilities.fake_unleash_server import FakeUnleash
 from tests.utilities.mocks.mock_features import MOCK_FEATURE_RESPONSE
 from tests.utilities.testing_constants import APP_NAME, URL
@@ -21,6 +21,7 @@ from UnleashClient.constants import (
     REGISTER_URL,
 )
 from UnleashClient.errors import MultipleInstancesNotAllowedError
+from UnleashClient.events import UnleashEventType
 from UnleashClient.utils import InstanceAllowType
 
 
@@ -215,8 +216,6 @@ def test_both_clients_load_the_same_state(tmpdir):
 def test_the_async_client_cannot_evaluate_yet(tmpdir):
     client = build_async_client(tmpdir, url=URL, app_name=APP_NAME)
 
-    with pytest.raises(NotImplementedError):
-        client.is_enabled("testFlag")
     with pytest.raises(NotImplementedError):
         client.get_variant("testFlag")
     with pytest.raises(NotImplementedError):
@@ -634,3 +633,62 @@ async def test_the_context_manager_initializes_and_destroys(
     await asyncio.sleep(0.05)
     assert len(server.calls("GET", FEATURES_PATH)) == polls
     assert len(server.calls("POST", REGISTER_PATH)) == 1
+
+
+@pytest.mark.asyncio
+async def test_is_enabled_resolves_toggles_from_the_cached_state(
+    tmpdir, build_running_client
+):
+    cache = FileCache(APP_NAME, directory=str(tmpdir))
+    cache.set(FEATURES_URL, json.dumps(MOCK_FEATURE_RESPONSE))
+    client = build_running_client(refresh_interval=3600, cache=cache)
+
+    await client.initialize_client()
+
+    assert client.is_enabled("testFlag") is True
+    assert client.is_enabled("testConstraintFlag") is False
+
+
+@pytest.mark.asyncio
+async def test_is_enabled_is_false_for_an_unknown_toggle(build_running_client):
+    client = build_running_client(refresh_interval=3600)
+
+    await client.initialize_client()
+
+    assert client.is_enabled("notAFlag") is False
+
+
+@pytest.mark.asyncio
+async def test_is_enabled_answers_unknown_toggles_with_the_fallback(
+    build_running_client,
+):
+    client = build_running_client(refresh_interval=3600)
+
+    await client.initialize_client()
+
+    assert (
+        client.is_enabled(
+            "notAFlag",
+            {"userId": "42"},
+            fallback_function=lambda feature_name, context: context["userId"] == "42",
+        )
+        is True
+    )
+
+
+@pytest.mark.asyncio
+async def test_is_enabled_emits_impression_events(tmpdir, build_running_client):
+    cache = FileCache(APP_NAME, directory=str(tmpdir))
+    cache.set(FEATURES_URL, json.dumps(MOCK_FEATURE_RESPONSE))
+    recorder = EventRecorder()
+    client = build_running_client(
+        refresh_interval=3600, cache=cache, event_callback=recorder
+    )
+
+    await client.initialize_client()
+    client.is_enabled("testFlag", {"userId": "42"})
+
+    (event,) = recorder.wait_for(UnleashEventType.FEATURE_FLAG)
+    assert event.feature_name == "testFlag"
+    assert event.enabled is True
+    assert event.context["userId"] == "42"
