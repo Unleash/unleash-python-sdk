@@ -5,7 +5,7 @@ from typing import Optional
 from yggdrasil_engine.engine import UnleashEngine
 
 from UnleashClient._async_scheduler import _AsyncJob, _AsyncScheduler
-from UnleashClient.async_transport import AsyncTransport
+from UnleashClient._async_transport import _AsyncTransport
 from UnleashClient.config import UnleashConfig
 from UnleashClient.impact_metrics import ImpactMetrics
 from UnleashClient.payloads import build_metrics_payload
@@ -38,13 +38,13 @@ class AsyncMetricsReporter:
     def __init__(
         self,
         config: UnleashConfig,
-        transport: AsyncTransport,
+        transport: _AsyncTransport,
         scheduler: _AsyncScheduler,
         engine: UnleashEngine,
         impact_metrics: ImpactMetrics,
     ) -> None:
         self._config: UnleashConfig = config
-        self._transport: AsyncTransport = transport
+        self._transport: _AsyncTransport = transport
         self._scheduler: _AsyncScheduler = scheduler
         self._engine: UnleashEngine = engine
         self._impact_metrics: ImpactMetrics = impact_metrics

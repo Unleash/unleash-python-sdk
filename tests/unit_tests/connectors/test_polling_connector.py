@@ -19,18 +19,18 @@ from tests.utilities.testing_constants import (
     URL,
 )
 from UnleashClient._scheduler import _Scheduler
+from UnleashClient._transport import _Transport
 from UnleashClient.config import UnleashConfig
 from UnleashClient.connectors import PollingConnector
 from UnleashClient.constants import ETAG, FEATURES_URL
 from UnleashClient.events import EventDispatcher, UnleashEventType
 from UnleashClient.headers import HeaderFactory
 from UnleashClient.store import FeatureStore
-from UnleashClient.transport import Transport
 
 FULL_FEATURE_URL = URL + FEATURES_URL
 
 
-def build_transport(**kwargs) -> Transport:
+def build_transport(**kwargs) -> _Transport:
     defaults = {
         "instance_id": INSTANCE_ID,
         "custom_headers": CUSTOM_HEADERS,
@@ -40,7 +40,7 @@ def build_transport(**kwargs) -> Transport:
     }
     defaults.update(kwargs)
     config = UnleashConfig(URL, APP_NAME, **defaults)
-    return Transport(config, HeaderFactory(config))
+    return _Transport(config, HeaderFactory(config))
 
 
 @responses.activate

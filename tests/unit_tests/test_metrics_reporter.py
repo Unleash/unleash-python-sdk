@@ -5,12 +5,12 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from yggdrasil_engine.engine import UnleashEngine
 
 from UnleashClient._scheduler import _Scheduler
+from UnleashClient._transport import _Transport
 from UnleashClient.config import UnleashConfig
 from UnleashClient.constants import CLIENT_SPEC_VERSION, METRICS_URL
 from UnleashClient.headers import HeaderFactory
 from UnleashClient.impact_metrics import ImpactMetrics
 from UnleashClient.metrics_reporter import MetricsReporter
-from UnleashClient.transport import Transport
 
 URL = "http://localhost:4242/api"
 APP_NAME = "pytest"
@@ -66,7 +66,7 @@ def build_reporter(scheduler=None, impact_metrics=None, **kwargs) -> MetricsRepo
     engine = UnleashEngine()
     return MetricsReporter(
         config=config,
-        transport=Transport(config, HeaderFactory(config)),
+        transport=_Transport(config, HeaderFactory(config)),
         scheduler=scheduler if scheduler is not None else _Scheduler(),
         engine=engine,
         impact_metrics=(

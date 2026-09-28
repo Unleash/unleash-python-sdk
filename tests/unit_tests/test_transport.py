@@ -23,6 +23,7 @@ from tests.utilities.testing_constants import (
     REQUEST_TIMEOUT,
     URL,
 )
+from UnleashClient._transport import _Transport
 from UnleashClient.config import UnleashConfig
 from UnleashClient.constants import (
     CLIENT_SPEC_VERSION,
@@ -31,7 +32,6 @@ from UnleashClient.constants import (
     REGISTER_URL,
 )
 from UnleashClient.headers import HeaderFactory
-from UnleashClient.transport import Transport
 
 FULL_FEATURE_URL = URL + FEATURES_URL
 FULL_REGISTER_URL = URL + REGISTER_URL
@@ -42,7 +42,7 @@ FULL_METRICS_URL = URL + METRICS_URL
 def build_transport():
     """Factory. Keyword arguments override the defaults on the config."""
 
-    def _build_transport(**kwargs) -> Transport:
+    def _build_transport(**kwargs) -> _Transport:
         defaults = {
             "instance_id": INSTANCE_ID,
             "custom_headers": CUSTOM_HEADERS,
@@ -52,13 +52,13 @@ def build_transport():
         }
         defaults.update(kwargs)
         config = UnleashConfig(URL, APP_NAME, **defaults)
-        return Transport(config, HeaderFactory(config))
+        return _Transport(config, HeaderFactory(config))
 
     return _build_transport
 
 
 @pytest.fixture
-def transport(build_transport) -> Transport:
+def transport(build_transport) -> _Transport:
     return build_transport()
 
 

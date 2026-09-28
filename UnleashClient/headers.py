@@ -13,7 +13,7 @@ class HeaderFactory:
     Every method returns a fresh dict and reads the config on each call, so
     reassigning or mutating ``config.custom_headers`` (which
     ``UnleashClient.unleash_custom_headers`` allows) is picked up by the next
-    call. :class:`~UnleashClient.transport.Transport` holds the factory and asks
+    call. :class:`~UnleashClient._transport._Transport` holds the factory and asks
     it once per request, so a change reaches the wire on the next poll or send.
     The client still calls ``streaming()`` once, at initialization, and hands the
     dict to the connector; that one keeps the headers it was given.

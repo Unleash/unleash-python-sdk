@@ -22,7 +22,8 @@ from tests.utilities.testing_constants import (
     REQUEST_RETRIES,
     REQUEST_TIMEOUT,
 )
-from UnleashClient.async_transport import AsyncTransport
+from UnleashClient._async_transport import _AsyncTransport
+from UnleashClient._transport import AlreadyClosedError
 from UnleashClient.config import UnleashConfig
 from UnleashClient.constants import (
     CLIENT_SPEC_VERSION,
@@ -31,7 +32,6 @@ from UnleashClient.constants import (
     REGISTER_URL,
 )
 from UnleashClient.headers import HeaderFactory
-from UnleashClient.transport import AlreadyClosedError
 
 API_PREFIX = "/api"
 FEATURES_PATH = API_PREFIX + FEATURES_URL
@@ -58,7 +58,7 @@ async def build_transport(server: FakeUnleash):
     """
     built = []
 
-    def _build_transport(**kwargs) -> AsyncTransport:
+    def _build_transport(**kwargs) -> _AsyncTransport:
         defaults = {
             "instance_id": INSTANCE_ID,
             "custom_headers": CUSTOM_HEADERS,
@@ -67,7 +67,7 @@ async def build_transport(server: FakeUnleash):
         }
         defaults.update(kwargs)
         config = UnleashConfig(server.base_url, APP_NAME, **defaults)
-        transport = AsyncTransport(config, HeaderFactory(config))
+        transport = _AsyncTransport(config, HeaderFactory(config))
         built.append(transport)
         return transport
 
@@ -79,7 +79,7 @@ async def build_transport(server: FakeUnleash):
 
 
 @pytest_asyncio.fixture
-async def transport(build_transport: Callable[..., AsyncTransport]) -> AsyncTransport:
+async def transport(build_transport: Callable[..., _AsyncTransport]) -> _AsyncTransport:
     """The transport the tests that need no config override share."""
     return build_transport()
 
