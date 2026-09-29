@@ -14,7 +14,8 @@ from tests.utilities.mocks.mock_features import (
 )
 from tests.utilities.testing_constants import APP_NAME, URL
 from UnleashClient import INSTANCES, UnleashClient
-from UnleashClient._metrics import _AsyncMetricsReporter, _MetricsReporter
+from UnleashClient._async_metrics import _AsyncMetricsReporter
+from UnleashClient._metrics import _MetricsReporter
 from UnleashClient.cache import FileCache
 from UnleashClient.clients.async_unleash_client import AsyncUnleashClient
 from UnleashClient.constants import (
