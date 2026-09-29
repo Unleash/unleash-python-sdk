@@ -1,11 +1,7 @@
-"""Metrics reporting, for the sync and async Unleash clients."""
-
-from typing import Optional
+"""Metrics reporting, for the sync Unleash client."""
 
 from yggdrasil_engine.engine import UnleashEngine
 
-from UnleashClient._async_scheduler import _AsyncJob, _AsyncScheduler
-from UnleashClient._async_transport import _AsyncTransport
 from UnleashClient._payloads import _build_metrics_payload
 from UnleashClient._scheduler import _ScheduledJob, _Scheduler
 from UnleashClient._transport import _Transport
@@ -98,87 +94,3 @@ class _MetricsReporter:
         self.flush()
         self._scheduler.cancel(self._job)
         self._job = None
-
-
-class _AsyncMetricsReporter:
-    """
-    Sends feature and impact metrics to Unleash on a recurring interval.
-
-    :meth:`start` must be called, and :meth:`stop` awaited, from the event loop the client
-    runs on, and the loop must stay open for as long as metrics are being reported.
-
-    Example::
-
-        reporter = _AsyncMetricsReporter(
-            config=config,
-            transport=transport,
-            scheduler=scheduler,
-            engine=engine,
-            impact_metrics=impact_metrics,
-        )
-        reporter.start()
-
-        await reporter.flush()
-
-        await reporter.stop()
-    """
-
-    def __init__(
-        self,
-        config: UnleashConfig,
-        transport: _AsyncTransport,
-        scheduler: _AsyncScheduler,
-        engine: UnleashEngine,
-        impact_metrics: ImpactMetrics,
-    ) -> None:
-        self._config: UnleashConfig = config
-        self._transport: _AsyncTransport = transport
-        self._scheduler: _AsyncScheduler = scheduler
-        self._engine: UnleashEngine = engine
-        self._impact_metrics: ImpactMetrics = impact_metrics
-        self._job: Optional[_AsyncJob] = None
-
-    def start(self) -> None:
-        """Schedules a send every ``metrics_interval`` seconds, with ``metrics_jitter`` of jitter."""
-        self._job = self._scheduler.every(
-            interval_seconds=int(self._config.metrics_interval),
-            jitter_seconds=self._config.metrics_jitter,
-            fn=self.flush,
-        )
-
-    async def flush(self) -> None:
-        """
-        Sends one bucket of feature and impact metrics.
-
-        Sends nothing when neither has anything to report. When a send fails or is
-        cancelled, its impact metrics are restored so the next send carries them.
-        """
-        bucket = self._engine.get_metrics()
-        impact_metrics = self._impact_metrics.collect()
-
-        if not (bucket or impact_metrics):
-            LOGGER.debug("No feature flags with metrics, skipping metrics submission.")
-            return
-
-        payload = _build_metrics_payload(self._config, bucket, impact_metrics)
-        sent = False
-        try:
-            sent = await self._transport.send_metrics(payload)
-        finally:
-            if not sent and impact_metrics:
-                self._impact_metrics.restore(impact_metrics)
-
-    async def stop(self) -> None:
-        """
-        Stops the recurring send and flushes whatever is left.
-
-        Does nothing when :meth:`start` was never called. A send still in flight is
-        cancelled: its impact metrics go out with the final flush, and its feature
-        metrics are lost.
-        """
-        if self._job is None:
-            return
-
-        job, self._job = self._job, None
-        await self._scheduler.cancel_and_wait(job)
-        await self.flush()

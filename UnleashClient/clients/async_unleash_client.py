@@ -10,6 +10,7 @@ from typing import Callable, Optional
 
 from yggdrasil_engine.engine import UnleashEngine
 
+from UnleashClient._async_metrics import _AsyncMetricsReporter
 from UnleashClient._async_scheduler import _AsyncScheduler
 from UnleashClient._async_transport import _AsyncTransport
 from UnleashClient._context import _ContextEnricher
@@ -18,7 +19,6 @@ from UnleashClient._event_dispatcher import _EventDispatcher
 from UnleashClient._feature_store import _FeatureStore
 from UnleashClient._headers import _HeaderFactory
 from UnleashClient._instance_registry import _get_instance_registry
-from UnleashClient._metrics import _AsyncMetricsReporter
 from UnleashClient._payloads import _build_register_payload
 from UnleashClient.cache import BaseCache, FileCache
 from UnleashClient.clients.unleash_client import _RunState
