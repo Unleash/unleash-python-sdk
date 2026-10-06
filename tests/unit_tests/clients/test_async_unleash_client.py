@@ -485,6 +485,20 @@ async def test_initializing_does_not_register_when_registration_is_disabled(
 
 
 @pytest.mark.asyncio
+async def test_initializing_starts_a_background_fetch_without_waiting(
+    server, build_running_client
+):
+    server.on("GET", FEATURES_PATH, payload=MOCK_FEATURE_RESPONSE, hang=True)
+    client = build_running_client(refresh_interval=3600)
+
+    await asyncio.wait_for(client.initialize_client(), WAIT_TIMEOUT)
+
+    assert client.is_initialized
+    await until(lambda: len(server.calls("GET", FEATURES_PATH)) == 1)
+    await asyncio.wait_for(client.destroy(), WAIT_TIMEOUT)
+
+
+@pytest.mark.asyncio
 async def test_the_client_polls_features_from_the_server(server, build_running_client):
     server.on("GET", FEATURES_PATH, payload=MOCK_FEATURE_RESPONSE, repeat=True)
     client = build_running_client(refresh_interval=0.01)
