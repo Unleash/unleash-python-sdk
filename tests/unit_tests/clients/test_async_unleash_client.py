@@ -485,17 +485,49 @@ async def test_initializing_does_not_register_when_registration_is_disabled(
 
 
 @pytest.mark.asyncio
-async def test_initializing_starts_a_background_fetch_without_waiting(
-    server, build_running_client
+async def test_initializing_awaits_the_first_fetch_while_yielding_to_the_event_loop(
+    server, build_running_client, monkeypatch
 ):
-    server.on("GET", FEATURES_PATH, payload=MOCK_FEATURE_RESPONSE, hang=True)
+    server.on("GET", FEATURES_PATH, payload=MOCK_FEATURE_RESPONSE)
     client = build_running_client(refresh_interval=3600)
+    started = asyncio.Event()
+    release = asyncio.Event()
+    fetch_features = client._transport.fetch_features
 
-    await asyncio.wait_for(client.initialize_client(), WAIT_TIMEOUT)
+    async def delayed_fetch(**kwargs):
+        started.set()
+        await release.wait()
+        return await fetch_features(**kwargs)
+
+    monkeypatch.setattr(client._transport, "fetch_features", delayed_fetch)
+    initializing = asyncio.create_task(client.initialize_client())
+    try:
+        await asyncio.wait_for(started.wait(), WAIT_TIMEOUT)
+        assert not initializing.done()
+        assert not client.is_initialized
+    finally:
+        release.set()
+        await asyncio.wait_for(initializing, WAIT_TIMEOUT)
 
     assert client.is_initialized
+    assert client.is_enabled("testFlag")
+    assert len(server.calls("GET", FEATURES_PATH)) == 1
+
+
+@pytest.mark.asyncio
+async def test_caller_can_cancel_initialization_before_destroying(
+    server, build_running_client
+):
+    server.on("GET", FEATURES_PATH, hang=True)
+    client = build_running_client(refresh_interval=3600)
+    initializing = asyncio.create_task(client.initialize_client())
     await until(lambda: len(server.calls("GET", FEATURES_PATH)) == 1)
+
+    initializing.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await initializing
     await asyncio.wait_for(client.destroy(), WAIT_TIMEOUT)
+    assert not client.is_initialized
 
 
 @pytest.mark.asyncio

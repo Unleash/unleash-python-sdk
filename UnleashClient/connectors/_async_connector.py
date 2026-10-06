@@ -1,11 +1,9 @@
-import asyncio
 from abc import ABC, abstractmethod
 from typing import Optional
 
 from UnleashClient._async_scheduler import _AsyncScheduler
 from UnleashClient._async_transport import _AsyncTransport
 from UnleashClient._feature_store import _FeatureStore
-from UnleashClient.utils import LOGGER
 
 
 class _AsyncBaseConnector(ABC):
@@ -28,7 +26,7 @@ class _AsyncBaseConnector(ABC):
 class _AsyncPollingConnector(_AsyncBaseConnector):
     """
     Keeps feature state fresh by fetching it on a fixed interval. Starting loads
-    the cached state and schedules the fetch, without waiting for it.
+    the cached state and awaits the first fetch before scheduling polling.
 
     Example::
 
@@ -61,7 +59,6 @@ class _AsyncPollingConnector(_AsyncBaseConnector):
         self._refresh_interval = refresh_interval
         self._refresh_jitter = refresh_jitter
         self._scheduler: _AsyncScheduler = _AsyncScheduler()
-        self._startup_task: Optional["asyncio.Task[None]"] = None
 
     async def _fetch_and_load(self) -> None:
         result = await self._transport.fetch_features(etag=self._store.cached_etag)
@@ -70,20 +67,11 @@ class _AsyncPollingConnector(_AsyncBaseConnector):
 
     async def start(self) -> None:
         """
-        Loads the cached feature state and starts an immediate background fetch.
-        Once that attempt finishes, schedules polling every ``refresh_interval``
-        seconds. Returns without waiting for the first fetch.
+        Loads the cached feature state and awaits an immediate fetch. Once that 
+        attempt finishes, schedules polling every ``refresh_interval`` seconds.
         """
         self._store.load_from_cache()
-        self._startup_task = asyncio.create_task(
-            self._fetch_then_start_polling(), name="unleash-initial-fetch"
-        )
-
-    async def _fetch_then_start_polling(self) -> None:
-        try:
-            await self._fetch_and_load()
-        except Exception:
-            LOGGER.warning("Initial feature fetch failed")
+        await self._fetch_and_load()
 
         _ = self._scheduler.every(
             interval_seconds=self._refresh_interval,
@@ -97,8 +85,4 @@ class _AsyncPollingConnector(_AsyncBaseConnector):
         Stops fetching, and returns once a fetch in flight has been interrupted.
         Safe to call when :meth:`start` was never called.
         """
-        if self._startup_task is not None:
-            self._startup_task.cancel()
-            await asyncio.gather(self._startup_task, return_exceptions=True)
-            self._startup_task = None
         await self._scheduler.shutdown()

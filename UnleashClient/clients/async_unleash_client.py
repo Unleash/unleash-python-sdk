@@ -243,9 +243,12 @@ class AsyncUnleashClient:
         * Feature polling, every ``refresh_interval`` seconds
         * Metrics reporting, every ``metrics_interval`` seconds
 
-        Schedules the first feature fetch immediately in the background and
-        returns without waiting for the server's feature state. Until that fetch
-        completes, the client holds the cached state.
+        Awaits the first feature fetch attempt before returning, yielding to the
+        event loop during network I/O. If the fetch fails, initialization still
+        completes using cached state and polling continues at the configured
+        interval.
+
+        Finish or cancel initialization before calling :meth:`destroy`.
 
         Calling it again, or after :meth:`destroy`, warns and does nothing.
 

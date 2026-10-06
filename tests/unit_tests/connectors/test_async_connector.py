@@ -85,11 +85,16 @@ async def test_start_makes_cached_state_evaluable_before_any_fetch(
     connector = build_connector(
         store=_FeatureStore(engine=engine, cache=cache_empty), refresh_interval=NEVER
     )
+    server.on("GET", FEATURES_PATH, hang=True)
 
-    await connector.start()
+    starting = asyncio.create_task(connector.start())
+    await until(lambda: len(server.calls("GET", FEATURES_PATH)) == 1)
 
     assert is_enabled(engine, "testFlag")
-    assert server.calls("GET", FEATURES_PATH) == []
+    assert not starting.done()
+    starting.cancel()
+    await asyncio.gather(starting, return_exceptions=True)
+    assert starting.cancelled()
 
 
 @mark.asyncio
@@ -106,7 +111,7 @@ async def test_start_fetches_immediately_without_waiting_for_the_interval(
 
     await connector.start()
 
-    await until(lambda: is_enabled(engine, "testFlag"))
+    assert is_enabled(engine, "testFlag")
     assert len(server.calls("GET", FEATURES_PATH)) == 1
 
 
@@ -128,12 +133,14 @@ async def test_recurring_polls_wait_for_the_initial_fetch_to_finish(
 
     monkeypatch.setattr(connector, "_fetch_and_load", fetch)
 
-    await connector.start()
+    starting = asyncio.create_task(connector.start())
     await asyncio.wait_for(started.wait(), WAIT_TIMEOUT)
     await asyncio.sleep(INTERVAL * 3)
     assert len(calls) == 1
+    assert not starting.done()
 
     release.set()
+    await asyncio.wait_for(starting, WAIT_TIMEOUT)
     await until(lambda: len(calls) >= 2)
 
 
@@ -232,20 +239,41 @@ async def test_polling_emits_fetched_on_every_fetch_and_ready_once(
 
 
 @mark.asyncio
-async def test_stop_interrupts_a_fetch_in_flight(server, build_connector, cache_empty):
+async def test_caller_can_cancel_the_initial_fetch(server, build_connector, cache_empty):
     server.on("GET", FEATURES_PATH, payload=MOCK_FEATURE_RESPONSE, hang=True)
     engine = UnleashEngine()
     connector = build_connector(
         store=_FeatureStore(engine=engine, cache=cache_empty), refresh_interval=NEVER
     )
 
-    await asyncio.wait_for(connector.start(), WAIT_TIMEOUT)
+    starting = asyncio.create_task(connector.start())
     await until(lambda: len(server.calls("GET", FEATURES_PATH)) == 1)
-    await asyncio.wait_for(connector.stop(), WAIT_TIMEOUT)
+    starting.cancel()
+    await asyncio.wait_for(
+        asyncio.gather(starting, return_exceptions=True), WAIT_TIMEOUT
+    )
+    await connector.stop()
     await server.close()
 
     assert not is_enabled(engine, "testFlag")
+    assert starting.cancelled()
     assert len(server.calls("GET", FEATURES_PATH)) == 1
+
+
+@mark.asyncio
+async def test_stop_interrupts_a_recurring_fetch(server, build_connector, cache_empty):
+    server.on("GET", FEATURES_PATH, payload=MOCK_FEATURE_RESPONSE)
+    server.on("GET", FEATURES_PATH, hang=True)
+    engine = UnleashEngine()
+    connector = build_connector(store=_FeatureStore(engine=engine, cache=cache_empty))
+
+    await connector.start()
+    await until(lambda: len(server.calls("GET", FEATURES_PATH)) == 2)
+    await asyncio.wait_for(connector.stop(), WAIT_TIMEOUT)
+    await server.close()
+
+    assert is_enabled(engine, "testFlag")
+    assert len(server.calls("GET", FEATURES_PATH)) == 2
 
 
 @mark.asyncio
