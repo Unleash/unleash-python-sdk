@@ -67,7 +67,7 @@ class _AsyncPollingConnector(_AsyncBaseConnector):
 
     async def start(self) -> None:
         """
-        Loads the cached feature state and awaits an immediate fetch. Once that 
+        Loads the cached feature state and awaits an immediate fetch. Once that
         attempt finishes, schedules polling every ``refresh_interval`` seconds.
         """
         self._store.load_from_cache()

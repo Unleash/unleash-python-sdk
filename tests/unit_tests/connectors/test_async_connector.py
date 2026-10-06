@@ -239,7 +239,9 @@ async def test_polling_emits_fetched_on_every_fetch_and_ready_once(
 
 
 @mark.asyncio
-async def test_caller_can_cancel_the_initial_fetch(server, build_connector, cache_empty):
+async def test_caller_can_cancel_the_initial_fetch(
+    server, build_connector, cache_empty
+):
     server.on("GET", FEATURES_PATH, payload=MOCK_FEATURE_RESPONSE, hang=True)
     engine = UnleashEngine()
     connector = build_connector(
