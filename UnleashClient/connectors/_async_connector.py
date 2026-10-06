@@ -83,7 +83,7 @@ class _AsyncPollingConnector(_AsyncBaseConnector):
         try:
             await self._fetch_and_load()
         except Exception:
-            LOGGER.exception("Initial feature fetch failed")
+            LOGGER.warning("Initial feature fetch failed")
 
         _ = self._scheduler.every(
             interval_seconds=self._refresh_interval,
