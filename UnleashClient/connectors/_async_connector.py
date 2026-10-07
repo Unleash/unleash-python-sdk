@@ -26,7 +26,7 @@ class _AsyncBaseConnector(ABC):
 class _AsyncPollingConnector(_AsyncBaseConnector):
     """
     Keeps feature state fresh by fetching it on a fixed interval. Starting loads
-    the cached state and schedules the fetch, without waiting for it.
+    the cached state and awaits the first fetch before scheduling polling.
 
     Example::
 
@@ -67,10 +67,11 @@ class _AsyncPollingConnector(_AsyncBaseConnector):
 
     async def start(self) -> None:
         """
-        Loads the cached feature state, then fetches every ``refresh_interval``
-        seconds. The first fetch runs one interval after this returns.
+        Loads the cached feature state and awaits an immediate fetch. Once that
+        attempt finishes, schedules polling every ``refresh_interval`` seconds.
         """
         self._store.load_from_cache()
+        await self._fetch_and_load()
 
         _ = self._scheduler.every(
             interval_seconds=self._refresh_interval,
