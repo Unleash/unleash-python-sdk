@@ -130,7 +130,7 @@
 <li><p><strong>scheduler</strong> – Custom APScheduler object.  Use this if you want to customize jobstore or executors.  When unset, UnleashClient will create it’s own scheduler.</p></li>
 <li><p><strong>scheduler_executor</strong> – Name of APSCheduler executor to use if using a custom scheduler.</p></li>
 <li><p><strong>multiple_instance_mode</strong> – Determines how multiple instances being instantiated is handled by the SDK, when set to InstanceAllowType.BLOCK, the client constructor will fail when more than one instance is detected, when set to InstanceAllowType.WARN, multiple instances will be allowed but log a warning, when set to InstanceAllowType.SILENTLY_ALLOW, no warning or failure will be raised when instantiating multiple instances of the client. Defaults to InstanceAllowType.WARN</p></li>
-<li><p><strong>event_callback</strong> – Function to call if impression events are enabled.  Called on a dedicated background thread, so it must not rely on thread local state from the caller.</p></li>
+<li><p><strong>event_callback</strong> – Function to call if impression events are enabled.  WARNING: Depending on your event library, this may have performance implications!</p></li>
 <li><p><strong>experimental_mode</strong> – Optional dict to configure mode. Use {“type”: “streaming”} to enable streaming or {“type”: “polling”} (default).</p></li>
 <li><p><strong>sdk_flavor</strong> – Optional identifier of an integration built on top of this SDK (e.g. an OpenFeature provider). Sent in the register + metrics payloads alongside sdkVersion so adoption of the integration can be tracked. Leave unset for plain SDK usage.</p></li>
 <li><p><strong>sdk_flavor_version</strong> – Optional version of the integration named by sdk_flavor.</p></li>
