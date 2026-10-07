@@ -1,4 +1,4 @@
-## Unreleased
+## v6.9.0
 * (Minor): New `AsyncUnleashClient`.
 * (Minor): New `UnleashClient.errors` module. A duplicate client under `InstanceAllowType.BLOCK` now raises `MultipleInstancesNotAllowedError`.
 * (Minor): A `fallback_function` that raises now makes `is_enabled()` return `False` instead of raising.
@@ -9,6 +9,9 @@
 * (Bugfix): Changing `unleash_*` attributes after `initialize_client()` now takes effect.
 * (Bugfix): The final metrics send on `destroy()` now includes `sdkFlavor` and `sdkFlavorVersion`.
 * (Patch): Removed modules and attributes that aren't part of the public API.
+
+## v6.8.0
+* (Minor): Client metrics now include SDK flavor metadata.
 
 ## v6.7.0
 * (Minor): Support for CIDR, Semver GTE and LTE constraints

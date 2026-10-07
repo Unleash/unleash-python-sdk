@@ -6,7 +6,7 @@ mmhash3
 python-dateutil
 requests
 semver
-yggdrasil-engine==2.0.0a1
+yggdrasil-engine==2.0.0
 launchdarkly-eventsource
 aiohttp
 

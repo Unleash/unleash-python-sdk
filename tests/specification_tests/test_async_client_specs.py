@@ -3,14 +3,31 @@ import sys
 import uuid
 
 import pytest
+import pytest_asyncio
 
 from tests.specification_tests.test_client_specs import TEST_DATA, TEST_NAMES
-from tests.utilities.testing_constants import APP_NAME, URL
+from tests.utilities.fake_unleash_server import FakeUnleash
+from tests.utilities.testing_constants import APP_NAME
 from UnleashClient.cache import FileCache
 from UnleashClient.clients.async_unleash_client import AsyncUnleashClient
+from UnleashClient.constants import FEATURES_URL
+
+API_PREFIX = "/api"
+FEATURES_PATH = API_PREFIX + FEATURES_URL
 
 
-async def get_async_client(state, test_context=None, cache_directory=None):
+@pytest_asyncio.fixture
+async def server():
+    fake = FakeUnleash()
+    await fake.start(path_prefix=API_PREFIX)
+    fake.on("GET", FEATURES_PATH, status=304, repeat=True)
+    try:
+        yield fake
+    finally:
+        await fake.close()
+
+
+async def get_async_client(url, state, test_context=None, cache_directory=None):
     cache_kwargs = {}
     if cache_directory is not None:
         cache_kwargs["directory"] = str(cache_directory)
@@ -22,11 +39,12 @@ async def get_async_client(state, test_context=None, cache_directory=None):
         env = test_context["environment"]
 
     unleash_client = AsyncUnleashClient(
-        url=URL,
+        url=url,
         app_name=APP_NAME,
         instance_id="pytest_%s" % uuid.uuid4(),
         disable_metrics=True,
         disable_registration=True,
+        request_retries=0,
         cache=cache,
         environment=env,
     )
@@ -41,10 +59,15 @@ async def get_async_client(state, test_context=None, cache_directory=None):
 )
 @pytest.mark.asyncio
 @pytest.mark.parametrize("spec", TEST_DATA, ids=TEST_NAMES)
-async def test_spec(spec, tmp_path):
+async def test_spec(spec, tmp_path, server):
     state, test_data, is_variant_test = spec
     context = test_data.get("context")
-    unleash_client = await get_async_client(state, context, tmp_path)
+    unleash_client = await get_async_client(
+        url=server.base_url,
+        state=state,
+        test_context=context,
+        cache_directory=tmp_path,
+    )
     try:
         if not is_variant_test:
             toggle_name = test_data["toggleName"]
