@@ -10,6 +10,9 @@
 * (Bugfix): The final metrics send on `destroy()` now includes `sdkFlavor` and `sdkFlavorVersion`.
 * (Patch): Removed modules and attributes that aren't part of the public API.
 
+## v6.8.1
+* (Bugfix): Pinned yggdrasil-engine below 2.0.0. Version 2.0.0 changed the engine API and made every flag evaluation raise.
+
 ## v6.8.0
 * (Minor): Client metrics now include SDK flavor metadata.
 
