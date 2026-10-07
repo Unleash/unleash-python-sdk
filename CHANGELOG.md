@@ -1,3 +1,9 @@
+## v6.8.1
+* (Bugfix): Pinned yggdrasil-engine below 2.0.0. Version 2.0.0 changed the engine API and made every flag evaluation raise.
+
+## v6.8.0
+* (Minor): Client metrics now include SDK flavor metadata.
+
 ## v6.7.0
 * (Minor): Support for CIDR, Semver GTE and LTE constraints
 
