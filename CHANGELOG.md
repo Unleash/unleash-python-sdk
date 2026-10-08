@@ -1,3 +1,6 @@
+## Unreleased
+* (Bugfix): Capped yggdrasil-engine below 3.0.0 so installs don't pick up a breaking major version.
+
 ## v6.9.0
 * (Minor): New `AsyncUnleashClient`.
 * (Minor): New `UnleashClient.errors` module. A duplicate client under `InstanceAllowType.BLOCK` now raises `MultipleInstancesNotAllowedError`.
