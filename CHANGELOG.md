@@ -1,4 +1,4 @@
-## Unreleased
+## v6.9.1
 * (Bugfix): Capped yggdrasil-engine below 3.0.0 so installs don't pick up a breaking major version.
 
 ## v6.9.0
