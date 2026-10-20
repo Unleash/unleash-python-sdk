@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from platform import python_implementation, python_version
 from typing import Any, Dict, Optional
 
-import yggdrasil_engine
+from yggdrasil_engine.engine import UnleashEngine
 
 from UnleashClient.config import UnleashConfig
 from UnleashClient.constants import CLIENT_SPEC_VERSION, SDK_NAME, SDK_VERSION
@@ -17,7 +17,7 @@ def _client_metadata(config: UnleashConfig) -> Dict[str, Any]:
         "connectionId": config.connection_id,
         "platformName": python_implementation(),
         "platformVersion": python_version(),
-        "yggdrasilVersion": yggdrasil_engine.__yggdrasil_core_version__,
+        "yggdrasilVersion": UnleashEngine.get_core_version(),
         "specVersion": CLIENT_SPEC_VERSION,
     }
     if config.identity.sdk_flavor:

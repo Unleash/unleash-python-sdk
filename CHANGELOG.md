@@ -1,4 +1,3 @@
-
 ## Unreleased (v7.0.0)
 * (Major): Python 3.10 or newer is required. Support for Python 3.8 and 3.9 has been dropped.
 * (Major): `UnleashClient` and `AsyncUnleashClient` take their settings as option groups: `identity=IdentityOptions(...)`, `http=HttpOptions(...)`, `mode=PollingOptions(...)` or `mode=StreamingOptions()`, and `metrics=MetricsOptions(...)`. Every argument after `url` and `app_name` is keyword-only. `ExperimentalMode` has been removed. See the [v7 migration guide](./v7_MIGRATION_GUIDE.md).
@@ -6,6 +5,8 @@
 * (Major): The API token is passed as `api_key="<API token>"`. An `Authorization` header in `HttpOptions.headers` raises `ValueError`.
 * (Major): The deprecated `environment` setting has been removed. The `environment` field of the evaluation context and the impact metrics `environment` label come from the API token, or are `"default"` when the token doesn't name one.
 * (Minor): New `FETCH_COMPLETED` event, emitted after every feature fetch with how it ended: `CHANGED`, `NOT_CHANGED`, `UNAUTHORIZED`, `RATE_LIMITED`, `UNAVAILABLE` or `INVALID_RESPONSE`.
+* (Major): Upgraded to yggdrasil-engine 3, new engine built with PyO3 for better performance.
+
 
 ## v6.9.1
 * (Bugfix): Capped yggdrasil-engine below 3.0.0 so installs don't pick up a breaking major version.
