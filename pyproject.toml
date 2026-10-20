@@ -9,14 +9,12 @@ authors = [
 description = "Python client for the Unleash feature toggle system!"
 dynamic = ["version"]
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 classifiers=[
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Typing :: Typed",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -31,7 +29,7 @@ dependencies=[
     "importlib_metadata",
     "python-dateutil",
     "semver < 4.0.0",
-    "yggdrasil-engine >= 2.0.0, < 3.0.0",
+    "yggdrasil-engine >= 3.0.0, < 4.0.0",
     "launchdarkly-eventsource",
 ]
 
