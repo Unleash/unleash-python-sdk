@@ -1875,10 +1875,9 @@ def test_callback_exception_does_not_break_is_enabled_or_get_variant(tmp_path):
     variant = unleash_client.get_variant("testVariations", context={"userId": "2"})
     assert variant["name"] == "VarA"
 
-    unleash_client.destroy()
+    assert recorder.wait_for(UnleashEventType.VARIANT)
 
-    # The first event blew up; the worker survived to deliver the rest.
-    assert recorder.events
+    unleash_client.destroy()
 
 
 def test_events_emitted_after_destroy_are_dropped(tmp_path):
