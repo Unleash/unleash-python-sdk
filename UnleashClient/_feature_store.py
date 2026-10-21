@@ -49,6 +49,9 @@ class _FeatureStore:
         self._engine = engine
         self._cache = cache
         self._events = events
+        # The body the engine last loaded, so a poll that brings nothing new
+        # (a 304, a failed fetch) doesn't parse the same state again.
+        self._loaded_state: Optional[str] = None
 
     @property
     def cached_etag(self) -> str:
@@ -60,7 +63,8 @@ class _FeatureStore:
         Hands the cached feature state to the engine and emits READY.
 
         Warns and returns when the cache is empty, so nothing is emitted and the
-        engine keeps whatever state it already had.  Engine failures are logged
+        engine keeps whatever state it already had.  A body identical to the one
+        the engine already holds is not loaded again.  Engine failures are logged
         with the offending body at debug level, never raised: every caller is
         already falling back on the cache and has nothing better to do with the
         failure.
@@ -73,8 +77,13 @@ class _FeatureStore:
             )
             return
 
+        if feature_provisioning == self._loaded_state:
+            self.emit_ready()
+            return
+
         try:
             warnings = self._engine.take_state(feature_provisioning)
+            self._loaded_state = feature_provisioning
             self.emit_ready()
             if warnings:
                 LOGGER.warning(
@@ -95,8 +104,8 @@ class _FeatureStore:
         load from the cache, then emit FETCHED.
 
         ``raw_state`` is None on a 304 or a failed fetch; the cached state is
-        loaded again and no FETCHED event is emitted.  A falsy ``etag`` leaves
-        the cached one in place.
+        loaded again, if it isn't what the engine already holds, and no FETCHED
+        event is emitted.  A falsy ``etag`` leaves the cached one in place.
 
         The engine is fed from the cache rather than from ``raw_state``, so a
         custom cache's round-trip is what reaches the engine.
@@ -133,6 +142,7 @@ class _FeatureStore:
         use.  Raises whatever the engine raises: the caller decides whether to
         fall back on the cache.
         """
+        self._loaded_state = None
         self._engine.take_state(raw_state)
         self._cache.set(FEATURES_URL, self._engine.get_state())
 

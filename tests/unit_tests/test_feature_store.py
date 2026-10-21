@@ -50,6 +50,18 @@ class RoundTrippingCache(BaseCache):
         self.written.clear()
 
 
+class CountingEngine(UnleashEngine):
+    """An engine that counts how many times it was handed a state."""
+
+    def __init__(self):
+        super().__init__()
+        self.loads = 0
+
+    def take_state(self, state_json: str):
+        self.loads += 1
+        return super().take_state(state_json)
+
+
 class FailingDispatcher:
     """A dispatcher whose delivery is broken."""
 
@@ -294,3 +306,53 @@ def test_a_failing_dispatcher_does_not_break_the_state_path(cache_empty):
     _FeatureStore(engine, cache_empty, FailingDispatcher()).apply_fetched(FEATURES)
 
     assert engine.is_enabled("testFlag", {}).is_enabled
+
+
+def test_apply_fetched_without_state_does_not_reload_an_unchanged_body(cache_empty):
+    engine = CountingEngine()
+    store = _FeatureStore(engine, cache_empty)
+
+    store.apply_fetched(FEATURES, ETAG_VALUE)
+    store.apply_fetched(None, ETAG_VALUE)
+
+    assert engine.loads == 1
+    assert engine.is_enabled("testFlag", {}).is_enabled
+
+
+def test_apply_fetched_without_state_loads_a_body_another_process_cached(
+    cache_empty,
+):
+    engine = UnleashEngine()
+    store = _FeatureStore(engine, cache_empty)
+    store.apply_fetched(FEATURES, ETAG_VALUE)
+
+    # A process sharing the cache wrote newer state; our next poll gets a 304.
+    cache_empty.set(FEATURES_URL, OTHER_FEATURES)
+    store.apply_fetched(None, ETAG_VALUE)
+
+    assert engine.is_enabled("ivan-project", {}).is_enabled
+
+
+def test_load_from_cache_retries_a_body_that_failed_to_load(cache_empty):
+    engine = CountingEngine()
+    store = _FeatureStore(engine, cache_empty)
+    cache_empty.set(FEATURES_URL, "not json")
+
+    store.load_from_cache()
+    store.load_from_cache()
+
+    assert engine.loads == 2
+
+
+def test_load_from_cache_after_a_streamed_update_reloads_the_cached_body(
+    cache_empty,
+):
+    engine = UnleashEngine()
+    store = _FeatureStore(engine, cache_empty)
+    store.apply_fetched(FEATURES)
+    store.apply_streamed(DELTA)
+
+    cache_empty.set(FEATURES_URL, FEATURES)
+    store.load_from_cache()
+
+    assert not engine.is_enabled("deltaFlag", {}).is_enabled
