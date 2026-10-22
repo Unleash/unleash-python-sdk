@@ -60,17 +60,6 @@ def test_custom_headers_cannot_override_the_identification_headers():
     assert headers["unleash-appname"] == TEST_APP_NAME
 
 
-def test_custom_headers_are_read_on_every_call():
-    # UnleashClient.unleash_custom_headers has a setter, so a client can swap
-    # the dict out after the factory was constructed.
-    config = UnleashConfig(TEST_URL, TEST_APP_NAME)
-    factory = _HeaderFactory(config)
-
-    config.custom_headers = {"Authorization": "replaced"}
-
-    assert factory.base()["Authorization"] == "replaced"
-
-
 def test_custom_headers_mutated_in_place_are_picked_up():
     config = UnleashConfig(TEST_URL, TEST_APP_NAME, custom_headers={"name": "header"})
     factory = _HeaderFactory(config)
@@ -78,18 +67,6 @@ def test_custom_headers_mutated_in_place_are_picked_up():
     config.custom_headers["extra"] = "another"
 
     assert factory.base()["extra"] == "another"
-
-
-def test_identity_is_read_on_every_call():
-    config = UnleashConfig(TEST_URL, TEST_APP_NAME)
-    factory = _HeaderFactory(config)
-
-    config.app_name = "renamed"
-    config.instance_id = "456"
-
-    headers = factory.base()
-    assert headers["unleash-appname"] == "renamed"
-    assert headers["unleash-instanceid"] == "456"
 
 
 def test_each_call_returns_a_fresh_dict():

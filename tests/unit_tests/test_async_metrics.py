@@ -224,22 +224,6 @@ class TestAsyncMetricsReporter:
         assert "sdkFlavorVersion" not in body
 
     @mark.asyncio
-    async def test_the_config_is_read_on_every_flush(self, server, reporter):
-        # UnleashClient.unleash_app_name has a setter, so a client can change it after the
-        # reporter was constructed.
-        server.on("POST", METRICS_PATH, status=202, payload={}, repeat=True)
-
-        reporter._engine.count_toggle(COUNTED_FLAG, True)
-        await reporter.flush()
-
-        reporter._config.app_name = "renamed"
-        reporter._engine.count_toggle(COUNTED_FLAG, True)
-        await reporter.flush()
-
-        assert metrics_body(server, 0)["appName"] == APP_NAME
-        assert metrics_body(server, 1)["appName"] == "renamed"
-
-    @mark.asyncio
     async def test_the_flush_goes_through_the_async_transport(self, reporter):
         # The flush runs on the client's loop, so a blocking transport would hold it up for
         # the length of every POST.
@@ -265,10 +249,8 @@ class TestAsyncMetricsReporter:
 
     @mark.asyncio
     async def test_start_coerces_the_metrics_interval(self, build_reporter):
-        # A client can be built with metrics_interval="30": the constructor does not
-        # validate types.
-        reporter = build_reporter()
-        reporter._config.metrics_interval = "30"
+        # metrics_interval="30" is accepted: the config does not validate types.
+        reporter = build_reporter(metrics_interval="30")
 
         reporter.start()
 

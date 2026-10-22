@@ -108,8 +108,8 @@ class AsyncUnleashClient:
             sdk_flavor=sdk_flavor,
             sdk_flavor_version=sdk_flavor_version,
             experimental_mode=experimental_mode,
-            custom_strategies=custom_strategies,
         )
+        self._custom_strategies: dict = custom_strategies or {}
         self._enricher: _ContextEnricher = _ContextEnricher(self._config)
         self._headers: _HeaderFactory = _HeaderFactory(self._config)
 
@@ -281,14 +281,12 @@ class AsyncUnleashClient:
                 {METRIC_LAST_SENT_TIME: datetime.now(timezone.utc), ETAG: ""}
             )
 
-            if self._config.custom_strategies:
-                self._engine.register_custom_strategies(self._config.custom_strategies)
+            if self._custom_strategies:
+                self._engine.register_custom_strategies(self._custom_strategies)
 
             if not self._config.disable_registration:
                 await self._transport.register(
-                    _build_register_payload(
-                        self._config, self._config.custom_strategies
-                    )
+                    _build_register_payload(self._config, self._custom_strategies)
                 )
 
             if self._closed:

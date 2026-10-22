@@ -1,4 +1,7 @@
 import uuid
+from dataclasses import FrozenInstanceError
+
+import pytest
 
 from UnleashClient.config import UnleashConfig
 
@@ -23,12 +26,20 @@ def test_defaults():
     assert config.disable_registration is False
     assert config.custom_headers == {}
     assert config.custom_options == {}
-    assert config.custom_strategies == {}
     assert config.project_name is None
     assert config.verbose_log_level == 30
     assert config.sdk_flavor is None
     assert config.sdk_flavor_version is None
     assert config.experimental_mode == {"type": "polling"}
+
+
+def test_is_immutable():
+    config = UnleashConfig(URL, APP_NAME)
+
+    with pytest.raises(FrozenInstanceError):
+        config.url = "http://elsewhere:4242/api"
+    with pytest.raises(FrozenInstanceError):
+        config.refresh_interval = 1
 
 
 def test_url_is_rstripped():
@@ -81,41 +92,31 @@ def test_static_context():
     config = UnleashConfig(URL, APP_NAME, environment="unit")
 
     assert config.static_context == {"appName": APP_NAME, "environment": "unit"}
-    assert config.static_context is config.static_context
 
+    # A fresh dict every time, so a caller can't change the config through it.
     config.static_context["environment"] = "qa"
-    assert config.static_context["environment"] == "qa"
+    assert config.static_context["environment"] == "unit"
 
 
-def test_custom_headers_are_not_copied():
+def test_headers_and_options_are_copied():
     headers = {"Authorization": "project:environment.hash"}
-    config = UnleashConfig(URL, APP_NAME, custom_headers=headers)
-
-    assert config.custom_headers is headers
-
-
-def test_empty_custom_dicts_become_fresh_dicts():
-    headers: dict = {}
-    options: dict = {}
-    strategies: dict = {}
+    options = {"verify": False}
     config = UnleashConfig(
-        URL,
-        APP_NAME,
-        custom_headers=headers,
-        custom_options=options,
-        custom_strategies=strategies,
+        URL, APP_NAME, custom_headers=headers, custom_options=options
     )
 
-    assert config.custom_headers is not headers
-    assert config.custom_options is not options
-    assert config.custom_strategies is not strategies
+    headers["extra"] = "header"
+    options["extra"] = "option"
+
+    assert config.custom_headers == {"Authorization": "project:environment.hash"}
+    assert config.custom_options == {"verify": False}
 
 
-def test_custom_strategies_are_not_copied():
-    strategies = {"amIACat": object()}
-    config = UnleashConfig(URL, APP_NAME, custom_strategies=strategies)
+def test_missing_headers_and_options_become_empty_dicts():
+    config = UnleashConfig(URL, APP_NAME, custom_headers=None, custom_options=None)
 
-    assert config.custom_strategies is strategies
+    assert config.custom_headers == {}
+    assert config.custom_options == {}
 
 
 def test_refresh_interval_str_millis():

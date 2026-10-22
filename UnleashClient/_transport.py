@@ -28,9 +28,7 @@ class FetchResult(NamedTuple):
 
 
 def _normalized_url(url: str, path: str) -> str:
-    # config.url can carry a trailing slash: the UnleashClient.unleash_url setter
-    # writes it without re-normalizing.
-    return f"{url.rstrip('/')}{path}"
+    return f"{url}{path}"
 
 
 def _log_resp_info(resp: Response) -> None:
@@ -43,10 +41,6 @@ class _Transport:
     """
     Sends the SDK's requests to the Unleash server: feature fetches, client
     registration and metrics submission.
-
-    Config and headers are read on every request, so changes to the client's
-    writable settings (url, timeouts, retries, project, custom headers and
-    options) take effect on the next call.
 
     :param config: Client configuration.
     :param headers: Builds the header set each endpoint needs.

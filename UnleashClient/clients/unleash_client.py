@@ -175,8 +175,8 @@ class UnleashClient:
             sdk_flavor=sdk_flavor,
             sdk_flavor_version=sdk_flavor_version,
             experimental_mode=experimental_mode,
-            custom_strategies=custom_strategies,
         )
+        self._custom_strategies = custom_strategies or {}
         self._enricher = _ContextEnricher(self._config)
         self._headers = _HeaderFactory(self._config)
         self.unleash_event_callback = event_callback
@@ -313,17 +313,13 @@ class UnleashClient:
             try:
                 start_scheduler = False
 
-                if self._config.custom_strategies:
-                    self._engine.register_custom_strategies(
-                        self._config.custom_strategies
-                    )
+                if self._custom_strategies:
+                    self._engine.register_custom_strategies(self._custom_strategies)
 
                 # Register app
                 if not self._config.disable_registration:
                     self._transport.register(
-                        _build_register_payload(
-                            self._config, self._config.custom_strategies
-                        )
+                        _build_register_payload(self._config, self._custom_strategies)
                     )
                 mode = self._config.mode
 
