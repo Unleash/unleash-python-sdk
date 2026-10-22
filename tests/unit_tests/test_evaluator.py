@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 
 from yggdrasil_engine.engine import UnleashEngine
 
+from tests.utilities.events import WAIT_TIMEOUT
 from tests.utilities.mocks.mock_features import (
     MOCK_FEATURE_RESPONSE,
     MOCK_FEATURE_RESPONSE_PROJECT,
@@ -247,3 +248,106 @@ def test_feature_definitions_is_empty_before_any_state_arrives():
     evaluator = build_evaluator(state=None)
 
     assert evaluator.feature_definitions() == {}
+
+
+ALL_TOGGLES_STATE = json.dumps(
+    {
+        "version": 1,
+        "features": [
+            {"name": "plain", "enabled": True, "strategies": [{"name": "default"}]},
+            {
+                "name": "withVariant",
+                "enabled": True,
+                "strategies": [{"name": "default"}],
+                "variants": [
+                    {
+                        "name": "sourDough",
+                        "weight": 1000,
+                        "weightType": "variable",
+                        "payload": {"type": "string", "value": "crusty"},
+                    }
+                ],
+            },
+            {"name": "off", "enabled": False, "strategies": [{"name": "default"}]},
+            {
+                "name": "prodOnly",
+                "enabled": True,
+                "strategies": [
+                    {
+                        "name": "default",
+                        "constraints": [
+                            {
+                                "contextName": "environment",
+                                "operator": "IN",
+                                "values": ["prod"],
+                            }
+                        ],
+                    }
+                ],
+            },
+        ],
+    }
+)
+
+
+def test_evaluate_all_toggles_reports_each_features_result_and_variant():
+    evaluator = build_evaluator(state=ALL_TOGGLES_STATE, environment="prod")
+
+    results = evaluator.evaluate_all_toggles({"userId": "1"})
+
+    assert results == {
+        "plain": {"enabled": True, "variant": {"name": "disabled", "enabled": False}},
+        "withVariant": {
+            "enabled": True,
+            "variant": {
+                "name": "sourDough",
+                "enabled": True,
+                "payload": {"type": "string", "value": "crusty"},
+            },
+        },
+        "off": {"enabled": False, "variant": {"name": "disabled", "enabled": False}},
+        "prodOnly": {
+            "enabled": True,
+            "variant": {"name": "disabled", "enabled": False},
+        },
+    }
+
+
+def test_evaluate_all_toggles_applies_the_static_context():
+    evaluator = build_evaluator(state=ALL_TOGGLES_STATE, environment="staging")
+
+    results = evaluator.evaluate_all_toggles()
+
+    assert results["prodOnly"]["enabled"] is False
+
+
+def test_evaluate_all_toggles_builds_the_context_once_for_every_feature(mocker):
+    evaluator = build_evaluator(state=ALL_TOGGLES_STATE)
+    build = mocker.spy(evaluator._enricher, "build")
+
+    evaluator.evaluate_all_toggles({"userId": "1"})
+
+    assert build.call_count == 1
+
+
+def test_evaluate_all_toggles_records_no_usage_metrics():
+    evaluator = build_evaluator(state=ALL_TOGGLES_STATE)
+
+    evaluator.evaluate_all_toggles({"userId": "1"})
+
+    assert evaluator._engine.get_metrics() is None
+
+
+def test_evaluate_all_toggles_emits_no_impression_events(dispatcher, recorder):
+    evaluator = build_evaluator(events=dispatcher)
+
+    evaluator.evaluate_all_toggles()
+    dispatcher.close(timeout=WAIT_TIMEOUT)
+
+    assert recorder.events == []
+
+
+def test_evaluate_all_toggles_is_empty_before_any_state_arrives():
+    evaluator = build_evaluator(state=None)
+
+    assert evaluator.evaluate_all_toggles() == {}

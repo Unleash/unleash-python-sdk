@@ -118,3 +118,23 @@ class _Evaluator:
             }
             for toggle in toggles
         }
+
+    def evaluate_all_toggles(
+        self, context: Optional[dict] = None
+    ) -> Dict[str, Dict[str, Any]]:
+        """Every known feature's result and variant for one context, without recording usage."""
+        context = self._enricher.build(context)
+        results: Dict[str, Dict[str, Any]] = {}
+        for result in self._engine.check_all_variants(context):
+            variant = result.variant
+            evaluated_variant: Dict[str, Any] = {
+                "name": variant.name,
+                "enabled": variant.enabled,
+            }
+            if variant.payload is not None:
+                evaluated_variant["payload"] = variant.payload
+            results[result.name] = {
+                "enabled": variant.feature_enabled,
+                "variant": evaluated_variant,
+            }
+        return results
