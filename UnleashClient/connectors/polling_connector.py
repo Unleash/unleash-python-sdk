@@ -35,6 +35,7 @@ class PollingConnector(BaseConnector):
         result = self.transport.fetch_features(self._store.cached_etag)
 
         self._store.apply_fetched(result.raw_state, result.etag)
+        self._store.emit_fetch_completed(result.status, result.http_status_code)
 
     def start(self) -> None:
         self._fetch_and_load()

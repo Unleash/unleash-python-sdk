@@ -64,6 +64,7 @@ class _AsyncPollingConnector(_AsyncBaseConnector):
         result = await self._transport.fetch_features(etag=self._store.cached_etag)
 
         self._store.apply_fetched(raw_state=result.raw_state, etag=result.etag)
+        self._store.emit_fetch_completed(result.status, result.http_status_code)
 
     async def start(self) -> None:
         """

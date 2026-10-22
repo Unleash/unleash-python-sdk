@@ -32,6 +32,7 @@ from UnleashClient.constants import (
     METRICS_URL,
     REGISTER_URL,
 )
+from UnleashClient.events import FetchStatus
 
 FULL_FEATURE_URL = URL + FEATURES_URL
 FULL_REGISTER_URL = URL + REGISTER_URL
@@ -190,7 +191,7 @@ def test_fetch_features_swallows_a_bad_custom_option(build_transport):
     # TypeError, not a RequestException, and fetch_features swallows everything.
     result = build_transport(custom_options={"timeout": 5}).fetch_features()
 
-    assert result == (None, "", False)
+    assert result == (None, "", False, FetchStatus.UNAVAILABLE, None)
 
 
 # register
@@ -362,3 +363,32 @@ def test_headers_are_rebuilt_on_every_request(transport):
 
     assert "Authorization" not in responses.calls[0].request.headers
     assert responses.calls[1].request.headers["Authorization"] == "second"
+
+
+@responses.activate
+@mark.parametrize(
+    "status,body,expected_status",
+    (
+        param(200, MOCK_FEATURE_RESPONSE, FetchStatus.CHANGED, id="changed"),
+        param(304, None, FetchStatus.NOT_CHANGED, id="not-changed"),
+        param(202, MOCK_FEATURE_RESPONSE, FetchStatus.UNAVAILABLE, id="unexpected"),
+        param(500, {}, FetchStatus.UNAVAILABLE, id="server-error-after-retries"),
+    ),
+)
+def test_fetch_features_reports_how_the_fetch_ended(
+    transport, status, body, expected_status
+):
+    responses.add(responses.GET, FULL_FEATURE_URL, json=body, status=status)
+
+    result = transport.fetch_features()
+
+    assert (result.status, result.http_status_code) == (expected_status, status)
+
+
+@responses.activate
+def test_fetch_features_reports_no_status_code_when_no_response_arrives(transport):
+    responses.add(responses.GET, FULL_FEATURE_URL, body=ConnectionError("refused"))
+
+    result = transport.fetch_features()
+
+    assert (result.status, result.http_status_code) == (FetchStatus.UNAVAILABLE, None)

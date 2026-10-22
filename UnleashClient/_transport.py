@@ -10,6 +10,7 @@ from urllib3 import Retry
 from UnleashClient._headers import _HeaderFactory
 from UnleashClient.config import UnleashConfig
 from UnleashClient.constants import FEATURES_URL, METRICS_URL, REGISTER_URL
+from UnleashClient.events import FetchStatus
 from UnleashClient.utils import LOGGER
 
 
@@ -20,11 +21,16 @@ class FetchResult(NamedTuple):
     :param raw_state: Feature state body, or None on a 304 and on failure.
     :param etag: ETag returned by the server, or "" when the response had none.
     :param not_modified: True when the server answered 304.
+    :param status: How the fetch ended.
+    :param http_status_code: The server's final status code, or None when no
+        response arrived.
     """
 
     raw_state: Optional[str]
     etag: str
     not_modified: bool = False
+    status: FetchStatus = FetchStatus.UNAVAILABLE
+    http_status_code: Optional[int] = None
 
 
 def _normalized_url(url: str, path: str) -> str:
@@ -68,6 +74,7 @@ class _Transport:
         :return: The fetched state, or an empty result on a 304 and on failure.
         """
         config = self._config
+        http_status_code: Optional[int] = None
         try:
             LOGGER.info("Getting feature flag.")
 
@@ -86,8 +93,12 @@ class _Transport:
                 base_params = {"project": config.project_name}
 
             adapter = HTTPAdapter(
+                # raise_on_status=False: once retries run out, hand back the last
+                # response so its status code reaches the fetch result
                 max_retries=Retry(
-                    total=config.request_retries, status_forcelist=[500, 502, 504]
+                    total=config.request_retries,
+                    status_forcelist=[500, 502, 504],
+                    raise_on_status=False,
                 )
             )
             with requests.Session() as session:
@@ -101,6 +112,7 @@ class _Transport:
                     **config.custom_options,
                 )
 
+            http_status_code = resp.status_code
             if resp.status_code not in [200, 304]:
                 _log_resp_info(resp)
                 LOGGER.warning(
@@ -116,15 +128,26 @@ class _Transport:
                 fetched_etag = resp.headers["etag"]
 
             if resp.status_code == 304:
-                return FetchResult(None, fetched_etag, not_modified=True)
+                return FetchResult(
+                    None,
+                    fetched_etag,
+                    not_modified=True,
+                    status=FetchStatus.NOT_CHANGED,
+                    http_status_code=304,
+                )
 
-            return FetchResult(resp.text, fetched_etag)
+            return FetchResult(
+                resp.text,
+                fetched_etag,
+                status=FetchStatus.CHANGED,
+                http_status_code=resp.status_code,
+            )
         except Exception as exc:
             LOGGER.exception(
                 "Unleash Client feature fetch failed due to exception: %s", exc
             )
 
-        return FetchResult(None, "")
+        return FetchResult(None, "", http_status_code=http_status_code)
 
     def register(self, payload: Dict[str, Any]) -> bool:
         """

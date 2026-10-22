@@ -32,6 +32,7 @@ from UnleashClient.constants import (
     REGISTER_URL,
 )
 from UnleashClient.errors import AlreadyClosedError
+from UnleashClient.events import FetchStatus
 
 API_PREFIX = "/api"
 FEATURES_PATH = API_PREFIX + FEATURES_URL
@@ -428,3 +429,34 @@ async def test_a_closed_transport_refuses_every_request(server, transport, call)
 async def test_closing_a_closed_transport_does_nothing(transport):
     await transport.aclose()
     await transport.aclose()
+
+
+@mark.asyncio
+@mark.parametrize(
+    "status,payload,expected_status",
+    (
+        param(200, MOCK_FEATURE_RESPONSE, FetchStatus.CHANGED, id="changed"),
+        param(304, None, FetchStatus.NOT_CHANGED, id="not-changed"),
+        param(202, MOCK_FEATURE_RESPONSE, FetchStatus.UNAVAILABLE, id="unexpected"),
+        param(500, {}, FetchStatus.UNAVAILABLE, id="server-error-after-retries"),
+    ),
+)
+async def test_fetch_features_reports_how_the_fetch_ended(
+    server, build_transport, status, payload, expected_status
+):
+    server.on("GET", FEATURES_PATH, status=status, payload=payload, repeat=True)
+
+    result = await build_transport().fetch_features()
+
+    assert (result.status, result.http_status_code) == (expected_status, status)
+
+
+@mark.asyncio
+async def test_fetch_features_reports_no_status_code_when_no_response_arrives(
+    server, build_transport
+):
+    server.on("GET", FEATURES_PATH, disconnect=True, repeat=True)
+
+    result = await build_transport().fetch_features()
+
+    assert (result.status, result.http_status_code) == (FetchStatus.UNAVAILABLE, None)

@@ -10,7 +10,9 @@ from UnleashClient.cache import BaseCache
 from UnleashClient.constants import ETAG, FEATURES_URL
 from UnleashClient.events import (
     BaseEvent,
+    FetchStatus,
     UnleashEventType,
+    UnleashFetchCompletedEvent,
     UnleashFetchedEvent,
     UnleashReadyEvent,
 )
@@ -33,6 +35,7 @@ class _FeatureStore:
 
         result = transport.fetch_features(etag=store.cached_etag)
         store.apply_fetched(raw_state=result.raw_state, etag=result.etag)
+        store.emit_fetch_completed(result.status, result.http_status_code)
     """
 
     def __init__(
@@ -138,6 +141,22 @@ class _FeatureStore:
 
         if emit_ready:
             self.emit_ready()
+
+    def emit_fetch_completed(
+        self, status: FetchStatus, http_status_code: Optional[int]
+    ) -> None:
+        """
+        Reports how a fetch ended. Callers emit it after applying the fetch, so a
+        listener sees the state the fetch left behind.
+        """
+        self._emit(
+            UnleashFetchCompletedEvent(
+                event_type=UnleashEventType.FETCH_COMPLETED,
+                event_id=uuid.uuid4(),
+                status=status,
+                http_status_code=http_status_code,
+            )
+        )
 
     def emit_ready(self) -> None:
         """

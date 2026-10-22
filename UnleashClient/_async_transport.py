@@ -10,6 +10,7 @@ from UnleashClient._transport import FetchResult, _normalized_url
 from UnleashClient.config import UnleashConfig
 from UnleashClient.constants import FEATURES_URL, METRICS_URL, REGISTER_URL
 from UnleashClient.errors import AlreadyClosedError
+from UnleashClient.events import FetchStatus
 from UnleashClient.utils import LOGGER
 
 try:
@@ -96,6 +97,7 @@ class _AsyncTransport:
         self._raise_if_closed()
 
         config = self._config
+        http_status_code: Optional[int] = None
         try:
             LOGGER.info("Getting feature flags.")
 
@@ -125,6 +127,7 @@ class _AsyncTransport:
                         if resp.status in RETRY_STATUSES and not last_attempt:
                             continue
 
+                        http_status_code = resp.status
                         if resp.status not in [200, 304]:
                             await _log_resp_info(resp)
                             LOGGER.warning(
@@ -138,9 +141,20 @@ class _AsyncTransport:
                         fetched_etag = resp.headers.get("etag", "")
 
                         if resp.status == 304:
-                            return FetchResult(None, fetched_etag, not_modified=True)
+                            return FetchResult(
+                                None,
+                                fetched_etag,
+                                not_modified=True,
+                                status=FetchStatus.NOT_CHANGED,
+                                http_status_code=304,
+                            )
 
-                        return FetchResult(await resp.text(), fetched_etag)
+                        return FetchResult(
+                            await resp.text(),
+                            fetched_etag,
+                            status=FetchStatus.CHANGED,
+                            http_status_code=resp.status,
+                        )
                 except RETRYABLE_ERRORS:
                     if last_attempt:
                         raise
@@ -149,7 +163,7 @@ class _AsyncTransport:
                 "Unleash Client feature fetch failed due to exception: %s", exc
             )
 
-        return FetchResult(None, "")
+        return FetchResult(None, "", http_status_code=http_status_code)
 
     async def register(self, payload: Dict[str, Any]) -> bool:
         """
