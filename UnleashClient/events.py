@@ -24,7 +24,7 @@ class FetchStatus(Enum):
 
     CHANGED = "changed"
     NOT_CHANGED = "not_changed"
-    UNAVAILABLE = "unavailable"
+    FAILED = "failed"
 
 
 @dataclass

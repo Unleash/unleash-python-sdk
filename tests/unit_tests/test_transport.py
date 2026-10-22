@@ -191,7 +191,7 @@ def test_fetch_features_swallows_a_bad_custom_option(build_transport):
     # TypeError, not a RequestException, and fetch_features swallows everything.
     result = build_transport(custom_options={"timeout": 5}).fetch_features()
 
-    assert result == (None, "", False, FetchStatus.UNAVAILABLE, None)
+    assert result == (None, "", False, FetchStatus.FAILED, None)
 
 
 # register
@@ -371,8 +371,8 @@ def test_headers_are_rebuilt_on_every_request(transport):
     (
         param(200, MOCK_FEATURE_RESPONSE, FetchStatus.CHANGED, id="changed"),
         param(304, None, FetchStatus.NOT_CHANGED, id="not-changed"),
-        param(202, MOCK_FEATURE_RESPONSE, FetchStatus.UNAVAILABLE, id="unexpected"),
-        param(500, {}, FetchStatus.UNAVAILABLE, id="server-error-after-retries"),
+        param(202, MOCK_FEATURE_RESPONSE, FetchStatus.FAILED, id="unexpected"),
+        param(500, {}, FetchStatus.FAILED, id="server-error-after-retries"),
     ),
 )
 def test_fetch_features_reports_how_the_fetch_ended(
@@ -391,4 +391,4 @@ def test_fetch_features_reports_no_status_code_when_no_response_arrives(transpor
 
     result = transport.fetch_features()
 
-    assert (result.status, result.http_status_code) == (FetchStatus.UNAVAILABLE, None)
+    assert (result.status, result.http_status_code) == (FetchStatus.FAILED, None)

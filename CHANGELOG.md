@@ -1,5 +1,5 @@
 ## Unreleased
-* (Minor): New `FETCH_COMPLETED` event, emitted after every feature fetch with how it ended (`CHANGED`, `NOT_CHANGED` or `UNAVAILABLE`) and the HTTP status code.
+* (Minor): New `FETCH_COMPLETED` event, emitted after every feature fetch with how it ended (`CHANGED`, `NOT_CHANGED` or `FAILED`) and the HTTP status code.
 
 ## v6.9.1
 * (Bugfix): Capped yggdrasil-engine below 3.0.0 so installs don't pick up a breaking major version.

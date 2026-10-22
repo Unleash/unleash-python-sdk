@@ -437,8 +437,8 @@ async def test_closing_a_closed_transport_does_nothing(transport):
     (
         param(200, MOCK_FEATURE_RESPONSE, FetchStatus.CHANGED, id="changed"),
         param(304, None, FetchStatus.NOT_CHANGED, id="not-changed"),
-        param(202, MOCK_FEATURE_RESPONSE, FetchStatus.UNAVAILABLE, id="unexpected"),
-        param(500, {}, FetchStatus.UNAVAILABLE, id="server-error-after-retries"),
+        param(202, MOCK_FEATURE_RESPONSE, FetchStatus.FAILED, id="unexpected"),
+        param(500, {}, FetchStatus.FAILED, id="server-error-after-retries"),
     ),
 )
 async def test_fetch_features_reports_how_the_fetch_ended(
@@ -459,4 +459,4 @@ async def test_fetch_features_reports_no_status_code_when_no_response_arrives(
 
     result = await build_transport().fetch_features()
 
-    assert (result.status, result.http_status_code) == (FetchStatus.UNAVAILABLE, None)
+    assert (result.status, result.http_status_code) == (FetchStatus.FAILED, None)

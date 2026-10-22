@@ -29,7 +29,7 @@ class FetchResult(NamedTuple):
     raw_state: Optional[str]
     etag: str
     not_modified: bool = False
-    status: FetchStatus = FetchStatus.UNAVAILABLE
+    status: FetchStatus = FetchStatus.FAILED
     http_status_code: Optional[int] = None
 
 

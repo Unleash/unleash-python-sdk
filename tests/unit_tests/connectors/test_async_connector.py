@@ -320,5 +320,5 @@ async def test_polling_reports_how_each_fetch_ended(
     ] == [
         (FetchStatus.CHANGED, 200),
         (FetchStatus.NOT_CHANGED, 304),
-        (FetchStatus.UNAVAILABLE, 500),
+        (FetchStatus.FAILED, 500),
     ]
