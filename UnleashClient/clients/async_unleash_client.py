@@ -240,6 +240,41 @@ class AsyncUnleashClient:
         """
         return self._evaluator.feature_definitions()
 
+    def evaluate_all_toggles(self, context: Optional[dict] = None) -> dict:
+        """
+        Evaluates every feature known to the client against one context, which
+        is built once.
+
+        Unlike ``is_enabled`` and ``get_variant``, it records no usage metrics
+        and emits no impression events, so evaluating every feature doesn't
+        report them all as in use. ``enabled`` is the feature's result for this
+        context, and ``variant.enabled`` is whether a variant was assigned.
+
+        Notes:
+
+        * It is a plain method, not a coroutine, and does not wait for the
+          server. Before the client has any feature state, it returns an empty
+          dict.
+
+        Example response::
+
+            {
+                "feature1": {"enabled": True, "variant": {"name": "disabled", "enabled": False}},
+                "feature2": {
+                    "enabled": True,
+                    "variant": {
+                        "name": "variant1",
+                        "enabled": True,
+                        "payload": {"type": "string", "value": "val1"},
+                    },
+                },
+            }
+
+        :param context: Dictionary with context (e.g. IPs, email) for feature toggles.
+        :return: Each feature's result and variant, keyed by feature name.
+        """
+        return self._evaluator.evaluate_all_toggles(context)
+
     async def initialize_client(self, fetch_toggles: bool = True) -> None:
         """
         Initializes the client and starts communication with the Unleash server.
