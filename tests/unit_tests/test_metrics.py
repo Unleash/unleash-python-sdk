@@ -8,7 +8,7 @@ from UnleashClient._headers import _HeaderFactory
 from UnleashClient._metrics import _MetricsReporter
 from UnleashClient._scheduler import _Scheduler
 from UnleashClient._transport import _Transport
-from UnleashClient.config import IdentityOptions, UnleashConfig
+from UnleashClient.config import IdentityOptions, MetricsOptions, UnleashConfig
 from UnleashClient.constants import CLIENT_SPEC_VERSION, METRICS_URL
 from UnleashClient.impact_metrics import ImpactMetrics
 
@@ -172,9 +172,8 @@ class TestMetricsReporter:
     ):
         recording = RecordingScheduler()
         reporter = build_sync_reporter(
+            metrics=MetricsOptions(interval=30, jitter=10),
             scheduler=_Scheduler(recording, "default"),
-            metrics_interval=30,
-            metrics_jitter=10,
         )
 
         reporter.start()
@@ -195,7 +194,8 @@ class TestMetricsReporter:
     def test_start_coerces_the_metrics_interval(self):
         recording = RecordingScheduler()
         reporter = build_sync_reporter(
-            scheduler=_Scheduler(recording, "default"), metrics_interval="30"
+            metrics=MetricsOptions(interval="30"),
+            scheduler=_Scheduler(recording, "default"),
         )
 
         reporter.start()

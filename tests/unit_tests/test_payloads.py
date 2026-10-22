@@ -1,5 +1,5 @@
 from UnleashClient._payloads import _build_metrics_payload, _build_register_payload
-from UnleashClient.config import IdentityOptions, UnleashConfig
+from UnleashClient.config import IdentityOptions, MetricsOptions, UnleashConfig
 from UnleashClient.constants import CLIENT_SPEC_VERSION, SDK_NAME, SDK_VERSION
 
 URL = "http://localhost:4242/api"
@@ -12,7 +12,7 @@ def build_config(**kwargs) -> UnleashConfig:
 
 def test_register_payload_identifies_the_client():
     config = build_config(
-        identity=IdentityOptions(instance_id="123"), metrics_interval=30
+        identity=IdentityOptions(instance_id="123"), metrics=MetricsOptions(interval=30)
     )
 
     payload = _build_register_payload(config, {})

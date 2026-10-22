@@ -12,7 +12,7 @@ from UnleashClient._async_metrics import _AsyncMetricsReporter
 from UnleashClient._async_scheduler import _AsyncJob, _AsyncJobFn, _AsyncScheduler
 from UnleashClient._async_transport import _AsyncTransport
 from UnleashClient._headers import _HeaderFactory
-from UnleashClient.config import IdentityOptions, UnleashConfig
+from UnleashClient.config import IdentityOptions, MetricsOptions, UnleashConfig
 from UnleashClient.constants import CLIENT_SPEC_VERSION, METRICS_URL
 from UnleashClient.impact_metrics import ImpactMetrics
 
@@ -114,7 +114,7 @@ class TestAsyncMetricsReporter:
 
         def _build_reporter(impact_metrics=None, **kwargs) -> _AsyncMetricsReporter:
             defaults = {
-                "metrics_interval": NEVER,
+                "metrics": MetricsOptions(interval=NEVER),
             }
             defaults.update(kwargs)
             config = UnleashConfig(server.base_url, APP_NAME, **defaults)
@@ -241,7 +241,7 @@ class TestAsyncMetricsReporter:
         self,
         build_reporter,
     ):
-        reporter = build_reporter(metrics_interval=30, metrics_jitter=10)
+        reporter = build_reporter(metrics=MetricsOptions(interval=30, jitter=10))
 
         reporter.start()
 
@@ -253,7 +253,7 @@ class TestAsyncMetricsReporter:
     @mark.asyncio
     async def test_start_coerces_the_metrics_interval(self, build_reporter):
         # metrics_interval="30" is accepted: the config does not validate types.
-        reporter = build_reporter(metrics_interval="30")
+        reporter = build_reporter(metrics=MetricsOptions(interval="30"))
 
         reporter.start()
 
@@ -379,7 +379,7 @@ class TestAsyncMetricsReporter:
     async def test_stop_during_a_send_resends_its_impact_metrics(
         self, server, build_reporter
     ):
-        reporter = build_reporter(metrics_interval=1)
+        reporter = build_reporter(metrics=MetricsOptions(interval=1))
         server.on("POST", METRICS_PATH, hang=True)
         server.on("POST", METRICS_PATH, status=202, payload={})
         reporter._impact_metrics.define_counter("my_counter", "Test counter")

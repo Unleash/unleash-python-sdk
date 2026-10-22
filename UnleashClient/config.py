@@ -83,6 +83,26 @@ class FetchOptions:
 
 
 @dataclass(frozen=True)
+class MetricsOptions:
+    """
+    How the client reports to the Unleash server.
+
+    :param interval: Metrics send interval in seconds.
+    :param jitter: Maximum random delay, in seconds, added to each metrics send.
+    :param disabled: Disables sending metrics to the Unleash server.
+    :param disable_registration: Disables registering the client with the Unleash server.
+    """
+
+    interval: int = 60
+    jitter: Optional[int] = None
+    disabled: bool = False
+    disable_registration: bool = False
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "jitter", _optional_int(self.jitter))
+
+
+@dataclass(frozen=True)
 class UnleashConfig:
     """
     Normalized constructor arguments, shared by every Unleash client flavor.
@@ -97,10 +117,7 @@ class UnleashConfig:
     identity: IdentityOptions = field(default_factory=IdentityOptions)
     http: HttpOptions = field(default_factory=HttpOptions)
     fetching: FetchOptions = field(default_factory=FetchOptions)
-    metrics_interval: int = 60
-    metrics_jitter: Optional[int] = None
-    disable_metrics: bool = False
-    disable_registration: bool = False
+    metrics: MetricsOptions = field(default_factory=MetricsOptions)
     verbose_log_level: int = 30
     connection_id: str = field(default_factory=lambda: str(uuid.uuid4()))
 
@@ -112,7 +129,8 @@ class UnleashConfig:
             object.__setattr__(self, "http", HttpOptions())
         if self.fetching is None:
             object.__setattr__(self, "fetching", FetchOptions())
-        object.__setattr__(self, "metrics_jitter", _optional_int(self.metrics_jitter))
+        if self.metrics is None:
+            object.__setattr__(self, "metrics", MetricsOptions())
 
     @property
     def static_context(self) -> Dict[str, Any]:
@@ -124,7 +142,7 @@ class UnleashConfig:
 
     @property
     def metrics_interval_str_millis(self) -> str:
-        return str(self.metrics_interval * 1000)
+        return str(self.metrics.interval * 1000)
 
     @property
     def impact_metrics_environment(self) -> str:

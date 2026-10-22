@@ -29,6 +29,7 @@ from UnleashClient.config import (
     FetchOptions,
     HttpOptions,
     IdentityOptions,
+    MetricsOptions,
     UnleashConfig,
 )
 from UnleashClient.constants import (
@@ -304,7 +305,9 @@ def test_every_endpoint_gets_its_headers_from_the_factory(build_transport):
     )
     responses.add(responses.POST, FULL_REGISTER_URL, json={}, status=202)
     responses.add(responses.POST, FULL_METRICS_URL, json={}, status=202)
-    transport = build_transport(fetching=FetchOptions(interval=1), metrics_interval=2)
+    transport = build_transport(
+        fetching=FetchOptions(interval=1), metrics=MetricsOptions(interval=2)
+    )
 
     transport.fetch_features()
     transport.register({})
