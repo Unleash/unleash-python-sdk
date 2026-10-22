@@ -3,6 +3,7 @@ from UnleashClient.config import (
     FetchOptions,
     HttpOptions,
     IdentityOptions,
+    MetricsOptions,
     UnleashConfig,
 )
 from UnleashClient.constants import (
@@ -94,13 +95,15 @@ def test_polling_adds_the_refresh_interval():
 
 
 def test_metrics_adds_the_metrics_interval():
-    factory = build_factory(metrics_interval=2)
+    factory = build_factory(metrics=MetricsOptions(interval=2))
 
     assert factory.metrics()["unleash-interval"] == "2000"
 
 
 def test_polling_and_metrics_differ_only_in_the_interval():
-    factory = build_factory(fetching=FetchOptions(interval=1), metrics_interval=2)
+    factory = build_factory(
+        fetching=FetchOptions(interval=1), metrics=MetricsOptions(interval=2)
+    )
 
     polling = factory.polling()
     metrics = factory.metrics()

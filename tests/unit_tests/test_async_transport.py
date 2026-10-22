@@ -28,6 +28,7 @@ from UnleashClient.config import (
     FetchOptions,
     HttpOptions,
     IdentityOptions,
+    MetricsOptions,
     UnleashConfig,
 )
 from UnleashClient.constants import (
@@ -326,7 +327,9 @@ async def test_send_metrics_raises_when_cancelled(server, transport):
 async def test_every_endpoint_gets_its_headers_from_the_factory(
     server, build_transport
 ):
-    transport = build_transport(fetching=FetchOptions(interval=1), metrics_interval=2)
+    transport = build_transport(
+        fetching=FetchOptions(interval=1), metrics=MetricsOptions(interval=2)
+    )
     server.on("GET", FEATURES_PATH, status=200, payload=MOCK_FEATURE_RESPONSE)
     server.on("POST", REGISTER_PATH, status=202, payload={})
     server.on("POST", METRICS_PATH, status=202, payload={})

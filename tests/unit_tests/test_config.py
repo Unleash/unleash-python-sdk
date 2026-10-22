@@ -7,6 +7,7 @@ from UnleashClient.config import (
     FetchOptions,
     HttpOptions,
     IdentityOptions,
+    MetricsOptions,
     UnleashConfig,
 )
 
@@ -28,11 +29,10 @@ def test_defaults():
     assert config.fetching == FetchOptions(
         interval=15, jitter=None, project_name=None, mode="polling"
     )
-    assert config.metrics_interval == 60
-    assert config.metrics_jitter is None
+    assert config.metrics == MetricsOptions(
+        interval=60, jitter=None, disabled=False, disable_registration=False
+    )
     assert config.http == HttpOptions(headers={}, options={}, timeout=30, retries=3)
-    assert config.disable_metrics is False
-    assert config.disable_registration is False
     assert config.verbose_log_level == 30
 
 
@@ -46,6 +46,8 @@ def test_is_immutable():
     with pytest.raises(FrozenInstanceError):
         config.http.timeout = 1
     with pytest.raises(FrozenInstanceError):
+        config.metrics.disabled = True
+    with pytest.raises(FrozenInstanceError):
         config.identity.environment = "production"
 
 
@@ -57,20 +59,23 @@ def test_url_is_rstripped():
 
 def test_jitters_are_int_coerced():
     config = UnleashConfig(
-        URL, APP_NAME, fetching=FetchOptions(jitter=5.9), metrics_jitter="7"
+        URL,
+        APP_NAME,
+        fetching=FetchOptions(jitter=5.9),
+        metrics=MetricsOptions(jitter="7"),
     )
 
     assert config.fetching.jitter == 5
-    assert config.metrics_jitter == 7
+    assert config.metrics.jitter == 7
 
 
 def test_zero_jitter_is_preserved_and_not_confused_with_none():
     config = UnleashConfig(
-        URL, APP_NAME, fetching=FetchOptions(jitter=0), metrics_jitter=0
+        URL, APP_NAME, fetching=FetchOptions(jitter=0), metrics=MetricsOptions(jitter=0)
     )
 
     assert config.fetching.jitter == 0
-    assert config.metrics_jitter == 0
+    assert config.metrics.jitter == 0
     assert UnleashConfig(URL, APP_NAME).fetching.jitter is None
 
 
@@ -81,11 +86,11 @@ def test_no_other_coercion():
         APP_NAME,
         http=HttpOptions(timeout="9"),
         fetching=FetchOptions(interval="60"),
-        metrics_interval="60",
+        metrics=MetricsOptions(interval="60"),
     )
 
     assert config.fetching.interval == "60"
-    assert config.metrics_interval == "60"
+    assert config.metrics.interval == "60"
     assert config.http.timeout == "9"
 
 
@@ -145,7 +150,9 @@ def test_refresh_interval_str_millis():
 def test_metrics_interval_str_millis():
     assert UnleashConfig(URL, APP_NAME).metrics_interval_str_millis == "60000"
     assert (
-        UnleashConfig(URL, APP_NAME, metrics_interval=2).metrics_interval_str_millis
+        UnleashConfig(
+            URL, APP_NAME, metrics=MetricsOptions(interval=2)
+        ).metrics_interval_str_millis
         == "2000"
     )
 

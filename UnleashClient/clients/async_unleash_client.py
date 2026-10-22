@@ -27,6 +27,7 @@ from UnleashClient.config import (
     FetchOptions,
     HttpOptions,
     IdentityOptions,
+    MetricsOptions,
     UnleashConfig,
 )
 from UnleashClient.connectors._async_connector import _AsyncPollingConnector
@@ -115,10 +116,12 @@ class AsyncUnleashClient:
                 project_name=project_name,
                 mode=(experimental_mode or {}).get("type", "polling"),
             ),
-            metrics_interval=metrics_interval,
-            metrics_jitter=metrics_jitter,
-            disable_metrics=disable_metrics,
-            disable_registration=disable_registration,
+            metrics=MetricsOptions(
+                interval=metrics_interval,
+                jitter=metrics_jitter,
+                disabled=disable_metrics,
+                disable_registration=disable_registration,
+            ),
             verbose_log_level=verbose_log_level,
         )
         self._custom_strategies: dict = custom_strategies or {}
@@ -296,7 +299,7 @@ class AsyncUnleashClient:
             if self._custom_strategies:
                 self._engine.register_custom_strategies(self._custom_strategies)
 
-            if not self._config.disable_registration:
+            if not self._config.metrics.disable_registration:
                 await self._transport.register(
                     _build_register_payload(self._config, self._custom_strategies)
                 )
@@ -312,7 +315,7 @@ class AsyncUnleashClient:
             )
             await self._connector.start()
 
-            if not self._config.disable_metrics:
+            if not self._config.metrics.disabled:
                 self._metrics.start()
                 self._metrics_scheduler.start()
 
