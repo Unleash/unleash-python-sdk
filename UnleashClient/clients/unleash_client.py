@@ -4,7 +4,7 @@ import uuid
 import warnings
 from datetime import datetime, timezone
 from enum import IntEnum
-from typing import Any, Callable, Dict, Optional
+from typing import Callable, Optional
 
 from apscheduler.schedulers.base import BaseScheduler
 from yggdrasil_engine.engine import UnleashEngine
@@ -202,7 +202,7 @@ class UnleashClient:
         )
 
         self._cache = cache or FileCache(
-            self.unleash_app_name, directory=cache_directory
+            self._config.app_name, directory=cache_directory
         )
         self._cache.mset({METRIC_LAST_SENT_TIME: datetime.now(timezone.utc), ETAG: ""})
         self.unleash_bootstrapped = self._cache.bootstrapped
@@ -270,178 +270,6 @@ class UnleashClient:
         self._scheduler.executor_name = value
 
     @property
-    def unleash_url(self) -> str:
-        return self._config.url
-
-    @unleash_url.setter
-    def unleash_url(self, value: str) -> None:
-        self._config.url = value
-
-    @property
-    def unleash_app_name(self) -> str:
-        return self._config.app_name
-
-    @unleash_app_name.setter
-    def unleash_app_name(self, value: str) -> None:
-        self._config.app_name = value
-
-    @property
-    def unleash_environment(self) -> str:
-        return self._config.environment
-
-    @unleash_environment.setter
-    def unleash_environment(self, value: str) -> None:
-        self._config.environment = value
-
-    @property
-    def unleash_instance_id(self) -> str:
-        return self._config.instance_id
-
-    @unleash_instance_id.setter
-    def unleash_instance_id(self, value: str) -> None:
-        self._config.instance_id = value
-
-    @property
-    def unleash_refresh_interval(self) -> int:
-        return self._config.refresh_interval
-
-    @unleash_refresh_interval.setter
-    def unleash_refresh_interval(self, value: int) -> None:
-        self._config.refresh_interval = value
-
-    @property
-    def unleash_refresh_jitter(self) -> Optional[int]:
-        return self._config.refresh_jitter
-
-    @unleash_refresh_jitter.setter
-    def unleash_refresh_jitter(self, value: Optional[int]) -> None:
-        self._config.refresh_jitter = value
-
-    @property
-    def unleash_metrics_interval(self) -> int:
-        return self._config.metrics_interval
-
-    @unleash_metrics_interval.setter
-    def unleash_metrics_interval(self, value: int) -> None:
-        self._config.metrics_interval = value
-
-    @property
-    def unleash_metrics_jitter(self) -> Optional[int]:
-        return self._config.metrics_jitter
-
-    @unleash_metrics_jitter.setter
-    def unleash_metrics_jitter(self, value: Optional[int]) -> None:
-        self._config.metrics_jitter = value
-
-    @property
-    def unleash_request_timeout(self) -> int:
-        return self._config.request_timeout
-
-    @unleash_request_timeout.setter
-    def unleash_request_timeout(self, value: int) -> None:
-        self._config.request_timeout = value
-
-    @property
-    def unleash_request_retries(self) -> int:
-        return self._config.request_retries
-
-    @unleash_request_retries.setter
-    def unleash_request_retries(self, value: int) -> None:
-        self._config.request_retries = value
-
-    @property
-    def unleash_disable_metrics(self) -> bool:
-        return self._config.disable_metrics
-
-    @unleash_disable_metrics.setter
-    def unleash_disable_metrics(self, value: bool) -> None:
-        self._config.disable_metrics = value
-
-    @property
-    def unleash_disable_registration(self) -> bool:
-        return self._config.disable_registration
-
-    @unleash_disable_registration.setter
-    def unleash_disable_registration(self, value: bool) -> None:
-        self._config.disable_registration = value
-
-    @property
-    def unleash_custom_headers(self) -> dict:
-        return self._config.custom_headers
-
-    @unleash_custom_headers.setter
-    def unleash_custom_headers(self, value: dict) -> None:
-        self._config.custom_headers = value
-
-    @property
-    def unleash_custom_options(self) -> dict:
-        return self._config.custom_options
-
-    @unleash_custom_options.setter
-    def unleash_custom_options(self, value: dict) -> None:
-        self._config.custom_options = value
-
-    @property
-    def unleash_static_context(self) -> Dict[str, Any]:
-        return self._config.static_context
-
-    @unleash_static_context.setter
-    def unleash_static_context(self, value: Dict[str, Any]) -> None:
-        self._config.static_context = value
-
-    @property
-    def unleash_project_name(self) -> Optional[str]:
-        return self._config.project_name
-
-    @unleash_project_name.setter
-    def unleash_project_name(self, value: Optional[str]) -> None:
-        self._config.project_name = value
-
-    @property
-    def unleash_verbose_log_level(self) -> int:
-        return self._config.verbose_log_level
-
-    @unleash_verbose_log_level.setter
-    def unleash_verbose_log_level(self, value: int) -> None:
-        self._config.verbose_log_level = value
-
-    @property
-    def unleash_sdk_flavor(self) -> Optional[str]:
-        return self._config.sdk_flavor
-
-    @unleash_sdk_flavor.setter
-    def unleash_sdk_flavor(self, value: Optional[str]) -> None:
-        self._config.sdk_flavor = value
-
-    @property
-    def unleash_sdk_flavor_version(self) -> Optional[str]:
-        return self._config.sdk_flavor_version
-
-    @unleash_sdk_flavor_version.setter
-    def unleash_sdk_flavor_version(self, value: Optional[str]) -> None:
-        self._config.sdk_flavor_version = value
-
-    @property
-    def connector_mode(self) -> ExperimentalMode:
-        return self._config.experimental_mode
-
-    @connector_mode.setter
-    def connector_mode(self, value: ExperimentalMode) -> None:
-        self._config.experimental_mode = value
-
-    @property
-    def strategy_mapping(self) -> dict:
-        return self._config.custom_strategies
-
-    @strategy_mapping.setter
-    def strategy_mapping(self, value: dict) -> None:
-        self._config.custom_strategies = value
-
-    @property
-    def unleash_metrics_interval_str_millis(self) -> str:
-        return self._config.metrics_interval_str_millis
-
-    @property
     def connection_id(self):
         return self._config.connection_id
 
@@ -491,19 +319,21 @@ class UnleashClient:
                     )
 
                 # Register app
-                if not self.unleash_disable_registration:
+                if not self._config.disable_registration:
                     self._transport.register(
-                        _build_register_payload(self._config, self.strategy_mapping)
+                        _build_register_payload(
+                            self._config, self._config.custom_strategies
+                        )
                     )
-                mode = self.connector_mode.get("type", "polling")
+                mode = self._config.mode
 
                 if mode == "streaming" and fetch_toggles:
                     self.connector = StreamingConnector(
                         store=self._store,
-                        url=self.unleash_url,
+                        url=self._config.url,
                         headers=self._headers.streaming(),
-                        request_timeout=self.unleash_request_timeout,
-                        custom_options=self.unleash_custom_options,
+                        request_timeout=self._config.request_timeout,
+                        custom_options=self._config.custom_options,
                     )
                 elif fetch_toggles:
                     start_scheduler = True
@@ -511,21 +341,21 @@ class UnleashClient:
                         store=self._store,
                         scheduler=self._scheduler,
                         transport=self._transport,
-                        refresh_interval=self.unleash_refresh_interval,
-                        refresh_jitter=self.unleash_refresh_jitter,
+                        refresh_interval=self._config.refresh_interval,
+                        refresh_jitter=self._config.refresh_jitter,
                     )
                 else:
                     start_scheduler = True
                     self.connector = OfflineConnector(
                         store=self._store,
                         scheduler=self._scheduler,
-                        refresh_interval=self.unleash_refresh_interval,
-                        refresh_jitter=self.unleash_refresh_jitter,
+                        refresh_interval=self._config.refresh_interval,
+                        refresh_jitter=self._config.refresh_jitter,
                     )
 
                 self.connector.start()
 
-                if not self.unleash_disable_metrics:
+                if not self._config.disable_metrics:
                     # _Scheduler.start() no-ops when it is already running, so this can
                     # be unconditional.
                     start_scheduler = True
@@ -643,7 +473,7 @@ class UnleashClient:
 
         if not result.is_found and (self.unleash_bootstrapped or self.is_initialized):
             LOGGER.log(
-                self.unleash_verbose_log_level,
+                self._config.verbose_log_level,
                 "Attempted to get feature flag/variation %s, but client wasn't initialized!",
                 feature_name,
             )
