@@ -32,7 +32,7 @@ from UnleashClient.constants import (
     REGISTER_URL,
 )
 from UnleashClient.errors import AlreadyClosedError
-from UnleashClient.events import FetchStatus
+from UnleashClient.events import FetchStatus, UnleashEventType
 
 API_PREFIX = "/api"
 FEATURES_PATH = API_PREFIX + FEATURES_URL
@@ -59,7 +59,7 @@ async def build_transport(server: FakeUnleash):
     """
     built = []
 
-    def _build_transport(**kwargs) -> _AsyncTransport:
+    def _build_transport(events=None, **kwargs) -> _AsyncTransport:
         defaults = {
             "instance_id": INSTANCE_ID,
             "custom_headers": CUSTOM_HEADERS,
@@ -68,7 +68,7 @@ async def build_transport(server: FakeUnleash):
         }
         defaults.update(kwargs)
         config = UnleashConfig(server.base_url, APP_NAME, **defaults)
-        transport = _AsyncTransport(config, _HeaderFactory(config))
+        transport = _AsyncTransport(config, _HeaderFactory(config), events)
         built.append(transport)
         return transport
 
@@ -431,24 +431,44 @@ async def test_closing_a_closed_transport_does_nothing(transport):
     await transport.aclose()
 
 
+class RecordingEvents:
+    """Stands in for the dispatcher, keeping emitted events in order."""
+
+    def __init__(self):
+        self.events = []
+
+    def emit_event(self, event):
+        self.events.append(event)
+
+
+def fetch_outcomes(events: RecordingEvents):
+    return [
+        (event.status, event.http_status_code)
+        for event in events.events
+        if event.event_type == UnleashEventType.FETCH_COMPLETED
+    ]
+
+
 @mark.asyncio
 @mark.parametrize(
-    "status,payload,expected_status",
+    "status,payload,expected",
     (
         param(200, MOCK_FEATURE_RESPONSE, FetchStatus.CHANGED, id="changed"),
         param(304, None, FetchStatus.NOT_CHANGED, id="not-changed"),
         param(202, MOCK_FEATURE_RESPONSE, FetchStatus.FAILED, id="unexpected"),
         param(500, {}, FetchStatus.FAILED, id="server-error-after-retries"),
+        param(200, None, FetchStatus.FAILED, id="empty-200"),
     ),
 )
 async def test_fetch_features_reports_how_the_fetch_ended(
-    server, build_transport, status, payload, expected_status
+    server, build_transport, status, payload, expected
 ):
     server.on("GET", FEATURES_PATH, status=status, payload=payload, repeat=True)
+    events = RecordingEvents()
 
-    result = await build_transport().fetch_features()
+    await build_transport(events=events).fetch_features()
 
-    assert (result.status, result.http_status_code) == (expected_status, status)
+    assert fetch_outcomes(events) == [(expected, status)]
 
 
 @mark.asyncio
@@ -456,7 +476,28 @@ async def test_fetch_features_reports_no_status_code_when_no_response_arrives(
     server, build_transport
 ):
     server.on("GET", FEATURES_PATH, disconnect=True, repeat=True)
+    events = RecordingEvents()
 
-    result = await build_transport().fetch_features()
+    await build_transport(events=events).fetch_features()
 
-    assert (result.status, result.http_status_code) == (FetchStatus.FAILED, None)
+    assert fetch_outcomes(events) == [(FetchStatus.FAILED, None)]
+
+
+@mark.asyncio
+async def test_fetch_features_does_not_report_an_earlier_attempts_status_code(
+    server, build_transport, monkeypatch
+):
+    # The first attempt gets a 200 but its body never arrives; the retry gets no
+    # response at all, so the fetch must report no status code, not that 200.
+    server.on("GET", FEATURES_PATH, payload=MOCK_FEATURE_RESPONSE)
+    server.on("GET", FEATURES_PATH, disconnect=True, repeat=True)
+
+    async def body_times_out(_response):
+        raise asyncio.TimeoutError()
+
+    monkeypatch.setattr(aiohttp.ClientResponse, "text", body_times_out)
+    events = RecordingEvents()
+
+    await build_transport(events=events).fetch_features()
+
+    assert fetch_outcomes(events) == [(FetchStatus.FAILED, None)]

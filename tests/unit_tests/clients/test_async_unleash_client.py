@@ -25,7 +25,7 @@ from UnleashClient.constants import (
     REGISTER_URL,
 )
 from UnleashClient.errors import MultipleInstancesNotAllowedError
-from UnleashClient.events import UnleashEventType
+from UnleashClient.events import FetchStatus, UnleashEventType
 from UnleashClient.utils import InstanceAllowType
 
 
@@ -804,3 +804,16 @@ async def test_feature_definitions_is_empty_without_any_state(build_running_clie
     await client.initialize_client()
 
     assert client.feature_definitions() == {}
+
+
+@pytest.mark.asyncio
+async def test_async_client_reports_how_each_fetch_ended(server, build_running_client):
+    server.on("GET", FEATURES_PATH, payload=MOCK_FEATURE_RESPONSE, repeat=True)
+    recorder = EventRecorder()
+    client = build_running_client(refresh_interval=3600, event_callback=recorder)
+
+    await client.initialize_client()
+
+    assert recorder.wait_for(UnleashEventType.FETCH_COMPLETED, count=1)
+    event = recorder.of_type(UnleashEventType.FETCH_COMPLETED)[0]
+    assert (event.status, event.http_status_code) == (FetchStatus.CHANGED, 200)

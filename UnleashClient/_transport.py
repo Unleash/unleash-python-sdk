@@ -1,5 +1,6 @@
 import json
-from typing import Any, Dict, NamedTuple, Optional
+import uuid
+from typing import Any, Dict, NamedTuple, Optional, Tuple
 
 import requests
 from requests import Response
@@ -7,10 +8,15 @@ from requests.adapters import HTTPAdapter
 from requests.exceptions import InvalidHeader, InvalidSchema, InvalidURL, MissingSchema
 from urllib3 import Retry
 
+from UnleashClient._event_dispatcher import _EventDispatcher
 from UnleashClient._headers import _HeaderFactory
 from UnleashClient.config import UnleashConfig
 from UnleashClient.constants import FEATURES_URL, METRICS_URL, REGISTER_URL
-from UnleashClient.events import FetchStatus
+from UnleashClient.events import (
+    FetchStatus,
+    UnleashEventType,
+    UnleashFetchCompletedEvent,
+)
 from UnleashClient.utils import LOGGER
 
 
@@ -21,16 +27,43 @@ class FetchResult(NamedTuple):
     :param raw_state: Feature state body, or None on a 304 and on failure.
     :param etag: ETag returned by the server, or "" when the response had none.
     :param not_modified: True when the server answered 304.
-    :param status: How the fetch ended.
-    :param http_status_code: The server's final status code, or None when no
-        response arrived.
     """
 
     raw_state: Optional[str]
     etag: str
     not_modified: bool = False
-    status: FetchStatus = FetchStatus.FAILED
-    http_status_code: Optional[int] = None
+
+
+def _emit_fetch_completed(
+    events: Optional[_EventDispatcher],
+    result: FetchResult,
+    http_status_code: Optional[int],
+) -> None:
+    """
+    Reports how a fetch ended. An empty 200 counts as failed, since there is no
+    state to apply. Never raises: a broken listener must not break the fetch.
+    """
+    if events is None:
+        return
+
+    if result.not_modified:
+        status = FetchStatus.NOT_CHANGED
+    elif result.raw_state:
+        status = FetchStatus.CHANGED
+    else:
+        status = FetchStatus.FAILED
+
+    try:
+        events.emit_event(
+            UnleashFetchCompletedEvent(
+                event_type=UnleashEventType.FETCH_COMPLETED,
+                event_id=uuid.uuid4(),
+                status=status,
+                http_status_code=http_status_code,
+            )
+        )
+    except Exception:  # pylint: disable=broad-except
+        LOGGER.debug("Failed to emit the fetch completed event", exc_info=True)
 
 
 def _normalized_url(url: str, path: str) -> str:
@@ -58,9 +91,15 @@ class _Transport:
     :param headers: Builds the header set each endpoint needs.
     """
 
-    def __init__(self, config: UnleashConfig, headers: _HeaderFactory) -> None:
+    def __init__(
+        self,
+        config: UnleashConfig,
+        headers: _HeaderFactory,
+        events: Optional[_EventDispatcher] = None,
+    ) -> None:
         self._config: UnleashConfig = config
         self._headers: _HeaderFactory = headers
+        self._events: Optional[_EventDispatcher] = events
 
     # pylint: disable=broad-except
     def fetch_features(self, etag: str = "") -> FetchResult:
@@ -70,9 +109,18 @@ class _Transport:
         Never raises: any failure is logged and returned as an empty result, so
         a polling job keeps running against a server that is down.
 
+        Emits ``FETCH_COMPLETED`` with how the fetch ended, before the caller
+        applies the result.
+
         :param etag: Etag from the last fetch, or "" to fetch unconditionally.
         :return: The fetched state, or an empty result on a 304 and on failure.
         """
+        result, http_status_code = self._fetch_features(etag)
+        _emit_fetch_completed(self._events, result, http_status_code)
+        return result
+
+    def _fetch_features(self, etag: str) -> Tuple[FetchResult, Optional[int]]:
+        """The fetch itself, with the final HTTP status code or None."""
         config = self._config
         http_status_code: Optional[int] = None
         try:
@@ -94,7 +142,7 @@ class _Transport:
 
             adapter = HTTPAdapter(
                 # raise_on_status=False: once retries run out, hand back the last
-                # response so its status code reaches the fetch result
+                # response so its status code is reported
                 max_retries=Retry(
                     total=config.request_retries,
                     status_forcelist=[500, 502, 504],
@@ -128,26 +176,15 @@ class _Transport:
                 fetched_etag = resp.headers["etag"]
 
             if resp.status_code == 304:
-                return FetchResult(
-                    None,
-                    fetched_etag,
-                    not_modified=True,
-                    status=FetchStatus.NOT_CHANGED,
-                    http_status_code=304,
-                )
+                return FetchResult(None, fetched_etag, not_modified=True), 304
 
-            return FetchResult(
-                resp.text,
-                fetched_etag,
-                status=FetchStatus.CHANGED,
-                http_status_code=resp.status_code,
-            )
+            return FetchResult(resp.text, fetched_etag), resp.status_code
         except Exception as exc:
             LOGGER.exception(
                 "Unleash Client feature fetch failed due to exception: %s", exc
             )
 
-        return FetchResult(None, "", http_status_code=http_status_code)
+        return FetchResult(None, ""), http_status_code
 
     def register(self, payload: Dict[str, Any]) -> bool:
         """

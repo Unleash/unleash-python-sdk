@@ -78,8 +78,8 @@ class UnleashFetchCompletedEvent(BaseEvent):
     """
     Event emitted after every feature fetch, whether it brought new state, nothing
     new, or failed. ``http_status_code`` is None when no response arrived, for
-    example on a timeout or a refused connection. It describes the fetch only:
-    it is still sent when applying the fetched state fails afterwards.
+    example on a timeout or a refused connection. It is sent as soon as the
+    fetch ends, before the fetched state is applied.
     """
 
     status: FetchStatus

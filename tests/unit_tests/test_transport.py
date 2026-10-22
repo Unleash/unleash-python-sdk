@@ -32,7 +32,7 @@ from UnleashClient.constants import (
     METRICS_URL,
     REGISTER_URL,
 )
-from UnleashClient.events import FetchStatus
+from UnleashClient.events import FetchStatus, UnleashEventType
 
 FULL_FEATURE_URL = URL + FEATURES_URL
 FULL_REGISTER_URL = URL + REGISTER_URL
@@ -43,7 +43,7 @@ FULL_METRICS_URL = URL + METRICS_URL
 def build_transport():
     """Factory. Keyword arguments override the defaults on the config."""
 
-    def _build_transport(**kwargs) -> _Transport:
+    def _build_transport(events=None, **kwargs) -> _Transport:
         defaults = {
             "instance_id": INSTANCE_ID,
             "custom_headers": CUSTOM_HEADERS,
@@ -53,7 +53,7 @@ def build_transport():
         }
         defaults.update(kwargs)
         config = UnleashConfig(URL, APP_NAME, **defaults)
-        return _Transport(config, _HeaderFactory(config))
+        return _Transport(config, _HeaderFactory(config), events)
 
     return _build_transport
 
@@ -191,7 +191,7 @@ def test_fetch_features_swallows_a_bad_custom_option(build_transport):
     # TypeError, not a RequestException, and fetch_features swallows everything.
     result = build_transport(custom_options={"timeout": 5}).fetch_features()
 
-    assert result == (None, "", False, FetchStatus.FAILED, None)
+    assert result == (None, "", False)
 
 
 # register
@@ -365,9 +365,27 @@ def test_headers_are_rebuilt_on_every_request(transport):
     assert responses.calls[1].request.headers["Authorization"] == "second"
 
 
+class RecordingEvents:
+    """Stands in for the dispatcher, keeping emitted events in order."""
+
+    def __init__(self):
+        self.events = []
+
+    def emit_event(self, event):
+        self.events.append(event)
+
+
+def fetch_outcomes(events: RecordingEvents):
+    return [
+        (event.status, event.http_status_code)
+        for event in events.events
+        if event.event_type == UnleashEventType.FETCH_COMPLETED
+    ]
+
+
 @responses.activate
 @mark.parametrize(
-    "status,body,expected_status",
+    "status,body,expected",
     (
         param(200, MOCK_FEATURE_RESPONSE, FetchStatus.CHANGED, id="changed"),
         param(304, None, FetchStatus.NOT_CHANGED, id="not-changed"),
@@ -376,19 +394,48 @@ def test_headers_are_rebuilt_on_every_request(transport):
     ),
 )
 def test_fetch_features_reports_how_the_fetch_ended(
-    transport, status, body, expected_status
+    build_transport, status, body, expected
 ):
     responses.add(responses.GET, FULL_FEATURE_URL, json=body, status=status)
+    events = RecordingEvents()
 
-    result = transport.fetch_features()
+    build_transport(events=events).fetch_features()
 
-    assert (result.status, result.http_status_code) == (expected_status, status)
+    assert fetch_outcomes(events) == [(expected, status)]
 
 
 @responses.activate
-def test_fetch_features_reports_no_status_code_when_no_response_arrives(transport):
+def test_fetch_features_reports_an_empty_200_as_failed(build_transport):
+    responses.add(responses.GET, FULL_FEATURE_URL, body="", status=200)
+    events = RecordingEvents()
+
+    build_transport(events=events).fetch_features()
+
+    assert fetch_outcomes(events) == [(FetchStatus.FAILED, 200)]
+
+
+@responses.activate
+def test_fetch_features_reports_no_status_code_when_no_response_arrives(
+    build_transport,
+):
     responses.add(responses.GET, FULL_FEATURE_URL, body=ConnectionError("refused"))
+    events = RecordingEvents()
 
-    result = transport.fetch_features()
+    build_transport(events=events).fetch_features()
 
-    assert (result.status, result.http_status_code) == (FetchStatus.FAILED, None)
+    assert fetch_outcomes(events) == [(FetchStatus.FAILED, None)]
+
+
+@responses.activate
+def test_fetch_features_survives_a_listener_that_raises(build_transport):
+    responses.add(
+        responses.GET, FULL_FEATURE_URL, json=MOCK_FEATURE_RESPONSE, status=200
+    )
+
+    class BrokenEvents:
+        def emit_event(self, event):
+            raise RuntimeError("listener is broken")
+
+    result = build_transport(events=BrokenEvents()).fetch_features()
+
+    assert json.loads(result.raw_state)["version"] == 1

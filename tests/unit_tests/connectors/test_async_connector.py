@@ -2,7 +2,6 @@ import asyncio
 import json
 from typing import Callable
 
-import pytest
 import pytest_asyncio
 from pytest import mark
 from yggdrasil_engine.engine import UnleashEngine
@@ -18,7 +17,7 @@ from UnleashClient._headers import _HeaderFactory
 from UnleashClient.config import UnleashConfig
 from UnleashClient.connectors._async_connector import _AsyncPollingConnector
 from UnleashClient.constants import ETAG, FEATURES_URL
-from UnleashClient.events import FetchStatus, UnleashEventType
+from UnleashClient.events import UnleashEventType
 
 API_PREFIX = "/api"
 FEATURES_PATH = API_PREFIX + FEATURES_URL
@@ -286,72 +285,3 @@ async def test_stop_is_safe_when_never_started(build_connector, cache_empty):
     )
 
     await connector.stop()
-
-
-@mark.asyncio
-async def test_polling_reports_how_each_fetch_ended(
-    server,
-    build_connector,
-    cache_empty,
-    dispatcher: _EventDispatcher,
-    recorder: EventRecorder,
-):
-    server.on(
-        "GET",
-        FEATURES_PATH,
-        payload=MOCK_FEATURE_RESPONSE,
-        headers={"etag": ETAG_VALUE},
-    )
-    server.on("GET", FEATURES_PATH, status=304, headers={"etag": ETAG_VALUE})
-    server.on("GET", FEATURES_PATH, status=500, payload={}, repeat=True)
-    connector = build_connector(
-        store=_FeatureStore(
-            engine=UnleashEngine(), cache=cache_empty, events=dispatcher
-        )
-    )
-
-    await connector.start()
-    await until(lambda: len(recorder.of_type(UnleashEventType.FETCH_COMPLETED)) >= 3)
-    await connector.stop()
-    dispatcher.close(timeout=WAIT_TIMEOUT)
-
-    assert [
-        (event.status, event.http_status_code)
-        for event in recorder.of_type(UnleashEventType.FETCH_COMPLETED)[:3]
-    ] == [
-        (FetchStatus.CHANGED, 200),
-        (FetchStatus.NOT_CHANGED, 304),
-        (FetchStatus.FAILED, 500),
-    ]
-
-
-@mark.asyncio
-async def test_polling_reports_a_fetch_whose_state_could_not_be_applied(
-    server,
-    build_connector,
-    cache_empty,
-    dispatcher: _EventDispatcher,
-    recorder: EventRecorder,
-    monkeypatch,
-):
-    server.on("GET", FEATURES_PATH, payload=MOCK_FEATURE_RESPONSE)
-
-    def failing_set(_key, _value):
-        raise OSError("disk full")
-
-    monkeypatch.setattr(cache_empty, "set", failing_set)
-    connector = build_connector(
-        store=_FeatureStore(
-            engine=UnleashEngine(), cache=cache_empty, events=dispatcher
-        )
-    )
-
-    with pytest.raises(OSError, match="disk full"):
-        await connector._fetch_and_load()
-
-    assert recorder.wait_for(UnleashEventType.FETCH_COMPLETED, count=1)
-    dispatcher.close(timeout=WAIT_TIMEOUT)
-    assert [
-        (event.status, event.http_status_code)
-        for event in recorder.of_type(UnleashEventType.FETCH_COMPLETED)
-    ] == [(FetchStatus.CHANGED, 200)]
