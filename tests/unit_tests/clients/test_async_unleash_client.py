@@ -54,8 +54,8 @@ def test_async_client_builds_the_shared_config(tmpdir):
 
     assert client._config.url == URL
     assert client._config.app_name == APP_NAME
-    assert client._config.refresh_interval == 15
-    assert client._config.mode == "polling"
+    assert client._config.fetching.interval == 15
+    assert client._config.fetching.mode == "polling"
 
 
 def test_both_clients_build_the_same_config(tmpdir):

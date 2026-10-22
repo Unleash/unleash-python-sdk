@@ -23,7 +23,12 @@ from UnleashClient._feature_store import _FeatureStore
 from UnleashClient._headers import _HeaderFactory
 from UnleashClient._scheduler import _Scheduler
 from UnleashClient._transport import _Transport
-from UnleashClient.config import HttpOptions, IdentityOptions, UnleashConfig
+from UnleashClient.config import (
+    FetchOptions,
+    HttpOptions,
+    IdentityOptions,
+    UnleashConfig,
+)
 from UnleashClient.connectors import PollingConnector
 from UnleashClient.constants import ETAG, FEATURES_URL
 from UnleashClient.events import UnleashEventType
@@ -83,7 +88,7 @@ def test_polling_connector_fetch_and_load_project(cache_empty):
     connector = PollingConnector(
         store=_FeatureStore(engine=engine, cache=temp_cache),
         scheduler=scheduler,
-        transport=build_transport(project_name=PROJECT_NAME),
+        transport=build_transport(fetching=FetchOptions(project_name=PROJECT_NAME)),
     )
 
     connector._fetch_and_load()

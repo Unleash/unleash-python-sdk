@@ -3,7 +3,12 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
-from UnleashClient.config import HttpOptions, IdentityOptions, UnleashConfig
+from UnleashClient.config import (
+    FetchOptions,
+    HttpOptions,
+    IdentityOptions,
+    UnleashConfig,
+)
 
 URL = "http://localhost:4242/api"
 APP_NAME = "pytest"
@@ -20,16 +25,15 @@ def test_defaults():
         sdk_flavor=None,
         sdk_flavor_version=None,
     )
-    assert config.refresh_interval == 15
-    assert config.refresh_jitter is None
+    assert config.fetching == FetchOptions(
+        interval=15, jitter=None, project_name=None, mode="polling"
+    )
     assert config.metrics_interval == 60
     assert config.metrics_jitter is None
     assert config.http == HttpOptions(headers={}, options={}, timeout=30, retries=3)
     assert config.disable_metrics is False
     assert config.disable_registration is False
-    assert config.project_name is None
     assert config.verbose_log_level == 30
-    assert config.experimental_mode == {"type": "polling"}
 
 
 def test_is_immutable():
@@ -38,7 +42,7 @@ def test_is_immutable():
     with pytest.raises(FrozenInstanceError):
         config.url = "http://elsewhere:4242/api"
     with pytest.raises(FrozenInstanceError):
-        config.refresh_interval = 1
+        config.fetching.interval = 1
     with pytest.raises(FrozenInstanceError):
         config.http.timeout = 1
     with pytest.raises(FrozenInstanceError):
@@ -52,18 +56,22 @@ def test_url_is_rstripped():
 
 
 def test_jitters_are_int_coerced():
-    config = UnleashConfig(URL, APP_NAME, refresh_jitter=5.9, metrics_jitter="7")
+    config = UnleashConfig(
+        URL, APP_NAME, fetching=FetchOptions(jitter=5.9), metrics_jitter="7"
+    )
 
-    assert config.refresh_jitter == 5
+    assert config.fetching.jitter == 5
     assert config.metrics_jitter == 7
 
 
 def test_zero_jitter_is_preserved_and_not_confused_with_none():
-    config = UnleashConfig(URL, APP_NAME, refresh_jitter=0, metrics_jitter=0)
+    config = UnleashConfig(
+        URL, APP_NAME, fetching=FetchOptions(jitter=0), metrics_jitter=0
+    )
 
-    assert config.refresh_jitter == 0
+    assert config.fetching.jitter == 0
     assert config.metrics_jitter == 0
-    assert UnleashConfig(URL, APP_NAME).refresh_jitter is None
+    assert UnleashConfig(URL, APP_NAME).fetching.jitter is None
 
 
 def test_no_other_coercion():
@@ -72,11 +80,11 @@ def test_no_other_coercion():
         URL,
         APP_NAME,
         http=HttpOptions(timeout="9"),
-        refresh_interval="60",
+        fetching=FetchOptions(interval="60"),
         metrics_interval="60",
     )
 
-    assert config.refresh_interval == "60"
+    assert config.fetching.interval == "60"
     assert config.metrics_interval == "60"
     assert config.http.timeout == "9"
 
@@ -127,7 +135,9 @@ def test_missing_headers_and_options_become_empty_dicts():
 def test_refresh_interval_str_millis():
     assert UnleashConfig(URL, APP_NAME).refresh_interval_str_millis == "15000"
     assert (
-        UnleashConfig(URL, APP_NAME, refresh_interval=2).refresh_interval_str_millis
+        UnleashConfig(
+            URL, APP_NAME, fetching=FetchOptions(interval=2)
+        ).refresh_interval_str_millis
         == "2000"
     )
 
@@ -190,19 +200,6 @@ def test_instance_identifier_without_headers():
     config = UnleashConfig(URL, APP_NAME, identity=IdentityOptions(instance_id="123"))
 
     assert config.instance_identifier == ("apiKey:None appName:pytest instanceId:123")
-
-
-def test_experimental_mode_is_passed_through():
-    mode = {"type": "streaming", "somethingElse": True}
-    config = UnleashConfig(URL, APP_NAME, experimental_mode=mode)
-
-    assert config.experimental_mode is mode
-    assert config.mode == "streaming"
-
-
-def test_mode_defaults_to_polling():
-    assert UnleashConfig(URL, APP_NAME).mode == "polling"
-    assert UnleashConfig(URL, APP_NAME, experimental_mode={}).mode == "polling"
 
 
 def test_repr_does_not_leak_the_api_key():

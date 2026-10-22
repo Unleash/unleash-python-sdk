@@ -170,7 +170,7 @@ def test_UC_builds_its_config_from_its_arguments(tmp_path):
     assert client._config.url == URL
     assert client._config.app_name == APP_NAME
     assert client._config.http.headers == {"Authorization": "project:environment.hash"}
-    assert client._config.refresh_interval == 15
+    assert client._config.fetching.interval == 15
     assert client._config.metrics_interval == 60
     assert client._config.verbose_log_level == 40
     client.destroy()
