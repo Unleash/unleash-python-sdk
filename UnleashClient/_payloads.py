@@ -13,17 +13,17 @@ from UnleashClient.constants import CLIENT_SPEC_VERSION, SDK_NAME, SDK_VERSION
 def _client_metadata(config: UnleashConfig) -> Dict[str, Any]:
     metadata: Dict[str, Any] = {
         "appName": config.app_name,
-        "instanceId": config.instance_id,
+        "instanceId": config.identity.instance_id,
         "connectionId": config.connection_id,
         "platformName": python_implementation(),
         "platformVersion": python_version(),
         "yggdrasilVersion": yggdrasil_engine.__yggdrasil_core_version__,
         "specVersion": CLIENT_SPEC_VERSION,
     }
-    if config.sdk_flavor:
-        metadata["sdkFlavor"] = config.sdk_flavor
-    if config.sdk_flavor_version:
-        metadata["sdkFlavorVersion"] = config.sdk_flavor_version
+    if config.identity.sdk_flavor:
+        metadata["sdkFlavor"] = config.identity.sdk_flavor
+    if config.identity.sdk_flavor_version:
+        metadata["sdkFlavorVersion"] = config.identity.sdk_flavor_version
 
     return metadata
 
@@ -44,7 +44,7 @@ def _build_register_payload(
         "sdkVersion": f"{SDK_NAME}:{SDK_VERSION}",
         "strategies": [*strategies],
         "started": datetime.now(timezone.utc).isoformat(),
-        "interval": config.metrics_interval,
+        "interval": config.metrics.interval,
     }
 
 

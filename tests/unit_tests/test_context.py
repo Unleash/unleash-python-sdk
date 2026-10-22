@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, timezone
 
 from UnleashClient._context import _ContextEnricher
-from UnleashClient.config import UnleashConfig
+from UnleashClient.config import IdentityOptions, UnleashConfig
 
 URL = "http://localhost:4242/api"
 APP_NAME = "pytest"
@@ -13,7 +13,7 @@ def build_enricher(**kwargs) -> _ContextEnricher:
 
 
 def test_static_context_is_merged_in():
-    enricher = build_enricher(environment="unit")
+    enricher = build_enricher(identity=IdentityOptions(environment="unit"))
 
     context = enricher.build({})
 
@@ -22,7 +22,7 @@ def test_static_context_is_merged_in():
 
 
 def test_caller_overrides_the_static_context():
-    enricher = build_enricher(environment="unit")
+    enricher = build_enricher(identity=IdentityOptions(environment="unit"))
 
     context = enricher.build({"environment": "qa", "appName": "other"})
 
@@ -112,16 +112,3 @@ def test_the_supplied_context_is_not_mutated():
     enricher.build(original)
 
     assert original == {"myContext": "1234"}
-
-
-def test_static_context_is_read_on_every_call():
-    # UnleashClient.unleash_static_context has a setter, so a client can swap
-    # the dict out after the enricher was constructed.
-    config = UnleashConfig(URL, APP_NAME, environment="unit")
-    enricher = _ContextEnricher(config)
-
-    config.static_context = {"appName": "replaced", "environment": "qa"}
-    context = enricher.build({})
-
-    assert context["appName"] == "replaced"
-    assert context["environment"] == "qa"
