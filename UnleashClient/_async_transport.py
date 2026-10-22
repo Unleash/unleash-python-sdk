@@ -3,10 +3,15 @@
 import asyncio
 import json
 import threading
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
+from UnleashClient._event_dispatcher import _EventDispatcher
 from UnleashClient._headers import _HeaderFactory
-from UnleashClient._transport import FetchResult, _normalized_url
+from UnleashClient._transport import (
+    FetchResult,
+    _emit_fetch_completed,
+    _normalized_url,
+)
 from UnleashClient.config import UnleashConfig
 from UnleashClient.constants import FEATURES_URL, METRICS_URL, REGISTER_URL
 from UnleashClient.errors import AlreadyClosedError
@@ -37,13 +42,20 @@ async def _log_resp_info(resp: "aiohttp.ClientResponse") -> None:
 class _AsyncTransport:
     """The asyncio twin of :class:`UnleashClient._transport._Transport`."""
 
-    def __init__(self, config: UnleashConfig, headers: _HeaderFactory) -> None:
+    def __init__(
+        self,
+        config: UnleashConfig,
+        headers: _HeaderFactory,
+        events: Optional[_EventDispatcher] = None,
+    ) -> None:
         """
         :param config: read for the url, timeouts, retries and project.
         :param headers: builds the header set each request needs.
+        :param events: receives ``FETCH_COMPLETED`` after every feature fetch.
         """
         self._config: UnleashConfig = config
         self._headers: _HeaderFactory = headers
+        self._events: Optional[_EventDispatcher] = events
         self._session: Optional["aiohttp.ClientSession"] = None
         self._is_closed: bool = False
         self._close_lock = threading.Lock()
@@ -90,12 +102,22 @@ class _AsyncTransport:
         failure is logged and returned as an empty result, so a polling job can
         keep running against a server that is down.
 
+        Emits ``FETCH_COMPLETED`` with how the fetch ended, before the caller
+        applies the result.
+
         :param etag: the cached etag, or "" to fetch unconditionally.
         :raises AlreadyClosedError: if the transport has been closed.
         """
         self._raise_if_closed()
 
+        result, http_status_code = await self._fetch_features(etag)
+        _emit_fetch_completed(self._events, result, http_status_code)
+        return result
+
+    async def _fetch_features(self, etag: str) -> Tuple[FetchResult, Optional[int]]:
+        """The fetch itself, with the final HTTP status code or None."""
         config = self._config
+        http_status_code: Optional[int] = None
         try:
             LOGGER.info("Getting feature flags.")
 
@@ -115,6 +137,8 @@ class _AsyncTransport:
 
             for attempt in range(attempts):
                 last_attempt = attempt == attempts - 1
+                # A failed attempt's status code must not outlive it
+                http_status_code = None
                 try:
                     async with session.get(
                         base_url,
@@ -125,6 +149,7 @@ class _AsyncTransport:
                         if resp.status in RETRY_STATUSES and not last_attempt:
                             continue
 
+                        http_status_code = resp.status
                         if resp.status not in [200, 304]:
                             await _log_resp_info(resp)
                             LOGGER.warning(
@@ -138,9 +163,15 @@ class _AsyncTransport:
                         fetched_etag = resp.headers.get("etag", "")
 
                         if resp.status == 304:
-                            return FetchResult(None, fetched_etag, not_modified=True)
+                            return (
+                                FetchResult(None, fetched_etag, not_modified=True),
+                                304,
+                            )
 
-                        return FetchResult(await resp.text(), fetched_etag)
+                        return (
+                            FetchResult(await resp.text(), fetched_etag),
+                            resp.status,
+                        )
                 except RETRYABLE_ERRORS:
                     if last_attempt:
                         raise
@@ -149,7 +180,7 @@ class _AsyncTransport:
                 "Unleash Client feature fetch failed due to exception: %s", exc
             )
 
-        return FetchResult(None, "")
+        return FetchResult(None, ""), http_status_code
 
     async def register(self, payload: Dict[str, Any]) -> bool:
         """

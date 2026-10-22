@@ -14,6 +14,17 @@ class UnleashEventType(Enum):
     VARIANT = "variant"
     FETCHED = "fetched"
     READY = "ready"
+    FETCH_COMPLETED = "fetch_completed"
+
+
+class FetchStatus(Enum):
+    """
+    How a feature fetch ended.
+    """
+
+    CHANGED = "changed"
+    NOT_CHANGED = "not_changed"
+    FAILED = "failed"
 
 
 @dataclass
@@ -60,3 +71,16 @@ class UnleashFetchedEvent(BaseEvent):
         if not hasattr(self, "_parsed_payload"):
             self._parsed_payload = loads(self.raw_features)["features"]
         return self._parsed_payload
+
+
+@dataclass
+class UnleashFetchCompletedEvent(BaseEvent):
+    """
+    Event emitted after every feature fetch, whether it brought new state, nothing
+    new, or failed. ``http_status_code`` is None when no response arrived, for
+    example on a timeout or a refused connection. It is sent as soon as the
+    fetch ends, before the fetched state is applied.
+    """
+
+    status: FetchStatus
+    http_status_code: Optional[int] = None
