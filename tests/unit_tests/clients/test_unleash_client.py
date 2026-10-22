@@ -25,21 +25,11 @@ from tests.utilities.mocks.mock_features import (
 )
 from tests.utilities.testing_constants import (
     APP_NAME,
-    CUSTOM_HEADERS,
-    CUSTOM_OPTIONS,
-    DISABLE_METRICS,
-    DISABLE_REGISTRATION,
-    ENVIRONMENT,
     ETAG_VALUE,
-    INSTANCE_ID,
     METRICS_INTERVAL,
-    METRICS_JITTER,
     PROJECT_NAME,
     PROJECT_URL,
     REFRESH_INTERVAL,
-    REFRESH_JITTER,
-    REQUEST_RETRIES,
-    REQUEST_TIMEOUT,
     URL,
 )
 from UnleashClient import INSTANCES, UnleashClient
@@ -168,82 +158,23 @@ def unleash_client_bootstrap_dependencies(tmp_path):
     unleash_client.destroy()
 
 
-def test_UC_initialize_default(tmp_path):
-    client = UnleashClient(URL, APP_NAME, cache_directory=str(tmp_path))
-    assert client.unleash_url == URL
-    assert client.unleash_app_name == APP_NAME
-    assert client.unleash_metrics_interval == 60
-    client.destroy()
-
-
-def test_UC_initialize_full(tmp_path):
+def test_UC_builds_its_config_from_its_arguments(tmp_path):
     client = UnleashClient(
-        URL,
-        APP_NAME,
-        ENVIRONMENT,
-        INSTANCE_ID,
-        REFRESH_INTERVAL,
-        REFRESH_JITTER,
-        METRICS_INTERVAL,
-        METRICS_JITTER,
-        DISABLE_METRICS,
-        DISABLE_REGISTRATION,
-        CUSTOM_HEADERS,
-        CUSTOM_OPTIONS,
-        REQUEST_TIMEOUT,
-        REQUEST_RETRIES,
-        cache_directory=str(tmp_path),
-    )
-    assert client.unleash_instance_id == INSTANCE_ID
-    assert client.unleash_refresh_interval == REFRESH_INTERVAL
-    assert client.unleash_refresh_jitter == REFRESH_JITTER
-    assert client.unleash_metrics_interval == METRICS_INTERVAL
-    assert client.unleash_metrics_jitter == METRICS_JITTER
-    assert client.unleash_disable_metrics == DISABLE_METRICS
-    assert client.unleash_disable_registration == DISABLE_REGISTRATION
-    assert client.unleash_custom_headers == CUSTOM_HEADERS
-    assert client.unleash_custom_options == CUSTOM_OPTIONS
-    client.destroy()
-
-
-def test_UC_type_violation(tmp_path):
-    client = UnleashClient(
-        URL, APP_NAME, refresh_interval="60", cache_directory=str(tmp_path)
-    )
-    assert client.unleash_url == URL
-    assert client.unleash_app_name == APP_NAME
-    assert client.unleash_refresh_interval == "60"
-    client.destroy()
-
-
-def test_UC_public_config_attributes_are_writable(tmp_path):
-    client = UnleashClient(
-        URL, APP_NAME, disable_metrics=True, cache_directory=str(tmp_path)
-    )
-
-    client.unleash_refresh_interval = 99
-    client.unleash_custom_headers = {"name": "replaced"}
-    client.unleash_url = "http://elsewhere:4242/api/"
-    client.unleash_refresh_jitter = "5"
-
-    assert client.unleash_refresh_interval == 99
-    assert client.unleash_custom_headers == {"name": "replaced"}
-    assert client.unleash_url == "http://elsewhere:4242/api/"
-    assert client.unleash_refresh_jitter == "5"
-    client.destroy()
-
-
-def test_UC_custom_headers_can_be_mutated_in_place(tmp_path):
-    client = UnleashClient(
-        URL,
-        APP_NAME,
-        custom_headers=dict(CUSTOM_HEADERS),
+        url=f"{URL}/",
+        app_name=APP_NAME,
+        custom_headers={"Authorization": "project:environment.hash"},
+        verbose_log_level=40,
         cache_directory=str(tmp_path),
     )
 
-    client.unleash_custom_headers["extra"] = "header"
-
-    assert client.unleash_custom_headers["extra"] == "header"
+    assert client._config.url == URL
+    assert client._config.app_name == APP_NAME
+    assert client._config.custom_headers == {
+        "Authorization": "project:environment.hash"
+    }
+    assert client._config.refresh_interval == 15
+    assert client._config.metrics_interval == 60
+    assert client._config.verbose_log_level == 40
     client.destroy()
 
 

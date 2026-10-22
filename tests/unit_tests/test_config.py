@@ -53,8 +53,7 @@ def test_zero_jitter_is_preserved_and_not_confused_with_none():
 
 
 def test_no_other_coercion():
-    # The client has never validated these, and UnleashClient exposes them
-    # verbatim.  See test_UC_type_violation.
+    # The client has never validated these.
     config = UnleashConfig(
         URL, APP_NAME, refresh_interval="60", metrics_interval="60", request_timeout="9"
     )
