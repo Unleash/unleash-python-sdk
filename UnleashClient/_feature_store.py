@@ -146,8 +146,8 @@ class _FeatureStore:
         self, status: FetchStatus, http_status_code: Optional[int]
     ) -> None:
         """
-        Reports how a fetch ended. Callers emit it after applying the fetch, so a
-        listener sees the state the fetch left behind.
+        Reports how a fetch ended. Callers emit it once applying the fetch is
+        done, or has failed, so every fetch is reported exactly once.
         """
         self._emit(
             UnleashFetchCompletedEvent(

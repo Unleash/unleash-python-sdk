@@ -1,3 +1,4 @@
+import pytest
 import responses
 from yggdrasil_engine.engine import UnleashEngine
 
@@ -237,3 +238,34 @@ def test_polling_connector_reports_how_each_fetch_ended(
         (FetchStatus.NOT_CHANGED, 304),
         (FetchStatus.FAILED, 500),
     ]
+
+
+@responses.activate
+def test_polling_connector_reports_a_fetch_whose_state_could_not_be_applied(
+    cache_empty, dispatcher: _EventDispatcher, recorder: EventRecorder, monkeypatch
+):
+    responses.add(
+        responses.GET, FULL_FEATURE_URL, json=MOCK_FEATURE_RESPONSE, status=200
+    )
+
+    def failing_set(_key, _value):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(cache_empty, "set", failing_set)
+    connector = PollingConnector(
+        store=_FeatureStore(
+            engine=UnleashEngine(), cache=cache_empty, events=dispatcher
+        ),
+        scheduler=_Scheduler(),
+        transport=build_transport(),
+    )
+
+    with pytest.raises(OSError, match="disk full"):
+        connector._fetch_and_load()
+
+    assert recorder.wait_for(UnleashEventType.FETCH_COMPLETED, count=1)
+    dispatcher.close(timeout=WAIT_TIMEOUT)
+    assert [
+        (event.status, event.http_status_code)
+        for event in recorder.of_type(UnleashEventType.FETCH_COMPLETED)
+    ] == [(FetchStatus.CHANGED, 200)]
