@@ -7,6 +7,7 @@ from .clients import (
     UnleashClient,
     build_ready_callback,
 )
+from .config import FetchOptions, HttpOptions, MetricsOptions, UnleashConfig
 
 if TYPE_CHECKING:
     from .clients.async_unleash_client import AsyncUnleashClient

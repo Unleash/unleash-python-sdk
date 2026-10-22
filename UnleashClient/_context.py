@@ -26,10 +26,6 @@ class _ContextEnricher:
     """
     Turns a caller-supplied context into the shape the engine expects.
 
-    The config's static context is read on every call, so reassigning
-    ``config.static_context`` (which ``UnleashClient.unleash_static_context``
-    does) takes effect immediately.
-
     Example::
 
         enricher = _ContextEnricher(config)
@@ -40,7 +36,7 @@ class _ContextEnricher:
         self._config: UnleashConfig = config
 
     def build(self, context: Optional[dict] = None) -> dict:
-        new_context: Dict[str, Any] = self._config.static_context.copy()
+        new_context: Dict[str, Any] = self._config.static_context
         new_context.update(context or {})
 
         if "currentTime" not in new_context:

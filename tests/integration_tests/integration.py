@@ -4,6 +4,7 @@ import sys
 import time
 
 from UnleashClient import UnleashClient
+from UnleashClient.config import UnleashConfig
 
 root = logging.getLogger()
 root.setLevel(logging.DEBUG)
@@ -15,7 +16,9 @@ handler.setFormatter(formatter)
 root.addHandler(handler)
 # ---
 
-my_client = UnleashClient(url="http://localhost:4242/api", app_name="pyIvan")
+my_client = UnleashClient(
+    UnleashConfig(url="http://localhost:4242/api", app_name="pyIvan")
+)
 
 my_client.initialize_client()
 

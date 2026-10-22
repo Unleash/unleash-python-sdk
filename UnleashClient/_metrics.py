@@ -58,8 +58,8 @@ class _MetricsReporter:
     def start(self) -> None:
         """Registers the recurring send."""
         self._job = self._scheduler.every(
-            interval_seconds=int(self._config.metrics_interval),
-            jitter_seconds=self._config.metrics_jitter,
+            interval_seconds=int(self._config.metrics.interval),
+            jitter_seconds=self._config.metrics.jitter,
             fn=self.flush,
         )
 

@@ -44,7 +44,7 @@ def _build_register_payload(
         "sdkVersion": f"{SDK_NAME}:{SDK_VERSION}",
         "strategies": [*strategies],
         "started": datetime.now(timezone.utc).isoformat(),
-        "interval": config.metrics_interval,
+        "interval": config.metrics.interval,
     }
 
 

@@ -4,6 +4,7 @@ import threading
 import time
 import uuid
 import warnings
+from dataclasses import FrozenInstanceError
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -25,25 +26,21 @@ from tests.utilities.mocks.mock_features import (
 )
 from tests.utilities.testing_constants import (
     APP_NAME,
-    CUSTOM_HEADERS,
-    CUSTOM_OPTIONS,
-    DISABLE_METRICS,
-    DISABLE_REGISTRATION,
-    ENVIRONMENT,
     ETAG_VALUE,
-    INSTANCE_ID,
     METRICS_INTERVAL,
-    METRICS_JITTER,
     PROJECT_NAME,
     PROJECT_URL,
     REFRESH_INTERVAL,
-    REFRESH_JITTER,
-    REQUEST_RETRIES,
-    REQUEST_TIMEOUT,
     URL,
 )
 from UnleashClient import INSTANCES, UnleashClient
 from UnleashClient.cache import BaseCache, FileCache
+from UnleashClient.config import (
+    FetchOptions,
+    HttpOptions,
+    MetricsOptions,
+    UnleashConfig,
+)
 from UnleashClient.constants import FEATURES_URL, METRICS_URL, REGISTER_URL
 from UnleashClient.errors import MultipleInstancesNotAllowedError
 from UnleashClient.events import UnleashEventType
@@ -90,10 +87,12 @@ def readyable_unleash_client(cache):
     event_handler, ready_signal, fetch_signal = build_event_handlers()
 
     unleash_client = UnleashClient(
-        URL,
-        APP_NAME,
-        refresh_interval=REFRESH_INTERVAL,
-        metrics_interval=METRICS_INTERVAL,
+        UnleashConfig(
+            url=URL,
+            app_name=APP_NAME,
+            fetching=FetchOptions(interval=REFRESH_INTERVAL),
+            metrics=MetricsOptions(interval=METRICS_INTERVAL),
+        ),
         cache=cache,
         event_callback=event_handler,
     )
@@ -106,12 +105,14 @@ def readyable_unleash_client_project(cache):
     event_handler, ready_signal, fetch_signal = build_event_handlers()
 
     unleash_client = UnleashClient(
-        URL,
-        APP_NAME,
-        refresh_interval=REFRESH_INTERVAL,
-        metrics_interval=METRICS_INTERVAL,
+        UnleashConfig(
+            url=URL,
+            app_name=APP_NAME,
+            project_name=PROJECT_NAME,
+            fetching=FetchOptions(interval=REFRESH_INTERVAL),
+            metrics=MetricsOptions(interval=METRICS_INTERVAL),
+        ),
         cache=cache,
-        project_name=PROJECT_NAME,
         event_callback=event_handler,
     )
     yield unleash_client, ready_signal, fetch_signal
@@ -123,10 +124,12 @@ def readyable_unleash_client_nodestroy(cache):
     event_handler, ready_signal, fetch_signal = build_event_handlers()
 
     unleash_client = UnleashClient(
-        URL,
-        APP_NAME,
-        refresh_interval=REFRESH_INTERVAL,
-        metrics_interval=METRICS_INTERVAL,
+        UnleashConfig(
+            url=URL,
+            app_name=APP_NAME,
+            fetching=FetchOptions(interval=REFRESH_INTERVAL),
+            metrics=MetricsOptions(interval=METRICS_INTERVAL),
+        ),
         cache=cache,
         event_callback=event_handler,
     )
@@ -138,12 +141,13 @@ def readyable_unleash_client_toggle_only(cache):
     event_handler, ready_signal, fetch_signal = build_event_handlers()
 
     unleash_client = UnleashClient(
-        URL,
-        APP_NAME,
-        refresh_interval=REFRESH_INTERVAL,
-        metrics_interval=METRICS_INTERVAL,
-        disable_registration=True,
-        disable_metrics=True,
+        UnleashConfig(
+            url=URL,
+            app_name=APP_NAME,
+            disable_registration=True,
+            fetching=FetchOptions(interval=REFRESH_INTERVAL),
+            metrics=MetricsOptions(interval=METRICS_INTERVAL, disabled=True),
+        ),
         cache=cache,
         event_callback=event_handler,
     )
@@ -156,94 +160,37 @@ def unleash_client_bootstrap_dependencies(tmp_path):
     cache = FileCache("MOCK_CACHE", directory=str(tmp_path))
     cache.bootstrap_from_dict(MOCK_FEATURE_WITH_DEPENDENCIES_RESPONSE)
     unleash_client = UnleashClient(
-        url=URL,
-        app_name=APP_NAME,
-        disable_metrics=True,
-        disable_registration=True,
+        UnleashConfig(
+            url=URL,
+            app_name=APP_NAME,
+            environment="default",
+            disable_registration=True,
+            metrics=MetricsOptions(disabled=True),
+        ),
         cache=cache,
-        environment="default",
     )
     unleash_client.initialize_client(fetch_toggles=False)
     yield unleash_client
     unleash_client.destroy()
 
 
-def test_UC_initialize_default(tmp_path):
-    client = UnleashClient(URL, APP_NAME, cache_directory=str(tmp_path))
-    assert client.unleash_url == URL
-    assert client.unleash_app_name == APP_NAME
-    assert client.unleash_metrics_interval == 60
+def test_UC_exposes_the_config_it_was_given(tmp_path):
+    config = UnleashConfig(url=URL, app_name=APP_NAME)
+    client = UnleashClient(config, cache_directory=str(tmp_path))
+
+    assert client.config is config
     client.destroy()
 
 
-def test_UC_initialize_full(tmp_path):
+def test_UC_config_is_read_only(tmp_path):
     client = UnleashClient(
-        URL,
-        APP_NAME,
-        ENVIRONMENT,
-        INSTANCE_ID,
-        REFRESH_INTERVAL,
-        REFRESH_JITTER,
-        METRICS_INTERVAL,
-        METRICS_JITTER,
-        DISABLE_METRICS,
-        DISABLE_REGISTRATION,
-        CUSTOM_HEADERS,
-        CUSTOM_OPTIONS,
-        REQUEST_TIMEOUT,
-        REQUEST_RETRIES,
-        cache_directory=str(tmp_path),
-    )
-    assert client.unleash_instance_id == INSTANCE_ID
-    assert client.unleash_refresh_interval == REFRESH_INTERVAL
-    assert client.unleash_refresh_jitter == REFRESH_JITTER
-    assert client.unleash_metrics_interval == METRICS_INTERVAL
-    assert client.unleash_metrics_jitter == METRICS_JITTER
-    assert client.unleash_disable_metrics == DISABLE_METRICS
-    assert client.unleash_disable_registration == DISABLE_REGISTRATION
-    assert client.unleash_custom_headers == CUSTOM_HEADERS
-    assert client.unleash_custom_options == CUSTOM_OPTIONS
-    client.destroy()
-
-
-def test_UC_type_violation(tmp_path):
-    client = UnleashClient(
-        URL, APP_NAME, refresh_interval="60", cache_directory=str(tmp_path)
-    )
-    assert client.unleash_url == URL
-    assert client.unleash_app_name == APP_NAME
-    assert client.unleash_refresh_interval == "60"
-    client.destroy()
-
-
-def test_UC_public_config_attributes_are_writable(tmp_path):
-    client = UnleashClient(
-        URL, APP_NAME, disable_metrics=True, cache_directory=str(tmp_path)
+        UnleashConfig(url=URL, app_name=APP_NAME), cache_directory=str(tmp_path)
     )
 
-    client.unleash_refresh_interval = 99
-    client.unleash_custom_headers = {"name": "replaced"}
-    client.unleash_url = "http://elsewhere:4242/api/"
-    client.unleash_refresh_jitter = "5"
-
-    assert client.unleash_refresh_interval == 99
-    assert client.unleash_custom_headers == {"name": "replaced"}
-    assert client.unleash_url == "http://elsewhere:4242/api/"
-    assert client.unleash_refresh_jitter == "5"
-    client.destroy()
-
-
-def test_UC_custom_headers_can_be_mutated_in_place(tmp_path):
-    client = UnleashClient(
-        URL,
-        APP_NAME,
-        custom_headers=dict(CUSTOM_HEADERS),
-        cache_directory=str(tmp_path),
-    )
-
-    client.unleash_custom_headers["extra"] = "header"
-
-    assert client.unleash_custom_headers["extra"] == "header"
+    with pytest.raises(FrozenInstanceError):
+        client.config.url = "http://elsewhere:4242/api"
+    with pytest.raises(FrozenInstanceError):
+        client.config.fetching.interval = 99
     client.destroy()
 
 
@@ -516,12 +463,10 @@ def test_uc_is_enabled_with_context(tmp_path):
     custom_strategies_dict = {"custom-context": EnvironmentStrategy()}
 
     unleash_client = UnleashClient(
-        URL,
-        APP_NAME,
-        environment="prod",
+        UnleashConfig(url=URL, app_name=APP_NAME, environment="prod"),
         custom_strategies=custom_strategies_dict,
-        event_callback=event_handler,
         cache_directory=str(tmp_path),
+        event_callback=event_handler,
     )
     # Create Unleash client and check initial load
     unleash_client.initialize_client()
@@ -573,7 +518,9 @@ def test_uc_context_manager(readyable_unleash_client_nodestroy):
 
 @responses.activate
 def test_uc_not_initialized_isenabled(tmp_path):
-    unleash_client = UnleashClient(URL, APP_NAME, cache_directory=str(tmp_path))
+    unleash_client = UnleashClient(
+        UnleashConfig(url=URL, app_name=APP_NAME), cache_directory=str(tmp_path)
+    )
     assert not unleash_client.is_enabled("ThisFlagDoesn'tExist")
     assert unleash_client.is_enabled(
         "ThisFlagDoesn'tExist", fallback_function=lambda x, y: True
@@ -602,7 +549,9 @@ def test_uc_get_variant(tmp_path):
     event_handler, ready_signal, _ = build_event_handlers()
 
     unleash_client = UnleashClient(
-        URL, APP_NAME, event_callback=event_handler, cache_directory=str(tmp_path)
+        UnleashConfig(url=URL, app_name=APP_NAME),
+        cache_directory=str(tmp_path),
+        event_callback=event_handler,
     )
     # Create Unleash client and check initial load
     unleash_client.initialize_client()
@@ -628,12 +577,14 @@ def test_uc_get_variant_feature_enabled_no_variants(tmp_path):
     cache = FileCache("MOCK_CACHE", directory=str(tmp_path))
     cache.bootstrap_from_dict(MOCK_FEATURE_ENABLED_NO_VARIANTS_RESPONSE)
     unleash_client = UnleashClient(
-        url=URL,
-        app_name=APP_NAME,
-        disable_metrics=True,
-        disable_registration=True,
+        UnleashConfig(
+            url=URL,
+            app_name=APP_NAME,
+            environment="default",
+            disable_registration=True,
+            metrics=MetricsOptions(disabled=True),
+        ),
         cache=cache,
-        environment="default",
     )
     unleash_client.initialize_client(fetch_toggles=False)
 
@@ -648,7 +599,9 @@ def test_uc_get_variant_feature_enabled_no_variants(tmp_path):
 
 @responses.activate
 def test_uc_not_initialized_getvariant(tmp_path):
-    unleash_client = UnleashClient(URL, APP_NAME, cache_directory=str(tmp_path))
+    unleash_client = UnleashClient(
+        UnleashConfig(url=URL, app_name=APP_NAME), cache_directory=str(tmp_path)
+    )
     variant = unleash_client.get_variant("ThisFlagDoesn'tExist")
     assert not variant["enabled"]
     assert variant["name"] == "disabled"
@@ -902,7 +855,8 @@ def test_uc_server_error(readyable_unleash_client):
 
 def test_uc_with_invalid_url(tmp_path):
     unleash_client = UnleashClient(
-        "thisisnotavalidurl", APP_NAME, cache_directory=str(tmp_path)
+        UnleashConfig(url="thisisnotavalidurl", app_name=APP_NAME),
+        cache_directory=str(tmp_path),
     )
 
     with pytest.raises(ValueError):
@@ -912,11 +866,13 @@ def test_uc_with_invalid_url(tmp_path):
 
 def test_uc_with_network_error(tmp_path):
     unleash_client = UnleashClient(
-        "https://this-will-never-try-to-dns-resolve.invalid/",
-        APP_NAME,
-        disable_metrics=True,
-        disable_registration=True,
-        request_timeout=1,
+        UnleashConfig(
+            url="https://this-will-never-try-to-dns-resolve.invalid/",
+            app_name=APP_NAME,
+            disable_registration=True,
+            http=HttpOptions(timeout=1),
+            metrics=MetricsOptions(disabled=True),
+        ),
         cache_directory=str(tmp_path),
     )
     unleash_client.initialize_client()
@@ -972,10 +928,12 @@ def test_uc_cache_bootstrap_dict(cache):
 
     # Check bootstrapping
     unleash_client = UnleashClient(
-        URL,
-        APP_NAME,
-        refresh_interval=REFRESH_INTERVAL,
-        metrics_interval=METRICS_INTERVAL,
+        UnleashConfig(
+            url=URL,
+            app_name=APP_NAME,
+            fetching=FetchOptions(interval=REFRESH_INTERVAL),
+            metrics=MetricsOptions(interval=METRICS_INTERVAL),
+        ),
         cache=cache,
         event_callback=event_handler,
     )
@@ -1008,10 +966,12 @@ def test_uc_cache_bootstrap_file(cache):
 
     # Check bootstrapping
     unleash_client = UnleashClient(
-        URL,
-        APP_NAME,
-        refresh_interval=REFRESH_INTERVAL,
-        metrics_interval=METRICS_INTERVAL,
+        UnleashConfig(
+            url=URL,
+            app_name=APP_NAME,
+            fetching=FetchOptions(interval=REFRESH_INTERVAL),
+            metrics=MetricsOptions(interval=METRICS_INTERVAL),
+        ),
         cache=cache,
     )
     assert len(unleash_client.feature_definitions()) >= 1
@@ -1034,10 +994,12 @@ def test_uc_cache_bootstrap_url(cache):
 
     # Check bootstrapping
     unleash_client = UnleashClient(
-        URL,
-        APP_NAME,
-        refresh_interval=REFRESH_INTERVAL,
-        metrics_interval=METRICS_INTERVAL,
+        UnleashConfig(
+            url=URL,
+            app_name=APP_NAME,
+            fetching=FetchOptions(interval=REFRESH_INTERVAL),
+            metrics=MetricsOptions(interval=METRICS_INTERVAL),
+        ),
         cache=cache,
     )
     assert len(unleash_client.feature_definitions()) >= 4
@@ -1063,14 +1025,16 @@ def test_uc_custom_scheduler(cache):
     event_handler, ready_signal, fetch_signal = build_event_handlers()
 
     unleash_client = UnleashClient(
-        URL,
-        APP_NAME,
-        refresh_interval=REFRESH_INTERVAL,
-        disable_metrics=True,
-        disable_registration=True,
+        UnleashConfig(
+            url=URL,
+            app_name=APP_NAME,
+            disable_registration=True,
+            fetching=FetchOptions(interval=REFRESH_INTERVAL),
+            metrics=MetricsOptions(disabled=True),
+        ),
+        cache=cache,
         scheduler=custom_scheduler,
         scheduler_executor="hamster_executor",
-        cache=cache,
         event_callback=event_handler,
     )
 
@@ -1108,16 +1072,14 @@ def test_multiple_instances_blocks_client_instantiation(tmp_path):
     client2 = None
     with pytest.raises(MultipleInstancesNotAllowedError):
         client1 = UnleashClient(
-            URL,
-            APP_NAME,
-            multiple_instance_mode=InstanceAllowType.BLOCK,
+            UnleashConfig(url=URL, app_name=APP_NAME),
             cache_directory=str(tmp_path),
+            multiple_instance_mode=InstanceAllowType.BLOCK,
         )
         client2 = UnleashClient(
-            URL,
-            APP_NAME,
-            multiple_instance_mode=InstanceAllowType.BLOCK,
+            UnleashConfig(url=URL, app_name=APP_NAME),
             cache_directory=str(tmp_path),
+            multiple_instance_mode=InstanceAllowType.BLOCK,
         )
     if client1:
         client1.destroy()
@@ -1127,16 +1089,14 @@ def test_multiple_instances_blocks_client_instantiation(tmp_path):
 
 def test_multiple_instances_with_allow_multiple_warns(caplog, tmp_path):
     client1 = UnleashClient(
-        URL,
-        APP_NAME,
-        multiple_instance_mode=InstanceAllowType.WARN,
+        UnleashConfig(url=URL, app_name=APP_NAME),
         cache_directory=str(tmp_path),
+        multiple_instance_mode=InstanceAllowType.WARN,
     )
     client2 = UnleashClient(
-        URL,
-        APP_NAME,
-        multiple_instance_mode=InstanceAllowType.WARN,
+        UnleashConfig(url=URL, app_name=APP_NAME),
         cache_directory=str(tmp_path),
+        multiple_instance_mode=InstanceAllowType.WARN,
     )
     assert any(["You already have 1 instance" in r.msg for r in caplog.records])
     client1.destroy()
@@ -1144,18 +1104,18 @@ def test_multiple_instances_with_allow_multiple_warns(caplog, tmp_path):
 
 
 def test_multiple_instances_tracks_current_instance_count(caplog, tmp_path):
-    client1 = UnleashClient(URL, APP_NAME, cache_directory=str(tmp_path))
+    client1 = UnleashClient(
+        UnleashConfig(url=URL, app_name=APP_NAME), cache_directory=str(tmp_path)
+    )
     client2 = UnleashClient(
-        URL,
-        APP_NAME,
-        multiple_instance_mode=InstanceAllowType.WARN,
+        UnleashConfig(url=URL, app_name=APP_NAME),
         cache_directory=str(tmp_path),
+        multiple_instance_mode=InstanceAllowType.WARN,
     )
     client3 = UnleashClient(
-        URL,
-        APP_NAME,
-        multiple_instance_mode=InstanceAllowType.WARN,
+        UnleashConfig(url=URL, app_name=APP_NAME),
         cache_directory=str(tmp_path),
+        multiple_instance_mode=InstanceAllowType.WARN,
     )
     assert any(["You already have 1 instance" in r.msg for r in caplog.records])
     assert any(["You already have 2 instance(s)" in r.msg for r in caplog.records])
@@ -1168,19 +1128,24 @@ def test_multiple_instances_no_warnings_or_errors_with_different_client_configs(
     caplog, tmp_path
 ):
     client1 = UnleashClient(
-        URL, "some-probably-unique-app-name", cache_directory=str(tmp_path)
+        UnleashConfig(url=URL, app_name="some-probably-unique-app-name"),
+        cache_directory=str(tmp_path),
     )
     client2 = UnleashClient(
-        URL,
-        "some-probably-unique-app-name",
-        instance_id="some-unique-instance-id",
-        refresh_interval="60",
+        UnleashConfig(
+            url=URL,
+            app_name="some-probably-unique-app-name",
+            instance_id="some-unique-instance-id",
+            fetching=FetchOptions(interval="60"),
+        ),
         cache_directory=str(tmp_path),
     )
     client3 = UnleashClient(
-        URL,
-        "some-probably-unique-but-different-app-name",
-        refresh_interval="60",
+        UnleashConfig(
+            url=URL,
+            app_name="some-probably-unique-but-different-app-name",
+            fetching=FetchOptions(interval="60"),
+        ),
         cache_directory=str(tmp_path),
     )
     assert not any(
@@ -1193,15 +1158,19 @@ def test_multiple_instances_no_warnings_or_errors_with_different_client_configs(
 
 def test_multiple_instances_are_unique_on_api_key(caplog, tmp_path):
     client1 = UnleashClient(
-        URL,
-        "some-probably-unique-app-name",
-        custom_headers={"Authorization": "penguins"},
+        UnleashConfig(
+            url=URL,
+            app_name="some-probably-unique-app-name",
+            http=HttpOptions(headers={"Authorization": "penguins"}),
+        ),
         cache_directory=str(tmp_path),
     )
     client2 = UnleashClient(
-        URL,
-        "some-probably-unique-app-name",
-        custom_headers={"Authorization": "hamsters"},
+        UnleashConfig(
+            url=URL,
+            app_name="some-probably-unique-app-name",
+            http=HttpOptions(headers={"Authorization": "hamsters"}),
+        ),
         cache_directory=str(tmp_path),
     )
     assert not any(
@@ -1230,15 +1199,19 @@ def test_api_key_is_not_logged_in_plain_text_in_multiple_instances_warning(
 ):
     api_key = "production:default:abcdef1234567890ghijklmnop"
     client1 = UnleashClient(
-        URL,
-        APP_NAME,
-        custom_headers={"Authorization": api_key},
+        UnleashConfig(
+            url=URL,
+            app_name=APP_NAME,
+            http=HttpOptions(headers={"Authorization": api_key}),
+        ),
         cache_directory=str(tmp_path),
     )
     client2 = UnleashClient(
-        URL,
-        APP_NAME,
-        custom_headers={"Authorization": api_key},
+        UnleashConfig(
+            url=URL,
+            app_name=APP_NAME,
+            http=HttpOptions(headers={"Authorization": api_key}),
+        ),
         cache_directory=str(tmp_path),
     )
 
@@ -1260,11 +1233,13 @@ def test_signals_feature_flag(cache):
 
     # Set up Unleash
     unleash_client = UnleashClient(
-        URL,
-        APP_NAME,
-        refresh_interval=REFRESH_INTERVAL,
-        disable_registration=True,
-        disable_metrics=True,
+        UnleashConfig(
+            url=URL,
+            app_name=APP_NAME,
+            disable_registration=True,
+            fetching=FetchOptions(interval=REFRESH_INTERVAL),
+            metrics=MetricsOptions(disabled=True),
+        ),
         cache=cache,
         event_callback=recorder,
     )
@@ -1305,10 +1280,12 @@ def test_fetch_signal(cache):
 
     # Set up Unleash
     unleash_client = UnleashClient(
-        URL,
-        APP_NAME,
-        refresh_interval=REFRESH_INTERVAL,
-        metrics_interval=METRICS_INTERVAL,
+        UnleashConfig(
+            url=URL,
+            app_name=APP_NAME,
+            fetching=FetchOptions(interval=REFRESH_INTERVAL),
+            metrics=MetricsOptions(interval=METRICS_INTERVAL),
+        ),
         cache=cache,
         event_callback=recorder,
     )
@@ -1330,11 +1307,13 @@ def test_ready_signal(cache):
     recorder = EventRecorder()
 
     unleash_client = UnleashClient(
-        URL,
-        APP_NAME,
-        refresh_interval=1,  # minimum interval is 1 second
-        disable_metrics=True,
-        disable_registration=True,
+        UnleashConfig(
+            url=URL,
+            app_name=APP_NAME,
+            disable_registration=True,
+            fetching=FetchOptions(interval=1),
+            metrics=MetricsOptions(disabled=True),
+        ),
         cache=cache,
         event_callback=recorder,
     )
@@ -1356,11 +1335,13 @@ def test_ready_signal_works_with_bootstrapping(tmp_path):
     recorder = EventRecorder()
 
     unleash_client = UnleashClient(
-        url=URL,
-        app_name=APP_NAME,
+        UnleashConfig(
+            url=URL,
+            app_name=APP_NAME,
+            disable_registration=True,
+            metrics=MetricsOptions(disabled=True),
+        ),
         cache=cache,
-        disable_metrics=True,
-        disable_registration=True,
         event_callback=recorder,
     )
 
@@ -1379,11 +1360,13 @@ def test_bootstrapping_does_not_signal_ready_before_initialization(tmp_path):
     recorder = EventRecorder()
 
     unleash_client = UnleashClient(
-        url=URL,
-        app_name=APP_NAME,
+        UnleashConfig(
+            url=URL,
+            app_name=APP_NAME,
+            disable_registration=True,
+            metrics=MetricsOptions(disabled=True),
+        ),
         cache=cache,
-        disable_metrics=True,
-        disable_registration=True,
         event_callback=recorder,
     )
 
@@ -1414,15 +1397,16 @@ def test_refresh_jitter_reaches_the_polling_job(tmp_path):
             return super().add_job(func, trigger=trigger, **kwargs)
 
     unleash_client = UnleashClient(
-        URL,
-        APP_NAME,
+        UnleashConfig(
+            url=URL,
+            app_name=APP_NAME,
+            disable_registration=True,
+            fetching=FetchOptions(interval=REFRESH_INTERVAL, jitter=10),
+            metrics=MetricsOptions(disabled=True),
+        ),
+        cache_directory=str(tmp_path),
         scheduler=RecordingScheduler(),
         scheduler_executor="default",
-        refresh_interval=REFRESH_INTERVAL,
-        refresh_jitter=10,
-        disable_metrics=True,
-        disable_registration=True,
-        cache_directory=str(tmp_path),
     )
     unleash_client.initialize_client()
     unleash_client.destroy()
@@ -1435,12 +1419,14 @@ def test_context_handles_numerics(tmp_path):
     cache.bootstrap_from_dict(MOCK_FEATURE_WITH_NUMERIC_CONSTRAINT)
 
     unleash_client = UnleashClient(
-        url=URL,
-        app_name=APP_NAME,
-        disable_metrics=True,
-        disable_registration=True,
+        UnleashConfig(
+            url=URL,
+            app_name=APP_NAME,
+            environment="default",
+            disable_registration=True,
+            metrics=MetricsOptions(disabled=True),
+        ),
         cache=cache,
-        environment="default",
     )
 
     context = {"userId": 99999}
@@ -1454,12 +1440,14 @@ def test_context_handles_datetimes(tmp_path):
     cache.bootstrap_from_dict(MOCK_FEATURE_RESPONSE)
 
     unleash_client = UnleashClient(
-        url=URL,
-        app_name=APP_NAME,
-        disable_metrics=True,
-        disable_registration=True,
+        UnleashConfig(
+            url=URL,
+            app_name=APP_NAME,
+            environment="default",
+            disable_registration=True,
+            metrics=MetricsOptions(disabled=True),
+        ),
         cache=cache,
-        environment="default",
     )
 
     current_time = datetime.fromisoformat("1834-02-20").replace(tzinfo=timezone.utc)
@@ -1474,12 +1462,14 @@ def test_context_adds_current_time_if_not_set(tmp_path):
     cache.bootstrap_from_dict(MOCK_FEATURE_WITH_DATE_AFTER_CONSTRAINT)
 
     unleash_client = UnleashClient(
-        url=URL,
-        app_name=APP_NAME,
-        disable_metrics=True,
-        disable_registration=True,
+        UnleashConfig(
+            url=URL,
+            app_name=APP_NAME,
+            environment="default",
+            disable_registration=True,
+            metrics=MetricsOptions(disabled=True),
+        ),
         cache=cache,
-        environment="default",
     )
 
     assert unleash_client.is_enabled("DateConstraint")
@@ -1490,11 +1480,13 @@ def test_is_enabled_works_with_properties_field_in_the_context_root(tmp_path):
     cache = FileCache("MOCK_CACHE", directory=str(tmp_path))
     cache.bootstrap_from_dict(MOCK_FEATURE_WITH_CUSTOM_CONTEXT_REQUIREMENTS)
     unleash_client = UnleashClient(
-        URL,
-        APP_NAME,
-        disable_metrics=True,
+        UnleashConfig(
+            url=URL,
+            app_name=APP_NAME,
+            disable_registration=True,
+            metrics=MetricsOptions(disabled=True),
+        ),
         cache=cache,
-        disable_registration=True,
     )
 
     context = {"myContext": "1234"}
@@ -1504,10 +1496,12 @@ def test_is_enabled_works_with_properties_field_in_the_context_root(tmp_path):
 
 def test_uuids_are_valid_context_properties(tmp_path):
     unleash_client = UnleashClient(
-        URL,
-        APP_NAME,
-        disable_metrics=True,
-        disable_registration=True,
+        UnleashConfig(
+            url=URL,
+            app_name=APP_NAME,
+            disable_registration=True,
+            metrics=MetricsOptions(disabled=True),
+        ),
         cache_directory=str(tmp_path),
     )
 
@@ -1551,17 +1545,21 @@ def test_identification_headers_unique_connection_id(tmp_path):
     responses.add(responses.POST, URL + METRICS_URL, json={}, status=202)
 
     unleash_client = UnleashClient(
-        URL,
-        APP_NAME,
-        disable_metrics=True,
-        disable_registration=True,
+        UnleashConfig(
+            url=URL,
+            app_name=APP_NAME,
+            disable_registration=True,
+            metrics=MetricsOptions(disabled=True),
+        ),
         cache_directory=str(tmp_path),
     )
     other_unleash_client = UnleashClient(
-        URL,
-        APP_NAME,
-        disable_metrics=True,
-        disable_registration=True,
+        UnleashConfig(
+            url=URL,
+            app_name=APP_NAME,
+            disable_registration=True,
+            metrics=MetricsOptions(disabled=True),
+        ),
         cache_directory=str(tmp_path),
     )
     try:
@@ -1593,12 +1591,14 @@ def test_identification_values_are_passed_in(tmp_path):
     refresh_interval = 1
     metrics_interval = 1
     unleash_client = UnleashClient(
-        URL,
-        APP_NAME,
-        refresh_interval=refresh_interval,
-        metrics_interval=metrics_interval,
-        event_callback=event_handler,
+        UnleashConfig(
+            url=URL,
+            app_name=APP_NAME,
+            fetching=FetchOptions(interval=refresh_interval),
+            metrics=MetricsOptions(interval=metrics_interval),
+        ),
         cache_directory=str(tmp_path),
+        event_callback=event_handler,
     )
 
     expected_refresh_interval = str(refresh_interval * 1000)
@@ -1669,11 +1669,13 @@ def test_uc_bootstrap_initializes_offline_connector(tmp_path):
     cache.bootstrap_from_dict(MOCK_FEATURE_RESPONSE)
 
     unleash_client = UnleashClient(
-        URL,
-        APP_NAME,
+        UnleashConfig(
+            url=URL,
+            app_name=APP_NAME,
+            disable_registration=True,
+            metrics=MetricsOptions(disabled=True),
+        ),
         cache=cache,
-        disable_metrics=True,
-        disable_registration=True,
     )
 
     assert unleash_client.unleash_bootstrapped
@@ -1689,10 +1691,12 @@ def test_spec_header_is_sent_when_fetching_features(tmp_path):
     )
 
     unleash_client = UnleashClient(
-        URL,
-        APP_NAME,
-        disable_metrics=True,
-        disable_registration=True,
+        UnleashConfig(
+            url=URL,
+            app_name=APP_NAME,
+            disable_registration=True,
+            metrics=MetricsOptions(disabled=True),
+        ),
         cache_directory=str(tmp_path),
     )
     try:
@@ -1732,13 +1736,15 @@ def test_shutdown_calls_scheduler_at_most_once(tmp_path):
     scheduler = MockScheduler()
 
     unleash_client = UnleashClient(
-        URL,
-        APP_NAME,
+        UnleashConfig(
+            url=URL,
+            app_name=APP_NAME,
+            disable_registration=True,
+            metrics=MetricsOptions(disabled=True),
+        ),
+        cache_directory=str(tmp_path),
         scheduler=scheduler,
         scheduler_executor=BackgroundScheduler(),
-        disable_metrics=True,
-        disable_registration=True,
-        cache_directory=str(tmp_path),
     )
     unleash_client.initialize_client()
     unleash_client.destroy()
@@ -1749,10 +1755,12 @@ def test_shutdown_calls_scheduler_at_most_once(tmp_path):
 
 def test_destroy_skips_default_file_cache_destroy(monkeypatch, tmp_path):
     unleash_client = UnleashClient(
-        URL,
-        APP_NAME,
-        disable_metrics=True,
-        disable_registration=True,
+        UnleashConfig(
+            url=URL,
+            app_name=APP_NAME,
+            disable_registration=True,
+            metrics=MetricsOptions(disabled=True),
+        ),
         cache_directory=str(tmp_path),
     )
     destroy_calls = 0
@@ -1791,7 +1799,13 @@ def test_destroy_calls_custom_cache_destroy():
 
     cache = CustomCache()
     unleash_client = UnleashClient(
-        URL, APP_NAME, cache=cache, disable_metrics=True, disable_registration=True
+        UnleashConfig(
+            url=URL,
+            app_name=APP_NAME,
+            disable_registration=True,
+            metrics=MetricsOptions(disabled=True),
+        ),
+        cache=cache,
     )
 
     unleash_client.destroy()
@@ -1799,17 +1813,18 @@ def test_destroy_calls_custom_cache_destroy():
     assert cache.destroy_calls == 1
 
 
-def bootstrapped_client(recorder, cache_dir, **kwargs):
+def bootstrapped_client(recorder, cache_dir):
     cache = FileCache("MOCK_CACHE", directory=str(cache_dir))
     cache.bootstrap_from_dict(MOCK_FEATURE_RESPONSE)
     return UnleashClient(
-        URL,
-        APP_NAME,
+        UnleashConfig(
+            url=URL,
+            app_name=APP_NAME,
+            metrics=MetricsOptions(disabled=True),
+            disable_registration=True,
+        ),
         cache=cache,
-        disable_metrics=True,
-        disable_registration=True,
         event_callback=recorder,
-        **kwargs,
     )
 
 

@@ -112,16 +112,3 @@ def test_the_supplied_context_is_not_mutated():
     enricher.build(original)
 
     assert original == {"myContext": "1234"}
-
-
-def test_static_context_is_read_on_every_call():
-    # UnleashClient.unleash_static_context has a setter, so a client can swap
-    # the dict out after the enricher was constructed.
-    config = UnleashConfig(URL, APP_NAME, environment="unit")
-    enricher = _ContextEnricher(config)
-
-    config.static_context = {"appName": "replaced", "environment": "qa"}
-    context = enricher.build({})
-
-    assert context["appName"] == "replaced"
-    assert context["environment"] == "qa"

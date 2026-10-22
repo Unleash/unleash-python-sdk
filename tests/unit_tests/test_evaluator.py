@@ -178,29 +178,6 @@ def test_a_failing_dispatcher_does_not_break_evaluation(caplog):
     assert "Error emitting impression event" in caplog.text
 
 
-def test_the_verbose_log_level_is_read_on_every_call(caplog):
-    config = UnleashConfig(URL, APP_NAME)
-    engine = UnleashEngine()
-    engine.take_state(FEATURES)
-    evaluator = _Evaluator(
-        engine=engine,
-        enricher=_ContextEnricher(config),
-        config=config,
-        events=FailingDispatcher(),
-    )
-
-    config.verbose_log_level = logging.ERROR
-    with caplog.at_level(logging.DEBUG):
-        evaluator.is_enabled(IMPRESSION_FLAG)
-
-    levels = {
-        record.levelno
-        for record in caplog.records
-        if "Error emitting impression event" in record.message
-    }
-    assert levels == {logging.ERROR}
-
-
 def test_feature_definitions_reports_every_known_toggle():
     evaluator = build_evaluator()
 

@@ -1,5 +1,5 @@
 from UnleashClient._payloads import _build_metrics_payload, _build_register_payload
-from UnleashClient.config import UnleashConfig
+from UnleashClient.config import MetricsOptions, UnleashConfig
 from UnleashClient.constants import CLIENT_SPEC_VERSION, SDK_NAME, SDK_VERSION
 
 URL = "http://localhost:4242/api"
@@ -11,7 +11,7 @@ def build_config(**kwargs) -> UnleashConfig:
 
 
 def test_register_payload_identifies_the_client():
-    config = build_config(instance_id="123", metrics_interval=30)
+    config = build_config(instance_id="123", metrics=MetricsOptions(interval=30))
 
     payload = _build_register_payload(config, {})
 
@@ -138,14 +138,3 @@ def test_metrics_payload_omits_sdk_flavor_when_unset():
 
     assert "sdkFlavor" not in payload
     assert "sdkFlavorVersion" not in payload
-
-
-def test_metrics_payload_reads_the_config_at_call_time():
-    config = build_config()
-
-    first = _build_metrics_payload(config, BUCKET)
-    config.app_name = "renamed"
-    second = _build_metrics_payload(config, BUCKET)
-
-    assert first["appName"] == APP_NAME
-    assert second["appName"] == "renamed"

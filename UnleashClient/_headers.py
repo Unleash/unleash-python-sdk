@@ -10,13 +10,7 @@ class _HeaderFactory:
     """
     Builds the header sets the SDK sends to Unleash.
 
-    Every method returns a fresh dict and reads the config on each call, so
-    reassigning or mutating ``config.custom_headers`` (which
-    ``UnleashClient.unleash_custom_headers`` allows) is picked up by the next
-    call. :class:`~UnleashClient._transport._Transport` holds the factory and asks
-    it once per request, so a change reaches the wire on the next poll or send.
-    The client still calls ``streaming()`` once, at initialization, and hands the
-    dict to the connector; that one keeps the headers it was given.
+    Every method returns a fresh dict, so callers may modify what they get.
 
     Example::
 
@@ -30,9 +24,8 @@ class _HeaderFactory:
     def base(self) -> Dict[str, str]:
         return {
             # Custom headers go first: the application and identification
-            # headers below are not overridable.  `or {}` because the field is
-            # declared Optional, though __post_init__ has already replaced None.
-            **(self._config.custom_headers or {}),
+            # headers below are not overridable.
+            **self._config.http.headers,
             **APPLICATION_HEADERS,
             "unleash-connection-id": self._config.connection_id,
             "unleash-appname": self._config.app_name,

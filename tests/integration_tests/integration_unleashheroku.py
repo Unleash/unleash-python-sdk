@@ -4,6 +4,7 @@ import sys
 import time
 
 from UnleashClient import UnleashClient
+from UnleashClient.config import UnleashConfig
 
 root = logging.getLogger()
 root.setLevel(logging.DEBUG)
@@ -16,9 +17,11 @@ root.addHandler(handler)
 # ---
 
 my_client = UnleashClient(
-    url="https://unleash.herokuapp.com/api",
-    environment="staging",
-    app_name="pyIvan",
+    UnleashConfig(
+        url="https://unleash.herokuapp.com/api",
+        app_name="pyIvan",
+        environment="staging",
+    )
 )
 
 my_client.initialize_client()

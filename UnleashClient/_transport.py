@@ -28,9 +28,8 @@ class FetchResult(NamedTuple):
 
 
 def _normalized_url(url: str, path: str) -> str:
-    # config.url can carry a trailing slash: the UnleashClient.unleash_url setter
-    # writes it without re-normalizing.
-    return f"{url.rstrip('/')}{path}"
+    # UnleashConfig has already stripped the trailing slash from url.
+    return f"{url}{path}"
 
 
 def _log_resp_info(resp: Response) -> None:
@@ -87,7 +86,7 @@ class _Transport:
 
             adapter = HTTPAdapter(
                 max_retries=Retry(
-                    total=config.request_retries, status_forcelist=[500, 502, 504]
+                    total=config.http.retries, status_forcelist=[500, 502, 504]
                 )
             )
             with requests.Session() as session:
@@ -97,8 +96,8 @@ class _Transport:
                     base_url,
                     headers={**self._headers.polling(), **request_specific_headers},
                     params=base_params,
-                    timeout=config.request_timeout,
-                    **config.custom_options,
+                    timeout=config.http.timeout,
+                    **config.http.options,
                 )
 
             if resp.status_code not in [200, 304]:
@@ -148,8 +147,8 @@ class _Transport:
                 _normalized_url(config.url, REGISTER_URL),
                 data=json.dumps(payload),
                 headers=self._headers.base(),
-                timeout=config.request_timeout,
-                **config.custom_options,
+                timeout=config.http.timeout,
+                **config.http.options,
             )
 
             if resp.status_code not in {200, 202}:
@@ -191,8 +190,8 @@ class _Transport:
                 _normalized_url(config.url, METRICS_URL),
                 data=json.dumps(payload),
                 headers=self._headers.metrics(),
-                timeout=config.request_timeout,
-                **config.custom_options,
+                timeout=config.http.timeout,
+                **config.http.options,
             )
 
             if resp.status_code != 202:
