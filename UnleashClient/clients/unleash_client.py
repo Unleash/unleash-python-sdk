@@ -570,7 +570,7 @@ class UnleashClient:
         Unlike ``is_enabled`` and ``get_variant``, it records no usage metrics and emits no
         impression events, so evaluating every feature doesn't report them all as in use.
         ``enabled`` is the feature's result for this context, and ``variant.enabled`` is whether
-        a variant was assigned.
+        a variant was assigned. Before the client has any feature state, it returns an empty dict.
 
         Example response:
 

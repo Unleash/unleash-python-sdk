@@ -313,12 +313,21 @@ def test_evaluate_all_toggles_reports_each_features_result_and_variant():
     }
 
 
-def test_evaluate_all_toggles_enriches_the_context_once_for_every_feature():
+def test_evaluate_all_toggles_applies_the_static_context():
     evaluator = build_evaluator(state=ALL_TOGGLES_STATE, environment="staging")
 
     results = evaluator.evaluate_all_toggles()
 
     assert results["prodOnly"]["enabled"] is False
+
+
+def test_evaluate_all_toggles_builds_the_context_once_for_every_feature(mocker):
+    evaluator = build_evaluator(state=ALL_TOGGLES_STATE)
+    build = mocker.spy(evaluator._enricher, "build")
+
+    evaluator.evaluate_all_toggles({"userId": "1"})
+
+    assert build.call_count == 1
 
 
 def test_evaluate_all_toggles_records_no_usage_metrics():
