@@ -25,6 +25,27 @@ def _optional_int(value: Any) -> Optional[int]:
 
 
 @dataclass(frozen=True)
+class HttpOptions:
+    """
+    :param headers: Headers sent with every request, typically ``{"Authorization": "<API key>"}``.
+    :param options: Extra keyword arguments passed to every ``requests`` call.
+    :param timeout: Request timeout in seconds.
+    :param retries: Number of retries for failed requests.
+    """
+
+    # repr=False: the dataclass __repr__ would otherwise put the Authorization
+    # API key into logs and tracebacks.
+    headers: Optional[Dict[str, str]] = field(default=None, repr=False)
+    options: Optional[Dict[str, Any]] = None
+    timeout: int = REQUEST_TIMEOUT
+    retries: int = REQUEST_RETRIES
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "headers", dict(self.headers or {}))
+        object.__setattr__(self, "options", dict(self.options or {}))
+
+
+@dataclass(frozen=True)
 class IdentityOptions:
     """
     How the client identifies itself to the Unleash server.
@@ -54,18 +75,13 @@ class UnleashConfig:
     url: str
     app_name: str
     identity: IdentityOptions = field(default_factory=IdentityOptions)
+    http: HttpOptions = field(default_factory=HttpOptions)
     refresh_interval: int = 15
     refresh_jitter: Optional[int] = None
     metrics_interval: int = 60
     metrics_jitter: Optional[int] = None
     disable_metrics: bool = False
     disable_registration: bool = False
-    # repr=False: the dataclass __repr__ would otherwise put the Authorization
-    # API key into logs and tracebacks.
-    custom_headers: Optional[Dict[str, str]] = field(default=None, repr=False)
-    custom_options: Optional[dict] = None
-    request_timeout: int = REQUEST_TIMEOUT
-    request_retries: int = REQUEST_RETRIES
     project_name: Optional[str] = None
     verbose_log_level: int = 30
     experimental_mode: Optional[ExperimentalMode] = None
@@ -75,10 +91,10 @@ class UnleashConfig:
         object.__setattr__(self, "url", self.url.rstrip("/"))
         if self.identity is None:
             object.__setattr__(self, "identity", IdentityOptions())
+        if self.http is None:
+            object.__setattr__(self, "http", HttpOptions())
         object.__setattr__(self, "refresh_jitter", _optional_int(self.refresh_jitter))
         object.__setattr__(self, "metrics_jitter", _optional_int(self.metrics_jitter))
-        object.__setattr__(self, "custom_headers", dict(self.custom_headers or {}))
-        object.__setattr__(self, "custom_options", dict(self.custom_options or {}))
         object.__setattr__(
             self, "experimental_mode", self.experimental_mode or {"type": "polling"}
         )
@@ -102,15 +118,11 @@ class UnleashConfig:
     @property
     def impact_metrics_environment(self) -> str:
         return (
-            extract_environment_from_headers(self.custom_headers)
+            extract_environment_from_headers(self.http.headers)
             or self.identity.environment
         )
 
     @property
     def instance_identifier(self) -> str:
-        api_key = (
-            self.custom_headers.get("Authorization")
-            if self.custom_headers is not None
-            else None
-        )
+        api_key = self.http.headers.get("Authorization")
         return f"apiKey:{redact_to_print_safely(api_key)} appName:{self.app_name} instanceId:{self.identity.instance_id}"

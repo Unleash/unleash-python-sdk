@@ -3,7 +3,7 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
-from UnleashClient.config import IdentityOptions, UnleashConfig
+from UnleashClient.config import HttpOptions, IdentityOptions, UnleashConfig
 
 URL = "http://localhost:4242/api"
 APP_NAME = "pytest"
@@ -24,12 +24,9 @@ def test_defaults():
     assert config.refresh_jitter is None
     assert config.metrics_interval == 60
     assert config.metrics_jitter is None
-    assert config.request_timeout == 30
-    assert config.request_retries == 3
+    assert config.http == HttpOptions(headers={}, options={}, timeout=30, retries=3)
     assert config.disable_metrics is False
     assert config.disable_registration is False
-    assert config.custom_headers == {}
-    assert config.custom_options == {}
     assert config.project_name is None
     assert config.verbose_log_level == 30
     assert config.experimental_mode == {"type": "polling"}
@@ -42,6 +39,8 @@ def test_is_immutable():
         config.url = "http://elsewhere:4242/api"
     with pytest.raises(FrozenInstanceError):
         config.refresh_interval = 1
+    with pytest.raises(FrozenInstanceError):
+        config.http.timeout = 1
     with pytest.raises(FrozenInstanceError):
         config.identity.environment = "production"
 
@@ -70,12 +69,16 @@ def test_zero_jitter_is_preserved_and_not_confused_with_none():
 def test_no_other_coercion():
     # The client has never validated these.
     config = UnleashConfig(
-        URL, APP_NAME, refresh_interval="60", metrics_interval="60", request_timeout="9"
+        URL,
+        APP_NAME,
+        http=HttpOptions(timeout="9"),
+        refresh_interval="60",
+        metrics_interval="60",
     )
 
     assert config.refresh_interval == "60"
     assert config.metrics_interval == "60"
-    assert config.request_timeout == "9"
+    assert config.http.timeout == "9"
 
 
 def test_connection_id_is_generated_and_unique():
@@ -105,22 +108,20 @@ def test_static_context():
 def test_headers_and_options_are_copied():
     headers = {"Authorization": "project:environment.hash"}
     options = {"verify": False}
-    config = UnleashConfig(
-        URL, APP_NAME, custom_headers=headers, custom_options=options
-    )
+    http = HttpOptions(headers=headers, options=options)
 
     headers["extra"] = "header"
     options["extra"] = "option"
 
-    assert config.custom_headers == {"Authorization": "project:environment.hash"}
-    assert config.custom_options == {"verify": False}
+    assert http.headers == {"Authorization": "project:environment.hash"}
+    assert http.options == {"verify": False}
 
 
 def test_missing_headers_and_options_become_empty_dicts():
-    config = UnleashConfig(URL, APP_NAME, custom_headers=None, custom_options=None)
+    http = HttpOptions(headers=None, options=None)
 
-    assert config.custom_headers == {}
-    assert config.custom_options == {}
+    assert http.headers == {}
+    assert http.options == {}
 
 
 def test_refresh_interval_str_millis():
@@ -150,7 +151,7 @@ def test_impact_metrics_environment_is_taken_from_the_api_token():
         URL,
         APP_NAME,
         identity=IdentityOptions(environment="unit"),
-        custom_headers={"Authorization": "project:production.hash"},
+        http=HttpOptions(headers={"Authorization": "project:production.hash"}),
     )
 
     assert config.impact_metrics_environment == "production"
@@ -161,7 +162,7 @@ def test_impact_metrics_environment_falls_back_on_an_unparseable_token():
         URL,
         APP_NAME,
         identity=IdentityOptions(environment="unit"),
-        custom_headers={"Authorization": "no-colon-here"},
+        http=HttpOptions(headers={"Authorization": "no-colon-here"}),
     )
 
     assert config.impact_metrics_environment == "unit"
@@ -172,7 +173,9 @@ def test_instance_identifier_redacts_the_api_key():
         URL,
         APP_NAME,
         identity=IdentityOptions(instance_id="123"),
-        custom_headers={"Authorization": "project:environment.abcdefghijklmnop"},
+        http=HttpOptions(
+            headers={"Authorization": "project:environment.abcdefghijklmnop"}
+        ),
     )
 
     identifier = config.instance_identifier
@@ -206,7 +209,9 @@ def test_repr_does_not_leak_the_api_key():
     config = UnleashConfig(
         URL,
         APP_NAME,
-        custom_headers={"Authorization": "project:environment.abcdefghijklmnop"},
+        http=HttpOptions(
+            headers={"Authorization": "project:environment.abcdefghijklmnop"}
+        ),
     )
 
     assert "abcdefghijklmnop" not in repr(config)

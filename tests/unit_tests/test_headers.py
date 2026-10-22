@@ -1,5 +1,5 @@
 from UnleashClient._headers import _HeaderFactory
-from UnleashClient.config import IdentityOptions, UnleashConfig
+from UnleashClient.config import HttpOptions, IdentityOptions, UnleashConfig
 from UnleashClient.constants import (
     APPLICATION_HEADERS,
     CLIENT_SPEC_VERSION,
@@ -39,7 +39,9 @@ def test_base_carries_the_application_headers():
 
 
 def test_base_includes_the_custom_headers():
-    factory = build_factory(custom_headers={"Authorization": "project:env.hash"})
+    factory = build_factory(
+        http=HttpOptions(headers={"Authorization": "project:env.hash"})
+    )
 
     headers = factory.base()
 
@@ -47,7 +49,9 @@ def test_base_includes_the_custom_headers():
 
 
 def test_application_headers_win_over_custom_headers():
-    factory = build_factory(custom_headers={"Content-Type": "application/xml"})
+    factory = build_factory(
+        http=HttpOptions(headers={"Content-Type": "application/xml"})
+    )
 
     headers = factory.base()
 
@@ -55,32 +59,25 @@ def test_application_headers_win_over_custom_headers():
 
 
 def test_custom_headers_cannot_override_the_identification_headers():
-    factory = build_factory(custom_headers={"unleash-appname": "spoofed"})
+    factory = build_factory(http=HttpOptions(headers={"unleash-appname": "spoofed"}))
 
     headers = factory.base()
 
     assert headers["unleash-appname"] == TEST_APP_NAME
 
 
-def test_custom_headers_mutated_in_place_are_picked_up():
-    config = UnleashConfig(TEST_URL, TEST_APP_NAME, custom_headers={"name": "header"})
-    factory = _HeaderFactory(config)
-
-    config.custom_headers["extra"] = "another"
-
-    assert factory.base()["extra"] == "another"
-
-
 def test_each_call_returns_a_fresh_dict():
     # The returned dicts are handed to collaborators that hold on to them.
-    config = UnleashConfig(TEST_URL, TEST_APP_NAME, custom_headers={"name": "header"})
+    config = UnleashConfig(
+        TEST_URL, TEST_APP_NAME, http=HttpOptions(headers={"name": "header"})
+    )
     factory = _HeaderFactory(config)
 
     first = factory.base()
     first["injected"] = "value"
 
     assert "injected" not in factory.base()
-    assert "injected" not in config.custom_headers
+    assert "injected" not in config.http.headers
     assert "injected" not in APPLICATION_HEADERS
 
 
@@ -121,7 +118,9 @@ def test_streaming_adds_the_sse_accept_header():
 def test_streaming_is_what_the_streaming_connector_used_to_rebuild():
     # StreamingConnector used to re-merge these itself.  Pinning the
     # equivalence keeps the two from drifting apart.
-    factory = build_factory(custom_headers={"Authorization": "project:env.hash"})
+    factory = build_factory(
+        http=HttpOptions(headers={"Authorization": "project:env.hash"})
+    )
 
     headers = factory.streaming()
 

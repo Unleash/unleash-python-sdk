@@ -24,7 +24,7 @@ from tests.utilities.testing_constants import (
 )
 from UnleashClient._async_transport import _AsyncTransport
 from UnleashClient._headers import _HeaderFactory
-from UnleashClient.config import IdentityOptions, UnleashConfig
+from UnleashClient.config import HttpOptions, IdentityOptions, UnleashConfig
 from UnleashClient.constants import (
     CLIENT_SPEC_VERSION,
     FEATURES_URL,
@@ -63,9 +63,11 @@ async def build_transport(server: FakeUnleash):
             "url": server.base_url,
             "app_name": APP_NAME,
             "identity": IdentityOptions(instance_id=INSTANCE_ID),
-            "custom_headers": CUSTOM_HEADERS,
-            "request_timeout": REQUEST_TIMEOUT,
-            "request_retries": REQUEST_RETRIES,
+            "http": HttpOptions(
+                headers=CUSTOM_HEADERS,
+                timeout=REQUEST_TIMEOUT,
+                retries=REQUEST_RETRIES,
+            ),
         }
         defaults.update(kwargs)
         config = UnleashConfig(**defaults)
@@ -293,7 +295,7 @@ async def test_send_metrics(server, transport, reply, expected):
 async def test_send_metrics_returns_false_when_the_request_times_out(
     server, build_transport
 ):
-    transport = build_transport(request_timeout=0.1)
+    transport = build_transport(http=HttpOptions(timeout=0.1))
     server.on("POST", METRICS_PATH, hang=True)
 
     result = await transport.send_metrics(MOCK_METRICS_REQUEST)
