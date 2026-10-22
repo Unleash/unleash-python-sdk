@@ -8,7 +8,7 @@ from UnleashClient._headers import _HeaderFactory
 from UnleashClient._metrics import _MetricsReporter
 from UnleashClient._scheduler import _Scheduler
 from UnleashClient._transport import _Transport
-from UnleashClient.config import UnleashConfig
+from UnleashClient.config import IdentityOptions, UnleashConfig
 from UnleashClient.constants import CLIENT_SPEC_VERSION, METRICS_URL
 from UnleashClient.impact_metrics import ImpactMetrics
 
@@ -112,7 +112,7 @@ class TestMetricsReporter:
     @responses.activate
     def test_flush_identifies_the_client(self):
         responses.add(responses.POST, FULL_METRICS_URL, json={}, status=202)
-        reporter = build_sync_reporter(instance_id="123")
+        reporter = build_sync_reporter(identity=IdentityOptions(instance_id="123"))
         reporter._engine.count_toggle(COUNTED_FLAG, True)
 
         reporter.flush()
@@ -140,7 +140,10 @@ class TestMetricsReporter:
     def test_flush_includes_sdk_flavor_when_set(self):
         responses.add(responses.POST, FULL_METRICS_URL, json={}, status=202)
         reporter = build_sync_reporter(
-            sdk_flavor="unleash-openfeature-python-provider", sdk_flavor_version="1.2.3"
+            identity=IdentityOptions(
+                sdk_flavor="unleash-openfeature-python-provider",
+                sdk_flavor_version="1.2.3",
+            )
         )
         reporter._engine.count_toggle(COUNTED_FLAG, True)
 

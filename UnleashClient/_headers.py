@@ -30,7 +30,7 @@ class _HeaderFactory:
             **APPLICATION_HEADERS,
             "unleash-connection-id": self._config.connection_id,
             "unleash-appname": self._config.app_name,
-            "unleash-instanceid": self._config.instance_id,
+            "unleash-instanceid": self._config.identity.instance_id,
             "unleash-sdk": f"{SDK_NAME}:{SDK_VERSION}",
         }
 

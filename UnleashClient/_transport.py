@@ -67,7 +67,7 @@ class _Transport:
 
             request_specific_headers = {
                 "UNLEASH-APPNAME": config.app_name,
-                "UNLEASH-INSTANCEID": config.instance_id,
+                "UNLEASH-INSTANCEID": config.identity.instance_id,
             }
 
             if etag:

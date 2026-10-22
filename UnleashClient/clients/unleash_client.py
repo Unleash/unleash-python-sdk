@@ -22,6 +22,7 @@ from UnleashClient._transport import _Transport
 from UnleashClient.cache import BaseCache, FileCache
 from UnleashClient.config import (
     ExperimentalMode,
+    IdentityOptions,
     UnleashConfig,
     redact_to_print_safely,
 )
@@ -158,8 +159,12 @@ class UnleashClient:
         self._config = UnleashConfig(
             url=url,
             app_name=app_name,
-            environment=environment,
-            instance_id=instance_id,
+            identity=IdentityOptions(
+                environment=environment,
+                instance_id=instance_id,
+                sdk_flavor=sdk_flavor,
+                sdk_flavor_version=sdk_flavor_version,
+            ),
             refresh_interval=refresh_interval,
             refresh_jitter=refresh_jitter,
             metrics_interval=metrics_interval,
@@ -172,8 +177,6 @@ class UnleashClient:
             request_retries=request_retries,
             project_name=project_name,
             verbose_log_level=verbose_log_level,
-            sdk_flavor=sdk_flavor,
-            sdk_flavor_version=sdk_flavor_version,
             experimental_mode=experimental_mode,
         )
         self._custom_strategies = custom_strategies or {}

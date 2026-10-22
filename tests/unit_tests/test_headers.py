@@ -1,5 +1,5 @@
 from UnleashClient._headers import _HeaderFactory
-from UnleashClient.config import UnleashConfig
+from UnleashClient.config import IdentityOptions, UnleashConfig
 from UnleashClient.constants import (
     APPLICATION_HEADERS,
     CLIENT_SPEC_VERSION,
@@ -16,7 +16,9 @@ def build_factory(**kwargs) -> _HeaderFactory:
 
 
 def test_base_carries_the_identification_headers():
-    config = UnleashConfig(TEST_URL, TEST_APP_NAME, instance_id="123")
+    config = UnleashConfig(
+        TEST_URL, TEST_APP_NAME, identity=IdentityOptions(instance_id="123")
+    )
     factory = _HeaderFactory(config)
 
     headers = factory.base()
