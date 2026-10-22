@@ -111,6 +111,10 @@ class _Evaluator:
         """Every feature definition the engine currently holds, keyed by name."""
         toggles = self._engine.list_known_toggles()
         return {
-            toggle.name: {"type": toggle.type, "project": toggle.project}
+            toggle.name: {
+                "type": toggle.type,
+                "project": toggle.project,
+                "enabled": toggle.enabled,
+            }
             for toggle in toggles
         }
