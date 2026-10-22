@@ -44,6 +44,8 @@ def build_transport():
 
     def _build_transport(**kwargs) -> _Transport:
         defaults = {
+            "url": URL,
+            "app_name": APP_NAME,
             "instance_id": INSTANCE_ID,
             "custom_headers": CUSTOM_HEADERS,
             "custom_options": CUSTOM_OPTIONS,
@@ -51,7 +53,7 @@ def build_transport():
             "request_retries": REQUEST_RETRIES,
         }
         defaults.update(kwargs)
-        config = UnleashConfig(URL, APP_NAME, **defaults)
+        config = UnleashConfig(**defaults)
         return _Transport(config, _HeaderFactory(config))
 
     return _build_transport
@@ -160,27 +162,6 @@ def test_fetch_features_retries_and_recovers(build_transport):
 
 
 @responses.activate
-def test_fetch_features_strips_a_trailing_slash_from_the_url(transport):
-    responses.add(
-        responses.GET,
-        FULL_FEATURE_URL,
-        json=MOCK_FEATURE_RESPONSE,
-        status=200,
-        headers={"etag": ETAG_VALUE},
-    )
-    # The unleash_url setter writes config.url directly and never re-normalizes,
-    # so the trailing slash has to be stripped at request time.
-    transport._config.url = f"{URL}/"
-
-    result = transport.fetch_features()
-
-    assert len(responses.calls) == 1
-    assert responses.calls[0].request.url == FULL_FEATURE_URL
-    assert json.loads(result.raw_state)["version"] == 1
-    assert result.etag == ETAG_VALUE
-
-
-@responses.activate
 def test_fetch_features_swallows_a_bad_custom_option(build_transport):
     responses.add(
         responses.GET, FULL_FEATURE_URL, json=MOCK_FEATURE_RESPONSE, status=200
@@ -234,20 +215,8 @@ def test_register_sends_the_payload_it_is_given(transport):
 
 
 @responses.activate
-def test_register_strips_a_trailing_slash_from_the_url(transport):
-    responses.add(responses.POST, FULL_REGISTER_URL, json={}, status=202)
-    transport._config.url = f"{URL}/"
-
-    result = transport.register({})
-
-    assert len(responses.calls) == 1
-    assert responses.calls[0].request.url == FULL_REGISTER_URL
-    assert result is True
-
-
-@responses.activate
-def test_register_reraises_a_missing_schema(transport):
-    transport._config.url = "thisisnotavalidurl"
+def test_register_reraises_a_missing_schema(build_transport):
+    transport = build_transport(url="thisisnotavalidurl")
 
     # initialize_client() fails loudly on a malformed URL because these four
     # are re-raised rather than reported as False. See test_uc_with_invalid_url,
@@ -257,8 +226,8 @@ def test_register_reraises_a_missing_schema(transport):
 
 
 @responses.activate
-def test_register_reraises_an_invalid_schema(transport):
-    transport._config.url = "localhost:4242/api"
+def test_register_reraises_an_invalid_schema(build_transport):
+    transport = build_transport(url="localhost:4242/api")
 
     with pytest.raises(InvalidSchema):
         transport.register({})
@@ -306,18 +275,6 @@ def test_send_metrics(transport, payload, status, expected):
 
 
 @responses.activate
-def test_send_metrics_strips_a_trailing_slash_from_the_url(transport):
-    responses.add(responses.POST, FULL_METRICS_URL, json={}, status=202)
-    transport._config.url = f"{URL}/"
-
-    result = transport.send_metrics(MOCK_METRICS_REQUEST)
-
-    assert len(responses.calls) == 1
-    assert responses.calls[0].request.url == FULL_METRICS_URL
-    assert result is True
-
-
-@responses.activate
 def test_send_metrics_lets_a_bad_custom_option_escape(build_transport):
     responses.add(responses.POST, FULL_METRICS_URL, json={}, status=202)
 
@@ -348,17 +305,3 @@ def test_every_endpoint_gets_its_headers_from_the_factory(build_transport):
     assert fetch["unleash-interval"] == "1000"
     assert "unleash-interval" not in register
     assert metrics["unleash-interval"] == "2000"
-
-
-@responses.activate
-def test_headers_are_rebuilt_on_every_request(transport):
-    responses.add(responses.POST, FULL_METRICS_URL, json={}, status=202)
-
-    transport.send_metrics(MOCK_METRICS_REQUEST)
-    # unleash_custom_headers is a public setter, so the factory has to be asked
-    # again rather than its answer captured.
-    transport._config.custom_headers = {"Authorization": "second"}
-    transport.send_metrics(MOCK_METRICS_REQUEST)
-
-    assert "Authorization" not in responses.calls[0].request.headers
-    assert responses.calls[1].request.headers["Authorization"] == "second"

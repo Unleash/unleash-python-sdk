@@ -162,21 +162,6 @@ class TestMetricsReporter:
         assert "sdkFlavor" not in request
         assert "sdkFlavorVersion" not in request
 
-    @responses.activate
-    def test_the_config_is_read_on_every_flush(self):
-        responses.add(responses.POST, FULL_METRICS_URL, json={}, status=202)
-        reporter = build_sync_reporter()
-
-        reporter._engine.count_toggle(COUNTED_FLAG, True)
-        reporter.flush()
-
-        reporter._config.app_name = "renamed"
-        reporter._engine.count_toggle(COUNTED_FLAG, True)
-        reporter.flush()
-
-        assert json.loads(responses.calls[0].request.body)["appName"] == APP_NAME
-        assert json.loads(responses.calls[1].request.body)["appName"] == "renamed"
-
     # start
 
     def test_start_builds_an_interval_trigger_from_the_metrics_interval_and_jitter(
@@ -206,8 +191,9 @@ class TestMetricsReporter:
 
     def test_start_coerces_the_metrics_interval(self):
         recording = RecordingScheduler()
-        reporter = build_sync_reporter(scheduler=_Scheduler(recording, "default"))
-        reporter._config.metrics_interval = "30"
+        reporter = build_sync_reporter(
+            scheduler=_Scheduler(recording, "default"), metrics_interval="30"
+        )
 
         reporter.start()
 

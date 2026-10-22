@@ -25,10 +25,15 @@ def redact_to_print_safely(value: Optional[str]) -> Optional[str]:
     return f"{prefix}{separator}{redacted_secret}"
 
 
-@dataclass
+def _optional_int(value: Any) -> Optional[int]:
+    return int(value) if value is not None else None
+
+
+@dataclass(frozen=True)
 class UnleashConfig:
     """
     Normalized constructor arguments, shared by every Unleash client flavor.
+    Immutable once constructed.
 
     Types are not validated or coerced beyond what the client constructor has
     always done: ``url.rstrip("/")`` and ``int()`` on the two jitters.
@@ -56,27 +61,20 @@ class UnleashConfig:
     sdk_flavor_version: Optional[str] = None
     experimental_mode: Optional[ExperimentalMode] = None
     connection_id: str = field(default_factory=lambda: str(uuid.uuid4()))
-    custom_strategies: Optional[dict] = None
-    static_context: Dict[str, Any] = field(init=False, default_factory=dict)
 
     def __post_init__(self) -> None:
-        self.url = self.url.rstrip("/")
-        self.refresh_jitter = (
-            int(self.refresh_jitter) if self.refresh_jitter is not None else None
+        object.__setattr__(self, "url", self.url.rstrip("/"))
+        object.__setattr__(self, "refresh_jitter", _optional_int(self.refresh_jitter))
+        object.__setattr__(self, "metrics_jitter", _optional_int(self.metrics_jitter))
+        object.__setattr__(self, "custom_headers", dict(self.custom_headers or {}))
+        object.__setattr__(self, "custom_options", dict(self.custom_options or {}))
+        object.__setattr__(
+            self, "experimental_mode", self.experimental_mode or {"type": "polling"}
         )
-        self.metrics_jitter = (
-            int(self.metrics_jitter) if self.metrics_jitter is not None else None
-        )
-        # `or` rather than `is None`, so that passing {} yields a fresh dict,
-        # as the client constructor has always done.
-        self.custom_headers = self.custom_headers or {}
-        self.custom_options = self.custom_options or {}
-        self.custom_strategies = self.custom_strategies or {}
-        self.experimental_mode = self.experimental_mode or {"type": "polling"}
-        self.static_context = {
-            "appName": self.app_name,
-            "environment": self.environment,
-        }
+
+    @property
+    def static_context(self) -> Dict[str, Any]:
+        return {"appName": self.app_name, "environment": self.environment}
 
     @property
     def mode(self) -> str:

@@ -138,14 +138,3 @@ def test_metrics_payload_omits_sdk_flavor_when_unset():
 
     assert "sdkFlavor" not in payload
     assert "sdkFlavorVersion" not in payload
-
-
-def test_metrics_payload_reads_the_config_at_call_time():
-    config = build_config()
-
-    first = _build_metrics_payload(config, BUCKET)
-    config.app_name = "renamed"
-    second = _build_metrics_payload(config, BUCKET)
-
-    assert first["appName"] == APP_NAME
-    assert second["appName"] == "renamed"
