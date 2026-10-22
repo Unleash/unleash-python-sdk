@@ -23,7 +23,7 @@ from UnleashClient._feature_store import _FeatureStore
 from UnleashClient._headers import _HeaderFactory
 from UnleashClient._scheduler import _Scheduler
 from UnleashClient._transport import _Transport
-from UnleashClient.config import IdentityOptions, UnleashConfig
+from UnleashClient.config import HttpOptions, IdentityOptions, UnleashConfig
 from UnleashClient.connectors import PollingConnector
 from UnleashClient.constants import ETAG, FEATURES_URL
 from UnleashClient.events import UnleashEventType
@@ -34,10 +34,12 @@ FULL_FEATURE_URL = URL + FEATURES_URL
 def build_transport(**kwargs) -> _Transport:
     defaults = {
         "identity": IdentityOptions(instance_id=INSTANCE_ID),
-        "custom_headers": CUSTOM_HEADERS,
-        "custom_options": CUSTOM_OPTIONS,
-        "request_timeout": REQUEST_TIMEOUT,
-        "request_retries": REQUEST_RETRIES,
+        "http": HttpOptions(
+            headers=CUSTOM_HEADERS,
+            options=CUSTOM_OPTIONS,
+            timeout=REQUEST_TIMEOUT,
+            retries=REQUEST_RETRIES,
+        ),
     }
     defaults.update(kwargs)
     config = UnleashConfig(URL, APP_NAME, **defaults)

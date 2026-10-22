@@ -22,7 +22,12 @@ from UnleashClient._instance_registry import _get_instance_registry
 from UnleashClient._payloads import _build_register_payload
 from UnleashClient.cache import BaseCache, FileCache
 from UnleashClient.clients.unleash_client import _RunState
-from UnleashClient.config import ExperimentalMode, IdentityOptions, UnleashConfig
+from UnleashClient.config import (
+    ExperimentalMode,
+    HttpOptions,
+    IdentityOptions,
+    UnleashConfig,
+)
 from UnleashClient.connectors._async_connector import _AsyncPollingConnector
 from UnleashClient.constants import (
     ETAG,
@@ -97,16 +102,18 @@ class AsyncUnleashClient:
                 sdk_flavor=sdk_flavor,
                 sdk_flavor_version=sdk_flavor_version,
             ),
+            http=HttpOptions(
+                headers=custom_headers,
+                options=custom_options,
+                timeout=request_timeout,
+                retries=request_retries,
+            ),
             refresh_interval=refresh_interval,
             refresh_jitter=refresh_jitter,
             metrics_interval=metrics_interval,
             metrics_jitter=metrics_jitter,
             disable_metrics=disable_metrics,
             disable_registration=disable_registration,
-            custom_headers=custom_headers,
-            custom_options=custom_options,
-            request_timeout=request_timeout,
-            request_retries=request_retries,
             project_name=project_name,
             verbose_log_level=verbose_log_level,
             experimental_mode=experimental_mode,

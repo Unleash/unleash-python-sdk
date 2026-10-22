@@ -26,7 +26,7 @@ class _HeaderFactory:
         return {
             # Custom headers go first: the application and identification
             # headers below are not overridable.
-            **self._config.custom_headers,
+            **self._config.http.headers,
             **APPLICATION_HEADERS,
             "unleash-connection-id": self._config.connection_id,
             "unleash-appname": self._config.app_name,

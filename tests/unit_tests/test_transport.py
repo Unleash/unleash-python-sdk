@@ -25,7 +25,7 @@ from tests.utilities.testing_constants import (
 )
 from UnleashClient._headers import _HeaderFactory
 from UnleashClient._transport import _Transport
-from UnleashClient.config import IdentityOptions, UnleashConfig
+from UnleashClient.config import HttpOptions, IdentityOptions, UnleashConfig
 from UnleashClient.constants import (
     CLIENT_SPEC_VERSION,
     FEATURES_URL,
@@ -47,10 +47,12 @@ def build_transport():
             "url": URL,
             "app_name": APP_NAME,
             "identity": IdentityOptions(instance_id=INSTANCE_ID),
-            "custom_headers": CUSTOM_HEADERS,
-            "custom_options": CUSTOM_OPTIONS,
-            "request_timeout": REQUEST_TIMEOUT,
-            "request_retries": REQUEST_RETRIES,
+            "http": HttpOptions(
+                headers=CUSTOM_HEADERS,
+                options=CUSTOM_OPTIONS,
+                timeout=REQUEST_TIMEOUT,
+                retries=REQUEST_RETRIES,
+            ),
         }
         defaults.update(kwargs)
         config = UnleashConfig(**defaults)
@@ -169,7 +171,7 @@ def test_fetch_features_swallows_a_bad_custom_option(build_transport):
 
     # `timeout` collides with the keyword the transport already passes. It is a
     # TypeError, not a RequestException, and fetch_features swallows everything.
-    result = build_transport(custom_options={"timeout": 5}).fetch_features()
+    result = build_transport(http=HttpOptions(options={"timeout": 5})).fetch_features()
 
     assert result == (None, "", False)
 
@@ -240,7 +242,7 @@ def test_register_lets_a_bad_custom_option_escape(build_transport):
     # A TypeError is not a RequestException, so unlike fetch_features this
     # propagates and fails initialize_client().
     with pytest.raises(TypeError):
-        build_transport(custom_options={"timeout": 5}).register({})
+        build_transport(http=HttpOptions(options={"timeout": 5})).register({})
 
 
 # send_metrics
@@ -279,7 +281,7 @@ def test_send_metrics_lets_a_bad_custom_option_escape(build_transport):
     responses.add(responses.POST, FULL_METRICS_URL, json={}, status=202)
 
     with pytest.raises(TypeError):
-        build_transport(custom_options={"timeout": 5}).send_metrics({})
+        build_transport(http=HttpOptions(options={"timeout": 5})).send_metrics({})
 
 
 @responses.activate
