@@ -197,7 +197,27 @@ def test_feature_definitions_reports_the_type_and_project():
 
     definitions = evaluator.feature_definitions()
 
-    assert definitions["ivan-project"] == {"type": "release", "project": "default"}
+    assert definitions["ivan-project"] == {
+        "type": "release",
+        "project": "default",
+        "enabled": True,
+    }
+
+
+def test_feature_definitions_reports_a_feature_switched_off_in_the_environment():
+    state = json.dumps(
+        {
+            "version": 1,
+            "features": [
+                {"name": "switched-off", "enabled": False, "strategies": []},
+            ],
+        }
+    )
+    evaluator = build_evaluator(state=state)
+
+    definitions = evaluator.feature_definitions()
+
+    assert definitions["switched-off"]["enabled"] is False
 
 
 def test_feature_definitions_is_empty_before_any_state_arrives():

@@ -841,7 +841,7 @@ async def test_feature_definitions_reports_the_toggles_in_the_cached_state(
     await client.initialize_client()
 
     assert client.feature_definitions() == {
-        "ivan-project": {"type": "release", "project": "default"}
+        "ivan-project": {"type": "release", "project": "default", "enabled": True}
     }
 
 
