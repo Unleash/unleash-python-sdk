@@ -24,7 +24,7 @@ from tests.utilities.testing_constants import (
 )
 from UnleashClient._async_transport import _AsyncTransport
 from UnleashClient._headers import _HeaderFactory
-from UnleashClient.config import UnleashConfig
+from UnleashClient.config import IdentityOptions, UnleashConfig
 from UnleashClient.constants import (
     CLIENT_SPEC_VERSION,
     FEATURES_URL,
@@ -62,7 +62,7 @@ async def build_transport(server: FakeUnleash):
         defaults = {
             "url": server.base_url,
             "app_name": APP_NAME,
-            "instance_id": INSTANCE_ID,
+            "identity": IdentityOptions(instance_id=INSTANCE_ID),
             "custom_headers": CUSTOM_HEADERS,
             "request_timeout": REQUEST_TIMEOUT,
             "request_retries": REQUEST_RETRIES,

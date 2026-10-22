@@ -22,7 +22,7 @@ from UnleashClient._instance_registry import _get_instance_registry
 from UnleashClient._payloads import _build_register_payload
 from UnleashClient.cache import BaseCache, FileCache
 from UnleashClient.clients.unleash_client import _RunState
-from UnleashClient.config import ExperimentalMode, UnleashConfig
+from UnleashClient.config import ExperimentalMode, IdentityOptions, UnleashConfig
 from UnleashClient.connectors._async_connector import _AsyncPollingConnector
 from UnleashClient.constants import (
     ETAG,
@@ -91,8 +91,12 @@ class AsyncUnleashClient:
         self._config: UnleashConfig = UnleashConfig(
             url=url,
             app_name=app_name,
-            environment=environment,
-            instance_id=instance_id,
+            identity=IdentityOptions(
+                environment=environment,
+                instance_id=instance_id,
+                sdk_flavor=sdk_flavor,
+                sdk_flavor_version=sdk_flavor_version,
+            ),
             refresh_interval=refresh_interval,
             refresh_jitter=refresh_jitter,
             metrics_interval=metrics_interval,
@@ -105,8 +109,6 @@ class AsyncUnleashClient:
             request_retries=request_retries,
             project_name=project_name,
             verbose_log_level=verbose_log_level,
-            sdk_flavor=sdk_flavor,
-            sdk_flavor_version=sdk_flavor_version,
             experimental_mode=experimental_mode,
         )
         self._custom_strategies: dict = custom_strategies or {}

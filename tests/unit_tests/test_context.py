@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, timezone
 
 from UnleashClient._context import _ContextEnricher
-from UnleashClient.config import UnleashConfig
+from UnleashClient.config import IdentityOptions, UnleashConfig
 
 URL = "http://localhost:4242/api"
 APP_NAME = "pytest"
@@ -13,7 +13,7 @@ def build_enricher(**kwargs) -> _ContextEnricher:
 
 
 def test_static_context_is_merged_in():
-    enricher = build_enricher(environment="unit")
+    enricher = build_enricher(identity=IdentityOptions(environment="unit"))
 
     context = enricher.build({})
 
@@ -22,7 +22,7 @@ def test_static_context_is_merged_in():
 
 
 def test_caller_overrides_the_static_context():
-    enricher = build_enricher(environment="unit")
+    enricher = build_enricher(identity=IdentityOptions(environment="unit"))
 
     context = enricher.build({"environment": "qa", "appName": "other"})
 

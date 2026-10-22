@@ -10,7 +10,7 @@ from tests.utilities.mocks.mock_features import (
 )
 from UnleashClient._context import _ContextEnricher
 from UnleashClient._evaluator import _Evaluator
-from UnleashClient.config import UnleashConfig
+from UnleashClient.config import IdentityOptions, UnleashConfig
 from UnleashClient.events import UnleashEventType
 
 URL = "http://localhost:4242/api"
@@ -126,7 +126,9 @@ def test_an_impression_event_carries_the_flag_result(dispatcher, recorder):
 
 
 def test_an_impression_event_carries_the_enriched_context(dispatcher, recorder):
-    evaluator = build_evaluator(events=dispatcher, environment="unit")
+    evaluator = build_evaluator(
+        identity=IdentityOptions(environment="unit"), events=dispatcher
+    )
 
     evaluator.is_enabled(IMPRESSION_FLAG, {"userId": "7"})
 

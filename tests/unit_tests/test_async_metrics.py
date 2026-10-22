@@ -12,7 +12,7 @@ from UnleashClient._async_metrics import _AsyncMetricsReporter
 from UnleashClient._async_scheduler import _AsyncJob, _AsyncJobFn, _AsyncScheduler
 from UnleashClient._async_transport import _AsyncTransport
 from UnleashClient._headers import _HeaderFactory
-from UnleashClient.config import UnleashConfig
+from UnleashClient.config import IdentityOptions, UnleashConfig
 from UnleashClient.constants import CLIENT_SPEC_VERSION, METRICS_URL
 from UnleashClient.impact_metrics import ImpactMetrics
 
@@ -174,7 +174,7 @@ class TestAsyncMetricsReporter:
 
     @mark.asyncio
     async def test_flush_identifies_the_client(self, server, build_reporter):
-        reporter = build_reporter(instance_id="123")
+        reporter = build_reporter(identity=IdentityOptions(instance_id="123"))
         server.on("POST", METRICS_PATH, status=202, payload={})
         reporter._engine.count_toggle(COUNTED_FLAG, True)
 
@@ -201,7 +201,10 @@ class TestAsyncMetricsReporter:
     @mark.asyncio
     async def test_flush_includes_sdk_flavor_when_set(self, server, build_reporter):
         reporter = build_reporter(
-            sdk_flavor="unleash-openfeature-python-provider", sdk_flavor_version="1.2.3"
+            identity=IdentityOptions(
+                sdk_flavor="unleash-openfeature-python-provider",
+                sdk_flavor_version="1.2.3",
+            )
         )
         server.on("POST", METRICS_PATH, status=202, payload={})
         reporter._engine.count_toggle(COUNTED_FLAG, True)

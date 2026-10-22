@@ -25,6 +25,23 @@ def _optional_int(value: Any) -> Optional[int]:
 
 
 @dataclass(frozen=True)
+class IdentityOptions:
+    """
+    How the client identifies itself to the Unleash server.
+
+    :param environment: Name of the environment, sent as part of the context.
+    :param instance_id: Unique identifier for this client instance.
+    :param sdk_flavor: Identifier of an integration built on top of this SDK. Leave unset for plain SDK usage.
+    :param sdk_flavor_version: Version of the integration named by sdk_flavor.
+    """
+
+    environment: str = "default"
+    instance_id: str = "unleash-python-sdk"
+    sdk_flavor: Optional[str] = None
+    sdk_flavor_version: Optional[str] = None
+
+
+@dataclass(frozen=True)
 class UnleashConfig:
     """
     Normalized constructor arguments, shared by every Unleash client flavor.
@@ -36,8 +53,7 @@ class UnleashConfig:
 
     url: str
     app_name: str
-    environment: str = "default"
-    instance_id: str = "unleash-python-sdk"
+    identity: IdentityOptions = field(default_factory=IdentityOptions)
     refresh_interval: int = 15
     refresh_jitter: Optional[int] = None
     metrics_interval: int = 60
@@ -52,13 +68,13 @@ class UnleashConfig:
     request_retries: int = REQUEST_RETRIES
     project_name: Optional[str] = None
     verbose_log_level: int = 30
-    sdk_flavor: Optional[str] = None
-    sdk_flavor_version: Optional[str] = None
     experimental_mode: Optional[ExperimentalMode] = None
     connection_id: str = field(default_factory=lambda: str(uuid.uuid4()))
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "url", self.url.rstrip("/"))
+        if self.identity is None:
+            object.__setattr__(self, "identity", IdentityOptions())
         object.__setattr__(self, "refresh_jitter", _optional_int(self.refresh_jitter))
         object.__setattr__(self, "metrics_jitter", _optional_int(self.metrics_jitter))
         object.__setattr__(self, "custom_headers", dict(self.custom_headers or {}))
@@ -69,7 +85,7 @@ class UnleashConfig:
 
     @property
     def static_context(self) -> Dict[str, Any]:
-        return {"appName": self.app_name, "environment": self.environment}
+        return {"appName": self.app_name, "environment": self.identity.environment}
 
     @property
     def mode(self) -> str:
@@ -85,7 +101,10 @@ class UnleashConfig:
 
     @property
     def impact_metrics_environment(self) -> str:
-        return extract_environment_from_headers(self.custom_headers) or self.environment
+        return (
+            extract_environment_from_headers(self.custom_headers)
+            or self.identity.environment
+        )
 
     @property
     def instance_identifier(self) -> str:
@@ -94,4 +113,4 @@ class UnleashConfig:
             if self.custom_headers is not None
             else None
         )
-        return f"apiKey:{redact_to_print_safely(api_key)} appName:{self.app_name} instanceId:{self.instance_id}"
+        return f"apiKey:{redact_to_print_safely(api_key)} appName:{self.app_name} instanceId:{self.identity.instance_id}"

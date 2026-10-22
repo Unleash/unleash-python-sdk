@@ -3,7 +3,7 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
-from UnleashClient.config import UnleashConfig
+from UnleashClient.config import IdentityOptions, UnleashConfig
 
 URL = "http://localhost:4242/api"
 APP_NAME = "pytest"
@@ -14,8 +14,12 @@ def test_defaults():
 
     assert config.url == URL
     assert config.app_name == APP_NAME
-    assert config.environment == "default"
-    assert config.instance_id == "unleash-python-sdk"
+    assert config.identity == IdentityOptions(
+        environment="default",
+        instance_id="unleash-python-sdk",
+        sdk_flavor=None,
+        sdk_flavor_version=None,
+    )
     assert config.refresh_interval == 15
     assert config.refresh_jitter is None
     assert config.metrics_interval == 60
@@ -28,8 +32,6 @@ def test_defaults():
     assert config.custom_options == {}
     assert config.project_name is None
     assert config.verbose_log_level == 30
-    assert config.sdk_flavor is None
-    assert config.sdk_flavor_version is None
     assert config.experimental_mode == {"type": "polling"}
 
 
@@ -40,6 +42,8 @@ def test_is_immutable():
         config.url = "http://elsewhere:4242/api"
     with pytest.raises(FrozenInstanceError):
         config.refresh_interval = 1
+    with pytest.raises(FrozenInstanceError):
+        config.identity.environment = "production"
 
 
 def test_url_is_rstripped():
@@ -89,7 +93,7 @@ def test_connection_id_can_be_supplied():
 
 
 def test_static_context():
-    config = UnleashConfig(URL, APP_NAME, environment="unit")
+    config = UnleashConfig(URL, APP_NAME, identity=IdentityOptions(environment="unit"))
 
     assert config.static_context == {"appName": APP_NAME, "environment": "unit"}
 
@@ -136,7 +140,7 @@ def test_metrics_interval_str_millis():
 
 
 def test_impact_metrics_environment_defaults_to_environment():
-    config = UnleashConfig(URL, APP_NAME, environment="unit")
+    config = UnleashConfig(URL, APP_NAME, identity=IdentityOptions(environment="unit"))
 
     assert config.impact_metrics_environment == "unit"
 
@@ -145,7 +149,7 @@ def test_impact_metrics_environment_is_taken_from_the_api_token():
     config = UnleashConfig(
         URL,
         APP_NAME,
-        environment="unit",
+        identity=IdentityOptions(environment="unit"),
         custom_headers={"Authorization": "project:production.hash"},
     )
 
@@ -156,7 +160,7 @@ def test_impact_metrics_environment_falls_back_on_an_unparseable_token():
     config = UnleashConfig(
         URL,
         APP_NAME,
-        environment="unit",
+        identity=IdentityOptions(environment="unit"),
         custom_headers={"Authorization": "no-colon-here"},
     )
 
@@ -167,7 +171,7 @@ def test_instance_identifier_redacts_the_api_key():
     config = UnleashConfig(
         URL,
         APP_NAME,
-        instance_id="123",
+        identity=IdentityOptions(instance_id="123"),
         custom_headers={"Authorization": "project:environment.abcdefghijklmnop"},
     )
 
@@ -180,7 +184,7 @@ def test_instance_identifier_redacts_the_api_key():
 
 
 def test_instance_identifier_without_headers():
-    config = UnleashConfig(URL, APP_NAME, instance_id="123")
+    config = UnleashConfig(URL, APP_NAME, identity=IdentityOptions(instance_id="123"))
 
     assert config.instance_identifier == ("apiKey:None appName:pytest instanceId:123")
 

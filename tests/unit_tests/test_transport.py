@@ -25,7 +25,7 @@ from tests.utilities.testing_constants import (
 )
 from UnleashClient._headers import _HeaderFactory
 from UnleashClient._transport import _Transport
-from UnleashClient.config import UnleashConfig
+from UnleashClient.config import IdentityOptions, UnleashConfig
 from UnleashClient.constants import (
     CLIENT_SPEC_VERSION,
     FEATURES_URL,
@@ -46,7 +46,7 @@ def build_transport():
         defaults = {
             "url": URL,
             "app_name": APP_NAME,
-            "instance_id": INSTANCE_ID,
+            "identity": IdentityOptions(instance_id=INSTANCE_ID),
             "custom_headers": CUSTOM_HEADERS,
             "custom_options": CUSTOM_OPTIONS,
             "request_timeout": REQUEST_TIMEOUT,
