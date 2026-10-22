@@ -1892,3 +1892,18 @@ def test_events_emitted_after_destroy_are_dropped(tmp_path):
 
     assert unleash_client.is_enabled("testFlag")
     assert len(recorder.events) == delivered_before
+
+
+def test_evaluate_all_toggles_reports_the_bootstrapped_toggles(cache):
+    cache.bootstrap_from_dict(initial_config=MOCK_FEATURE_RESPONSE_PROJECT)
+    unleash_client = UnleashClient(URL, APP_NAME, cache=cache, disable_metrics=True)
+
+    try:
+        assert unleash_client.evaluate_all_toggles() == {
+            "ivan-project": {
+                "enabled": True,
+                "variant": {"name": "disabled", "enabled": False},
+            }
+        }
+    finally:
+        unleash_client.destroy()
