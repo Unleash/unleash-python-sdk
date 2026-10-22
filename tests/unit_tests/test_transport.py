@@ -25,7 +25,12 @@ from tests.utilities.testing_constants import (
 )
 from UnleashClient._headers import _HeaderFactory
 from UnleashClient._transport import _Transport
-from UnleashClient.config import HttpOptions, IdentityOptions, UnleashConfig
+from UnleashClient.config import (
+    FetchOptions,
+    HttpOptions,
+    IdentityOptions,
+    UnleashConfig,
+)
 from UnleashClient.constants import (
     CLIENT_SPEC_VERSION,
     FEATURES_URL,
@@ -111,7 +116,9 @@ def test_fetch_features_sends_the_project_as_a_query_parameter(build_transport):
         headers={"etag": ETAG_VALUE},
     )
 
-    result = build_transport(project_name=PROJECT_NAME).fetch_features()
+    result = build_transport(
+        fetching=FetchOptions(project_name=PROJECT_NAME)
+    ).fetch_features()
 
     assert len(responses.calls) == 1
     assert len(json.loads(result.raw_state)["features"]) == 1
@@ -124,7 +131,9 @@ def test_fetch_features_drops_the_etag_on_failure(build_transport):
         responses.GET, PROJECT_URL, json={}, status=500, headers={"etag": ETAG_VALUE}
     )
 
-    result = build_transport(project_name=PROJECT_NAME).fetch_features()
+    result = build_transport(
+        fetching=FetchOptions(project_name=PROJECT_NAME)
+    ).fetch_features()
 
     assert len(responses.calls) == 4
     assert not result.etag
@@ -135,7 +144,9 @@ def test_fetch_features_drops_the_etag_on_failure(build_transport):
 def test_fetch_features_sends_if_none_match_when_an_etag_is_known(build_transport):
     responses.add(responses.GET, PROJECT_URL, status=304, headers={"etag": ETAG_VALUE})
 
-    result = build_transport(project_name=PROJECT_NAME).fetch_features(ETAG_VALUE)
+    result = build_transport(
+        fetching=FetchOptions(project_name=PROJECT_NAME)
+    ).fetch_features(ETAG_VALUE)
 
     assert len(responses.calls) == 1
     assert responses.calls[0].request.headers["If-None-Match"] == ETAG_VALUE
@@ -156,7 +167,9 @@ def test_fetch_features_retries_and_recovers(build_transport):
         headers={"etag": ETAG_VALUE},
     )
 
-    result = build_transport(project_name=PROJECT_NAME).fetch_features(ETAG_VALUE)
+    result = build_transport(
+        fetching=FetchOptions(project_name=PROJECT_NAME)
+    ).fetch_features(ETAG_VALUE)
 
     assert len(responses.calls) == 2
     assert len(json.loads(result.raw_state)["features"]) == 1
@@ -291,7 +304,7 @@ def test_every_endpoint_gets_its_headers_from_the_factory(build_transport):
     )
     responses.add(responses.POST, FULL_REGISTER_URL, json={}, status=202)
     responses.add(responses.POST, FULL_METRICS_URL, json={}, status=202)
-    transport = build_transport(refresh_interval=1, metrics_interval=2)
+    transport = build_transport(fetching=FetchOptions(interval=1), metrics_interval=2)
 
     transport.fetch_features()
     transport.register({})

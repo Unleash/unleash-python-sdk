@@ -107,8 +107,8 @@ class _AsyncTransport:
             base_url = _normalized_url(config.url, FEATURES_URL)
             base_params = {}
 
-            if config.project_name:
-                base_params = {"project": config.project_name}
+            if config.fetching.project_name:
+                base_params = {"project": config.fetching.project_name}
 
             session = await self._get_session()
             attempts = 1 + max(config.http.retries, 0)

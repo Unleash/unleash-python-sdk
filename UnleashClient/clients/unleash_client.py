@@ -22,6 +22,7 @@ from UnleashClient._transport import _Transport
 from UnleashClient.cache import BaseCache, FileCache
 from UnleashClient.config import (
     ExperimentalMode,
+    FetchOptions,
     HttpOptions,
     IdentityOptions,
     UnleashConfig,
@@ -172,15 +173,17 @@ class UnleashClient:
                 timeout=request_timeout,
                 retries=request_retries,
             ),
-            refresh_interval=refresh_interval,
-            refresh_jitter=refresh_jitter,
+            fetching=FetchOptions(
+                interval=refresh_interval,
+                jitter=refresh_jitter,
+                project_name=project_name,
+                mode=(experimental_mode or {}).get("type", "polling"),
+            ),
             metrics_interval=metrics_interval,
             metrics_jitter=metrics_jitter,
             disable_metrics=disable_metrics,
             disable_registration=disable_registration,
-            project_name=project_name,
             verbose_log_level=verbose_log_level,
-            experimental_mode=experimental_mode,
         )
         self._custom_strategies = custom_strategies or {}
         self._enricher = _ContextEnricher(self._config)
@@ -327,7 +330,7 @@ class UnleashClient:
                     self._transport.register(
                         _build_register_payload(self._config, self._custom_strategies)
                     )
-                mode = self._config.mode
+                mode = self._config.fetching.mode
 
                 if mode == "streaming" and fetch_toggles:
                     self.connector = StreamingConnector(
@@ -343,16 +346,16 @@ class UnleashClient:
                         store=self._store,
                         scheduler=self._scheduler,
                         transport=self._transport,
-                        refresh_interval=self._config.refresh_interval,
-                        refresh_jitter=self._config.refresh_jitter,
+                        refresh_interval=self._config.fetching.interval,
+                        refresh_jitter=self._config.fetching.jitter,
                     )
                 else:
                     start_scheduler = True
                     self.connector = OfflineConnector(
                         store=self._store,
                         scheduler=self._scheduler,
-                        refresh_interval=self._config.refresh_interval,
-                        refresh_jitter=self._config.refresh_jitter,
+                        refresh_interval=self._config.fetching.interval,
+                        refresh_jitter=self._config.fetching.jitter,
                     )
 
                 self.connector.start()

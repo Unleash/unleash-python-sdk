@@ -76,8 +76,8 @@ class _Transport:
             base_url = _normalized_url(config.url, FEATURES_URL)
             base_params = {}
 
-            if config.project_name:
-                base_params = {"project": config.project_name}
+            if config.fetching.project_name:
+                base_params = {"project": config.fetching.project_name}
 
             adapter = HTTPAdapter(
                 max_retries=Retry(

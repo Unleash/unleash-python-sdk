@@ -24,7 +24,12 @@ from tests.utilities.testing_constants import (
 )
 from UnleashClient._async_transport import _AsyncTransport
 from UnleashClient._headers import _HeaderFactory
-from UnleashClient.config import HttpOptions, IdentityOptions, UnleashConfig
+from UnleashClient.config import (
+    FetchOptions,
+    HttpOptions,
+    IdentityOptions,
+    UnleashConfig,
+)
 from UnleashClient.constants import (
     CLIENT_SPEC_VERSION,
     FEATURES_URL,
@@ -125,7 +130,7 @@ async def test_fetch_features(
 async def test_fetch_features_sends_the_project_as_a_query_parameter(
     server, build_transport
 ):
-    transport = build_transport(project_name=PROJECT_NAME)
+    transport = build_transport(fetching=FetchOptions(project_name=PROJECT_NAME))
     server.on(
         "GET",
         FEATURES_PATH,
@@ -145,7 +150,7 @@ async def test_fetch_features_sends_the_project_as_a_query_parameter(
 
 @mark.asyncio
 async def test_fetch_features_drops_the_etag_on_failure(server, build_transport):
-    transport = build_transport(project_name=PROJECT_NAME)
+    transport = build_transport(fetching=FetchOptions(project_name=PROJECT_NAME))
     server.on(
         "GET",
         FEATURES_PATH,
@@ -166,7 +171,7 @@ async def test_fetch_features_drops_the_etag_on_failure(server, build_transport)
 async def test_fetch_features_sends_if_none_match_when_an_etag_is_known(
     server, build_transport
 ):
-    transport = build_transport(project_name=PROJECT_NAME)
+    transport = build_transport(fetching=FetchOptions(project_name=PROJECT_NAME))
     server.on("GET", FEATURES_PATH, status=304, headers={"etag": ETAG_VALUE})
 
     result = await transport.fetch_features(ETAG_VALUE)
@@ -181,7 +186,7 @@ async def test_fetch_features_sends_if_none_match_when_an_etag_is_known(
 
 @mark.asyncio
 async def test_fetch_features_retries_and_recovers(server, build_transport):
-    transport = build_transport(project_name=PROJECT_NAME)
+    transport = build_transport(fetching=FetchOptions(project_name=PROJECT_NAME))
     server.on("GET", FEATURES_PATH, status=500, payload={})
     server.on(
         "GET",
@@ -202,7 +207,7 @@ async def test_fetch_features_retries_and_recovers(server, build_transport):
 async def test_fetch_features_retries_and_recovers_from_a_connection_error(
     server, build_transport
 ):
-    transport = build_transport(project_name=PROJECT_NAME)
+    transport = build_transport(fetching=FetchOptions(project_name=PROJECT_NAME))
     server.on("GET", FEATURES_PATH, disconnect=True)
     server.on(
         "GET",
@@ -321,7 +326,7 @@ async def test_send_metrics_raises_when_cancelled(server, transport):
 async def test_every_endpoint_gets_its_headers_from_the_factory(
     server, build_transport
 ):
-    transport = build_transport(refresh_interval=1, metrics_interval=2)
+    transport = build_transport(fetching=FetchOptions(interval=1), metrics_interval=2)
     server.on("GET", FEATURES_PATH, status=200, payload=MOCK_FEATURE_RESPONSE)
     server.on("POST", REGISTER_PATH, status=202, payload={})
     server.on("POST", METRICS_PATH, status=202, payload={})

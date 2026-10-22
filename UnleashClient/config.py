@@ -68,6 +68,26 @@ class IdentityOptions:
 
 
 @dataclass(frozen=True)
+class FetchOptions:
+    """
+    Which feature flags the client fetches, and how.
+
+    :param interval: Refresh interval in seconds.
+    :param jitter: Maximum random delay, in seconds, added to each refresh.
+    :param project_name: Only fetch the feature flags of this project.
+    :param mode: "polling" (default) or "streaming".  Streaming is experimental and only supported by the sync client.
+    """
+
+    interval: int = 15
+    jitter: Optional[int] = None
+    project_name: Optional[str] = None
+    mode: Literal["polling", "streaming"] = "polling"
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "jitter", _optional_int(self.jitter))
+
+
+@dataclass(frozen=True)
 class UnleashConfig:
     """
     Normalized constructor arguments, shared by every Unleash client flavor.
@@ -81,15 +101,12 @@ class UnleashConfig:
     app_name: str
     identity: IdentityOptions = field(default_factory=IdentityOptions)
     http: HttpOptions = field(default_factory=HttpOptions)
-    refresh_interval: int = 15
-    refresh_jitter: Optional[int] = None
+    fetching: FetchOptions = field(default_factory=FetchOptions)
     metrics_interval: int = 60
     metrics_jitter: Optional[int] = None
     disable_metrics: bool = False
     disable_registration: bool = False
-    project_name: Optional[str] = None
     verbose_log_level: int = 30
-    experimental_mode: Optional[ExperimentalMode] = None
     connection_id: str = field(default_factory=lambda: str(uuid.uuid4()))
 
     def __post_init__(self) -> None:
@@ -98,23 +115,17 @@ class UnleashConfig:
             object.__setattr__(self, "identity", IdentityOptions())
         if self.http is None:
             object.__setattr__(self, "http", HttpOptions())
-        object.__setattr__(self, "refresh_jitter", _optional_int(self.refresh_jitter))
+        if self.fetching is None:
+            object.__setattr__(self, "fetching", FetchOptions())
         object.__setattr__(self, "metrics_jitter", _optional_int(self.metrics_jitter))
-        object.__setattr__(
-            self, "experimental_mode", self.experimental_mode or {"type": "polling"}
-        )
 
     @property
     def static_context(self) -> Dict[str, Any]:
         return {"appName": self.app_name, "environment": self.identity.environment}
 
     @property
-    def mode(self) -> str:
-        return self.experimental_mode.get("type", "polling")
-
-    @property
     def refresh_interval_str_millis(self) -> str:
-        return str(self.refresh_interval * 1000)
+        return str(self.fetching.interval * 1000)
 
     @property
     def metrics_interval_str_millis(self) -> str:
