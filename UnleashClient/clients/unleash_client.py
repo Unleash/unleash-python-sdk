@@ -547,7 +547,8 @@ class UnleashClient:
         """
         Returns a dict containing all feature definitions known to the SDK at the time of calling.
         Normally this would be a pared down version of the response from the Unleash API but this
-        may also be a result from bootstrapping or loading from backup.
+        may also be a result from bootstrapping or loading from backup. ``enabled`` is whether the
+        feature is switched on in the environment, before any strategy is evaluated.
 
         Example response:
 
@@ -555,6 +556,7 @@ class UnleashClient:
             "feature1": {
                 "project": "default",
                 "type": "release",
+                "enabled": True,
             }
         }
         """

@@ -211,7 +211,9 @@ class AsyncUnleashClient:
         Returns a dict containing all feature definitions known to the client at
         the time of calling, keyed by feature name. This is a pared down version
         of the response from the Unleash server, or of the cached state before
-        the client has fetched from the server.
+        the client has fetched from the server. ``enabled`` is whether the
+        feature is switched on in the environment, before any strategy is
+        evaluated.
 
         Notes:
 
@@ -225,6 +227,7 @@ class AsyncUnleashClient:
                 "feature1": {
                     "project": "default",
                     "type": "release",
+                    "enabled": True,
                 }
             }
 
