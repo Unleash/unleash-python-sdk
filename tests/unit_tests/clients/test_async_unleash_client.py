@@ -798,6 +798,24 @@ async def test_feature_definitions_reports_the_toggles_in_the_cached_state(
 
 
 @pytest.mark.asyncio
+async def test_evaluate_all_toggles_reports_the_toggles_in_the_cached_state(
+    tmpdir, build_running_client
+):
+    cache = FileCache(APP_NAME, directory=str(tmpdir))
+    cache.set(FEATURES_URL, json.dumps(MOCK_FEATURE_RESPONSE_PROJECT))
+    client = build_running_client(refresh_interval=3600, cache=cache)
+
+    await client.initialize_client()
+
+    assert client.evaluate_all_toggles() == {
+        "ivan-project": {
+            "enabled": True,
+            "variant": {"name": "disabled", "enabled": False},
+        }
+    }
+
+
+@pytest.mark.asyncio
 async def test_feature_definitions_is_empty_without_any_state(build_running_client):
     client = build_running_client(refresh_interval=3600)
 
