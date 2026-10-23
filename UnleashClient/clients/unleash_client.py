@@ -21,7 +21,6 @@ from UnleashClient._scheduler import _ScheduledJob, _Scheduler
 from UnleashClient._transport import _Transport
 from UnleashClient.cache import BaseCache, FileCache
 from UnleashClient.config import (
-    ExperimentalMode,
     FetchOptions,
     HttpOptions,
     IdentityOptions,
@@ -36,12 +35,7 @@ from UnleashClient.connectors import (
     PollingConnector,
     StreamingConnector,
 )
-from UnleashClient.constants import (
-    ETAG,
-    METRIC_LAST_SENT_TIME,
-    REQUEST_RETRIES,
-    REQUEST_TIMEOUT,
-)
+from UnleashClient.constants import ETAG, METRIC_LAST_SENT_TIME
 from UnleashClient.events import (
     BaseEvent,
     UnleashEventType,
@@ -103,89 +97,56 @@ class UnleashClient:
     """
     A client for the Unleash feature toggle system.
 
-    :param url: URL of the unleash server, required.
-    :param app_name: Name of the application using the unleash client, required.
-    :param environment: Name of the environment using the unleash client, optional & defaults to "default".
-    :param instance_id: Unique identifier for unleash client instance, optional & defaults to "unleash-python-sdk"
-    :param refresh_interval: Provisioning refresh interval in seconds, optional & defaults to 15 seconds
-    :params request_timeout: Timeout for requests to unleash server in seconds, optional & defaults to 30 seconds
-    :params request_retries: Number of retries for requests to unleash server, optional & defaults to 3
-    :param refresh_jitter: Provisioning refresh interval jitter in seconds, optional & defaults to None
-    :param metrics_interval: Metrics refresh interval in seconds, optional & defaults to 60 seconds
-    :param metrics_jitter: Metrics refresh interval jitter in seconds, optional & defaults to None
-    :param disable_metrics: Disables sending metrics to unleash server, optional & defaults to false.
-    :param disable_registration: Disables registration with unleash server, optional & defaults to false.
-    :param custom_headers: Default headers to send to unleash server, optional & defaults to empty.
-    :param custom_options: Default requests parameters, optional & defaults to empty.  Can be used to skip SSL verification.
-    :param custom_strategies: Dictionary of custom strategy names : custom strategy objects.
-    :param cache_directory: Location of the cache directory. When unset, FCache will determine the location.
+    Example::
+
+        with UnleashClient(
+            url="https://unleash.example.com/api",
+            app_name="my-app",
+            http=HttpOptions(headers={"Authorization": "<API token>"}),
+        ) as client:
+            client.is_enabled("new-checkout", {"userId": "42"})
+
+    :param url: URL of the Unleash server, required.
+    :param app_name: Name of the application using the client, required.
+    :param identity: How the client identifies itself, see :class:`~UnleashClient.config.IdentityOptions`.
+    :param http: How the client talks to the server, see :class:`~UnleashClient.config.HttpOptions`.
+    :param fetching: Which flags the client fetches and how often, see :class:`~UnleashClient.config.FetchOptions`.
+    :param metrics: How the client reports to the server, see :class:`~UnleashClient.config.MetricsOptions`.
     :param verbose_log_level: Numerical log level (https://docs.python.org/3/library/logging.html#logging-levels) for cases where checking a feature flag fails.
+    :param custom_strategies: Dictionary of custom strategy names : custom strategy objects.
     :param cache: Custom cache implementation that extends UnleashClient.cache.BaseCache.  When unset, UnleashClient will use Fcache.
+    :param cache_directory: Location of the cache directory. When unset, FCache will determine the location.
     :param scheduler: Custom APScheduler object.  Use this if you want to customize jobstore or executors.  When unset, UnleashClient will create it's own scheduler.
     :param scheduler_executor: Name of APSCheduler executor to use if using a custom scheduler.
     :param multiple_instance_mode: Determines how multiple instances being instantiated is handled by the SDK, when set to InstanceAllowType.BLOCK, the client constructor will fail when more than one instance is detected, when set to InstanceAllowType.WARN, multiple instances will be allowed but log a warning, when set to InstanceAllowType.SILENTLY_ALLOW, no warning or failure will be raised when instantiating multiple instances of the client. Defaults to InstanceAllowType.WARN
     :param event_callback: Function to call if impression events are enabled.  Called on a dedicated background thread, so it must not rely on thread local state from the caller.
-    :param experimental_mode: Optional dict to configure mode. Use {"type": "streaming"} to enable streaming or {"type": "polling"} (default).
-    :param sdk_flavor: Optional identifier of an integration built on top of this SDK (e.g. an OpenFeature provider). Sent in the register + metrics payloads alongside sdkVersion so adoption of the integration can be tracked. Leave unset for plain SDK usage.
-    :param sdk_flavor_version: Optional version of the integration named by sdk_flavor.
     """
 
-    def __init__(  # noqa: PLR0913, PLR0917
+    def __init__(
         self,
         url: str,
         app_name: str,
-        environment: str = "default",
-        instance_id: str = "unleash-python-sdk",
-        refresh_interval: int = 15,
-        refresh_jitter: Optional[int] = None,
-        metrics_interval: int = 60,
-        metrics_jitter: Optional[int] = None,
-        disable_metrics: bool = False,
-        disable_registration: bool = False,
-        custom_headers: Optional[dict] = None,
-        custom_options: Optional[dict] = None,
-        request_timeout: int = REQUEST_TIMEOUT,
-        request_retries: int = REQUEST_RETRIES,
-        custom_strategies: Optional[dict] = None,
-        cache_directory: Optional[str] = None,
-        project_name: Optional[str] = None,
+        *,
+        identity: Optional[IdentityOptions] = None,
+        http: Optional[HttpOptions] = None,
+        fetching: Optional[FetchOptions] = None,
+        metrics: Optional[MetricsOptions] = None,
         verbose_log_level: int = 30,
+        custom_strategies: Optional[dict] = None,
         cache: Optional[BaseCache] = None,
+        cache_directory: Optional[str] = None,
         scheduler: Optional[BaseScheduler] = None,
         scheduler_executor: Optional[str] = None,
         multiple_instance_mode: InstanceAllowType = InstanceAllowType.WARN,
         event_callback: Optional[Callable[[BaseEvent], None]] = None,
-        experimental_mode: Optional[ExperimentalMode] = None,
-        sdk_flavor: Optional[str] = None,
-        sdk_flavor_version: Optional[str] = None,
     ) -> None:
         self._config = UnleashConfig(
             url=url,
             app_name=app_name,
-            identity=IdentityOptions(
-                environment=environment,
-                instance_id=instance_id,
-                sdk_flavor=sdk_flavor,
-                sdk_flavor_version=sdk_flavor_version,
-            ),
-            http=HttpOptions(
-                headers=custom_headers,
-                options=custom_options,
-                timeout=request_timeout,
-                retries=request_retries,
-            ),
-            fetching=FetchOptions(
-                interval=refresh_interval,
-                jitter=refresh_jitter,
-                project_name=project_name,
-                mode=(experimental_mode or {}).get("type", "polling"),
-            ),
-            metrics=MetricsOptions(
-                interval=metrics_interval,
-                jitter=metrics_jitter,
-                disabled=disable_metrics,
-                disable_registration=disable_registration,
-            ),
+            identity=identity,
+            http=http,
+            fetching=fetching,
+            metrics=metrics,
             verbose_log_level=verbose_log_level,
         )
         self._custom_strategies = custom_strategies or {}
@@ -308,11 +269,7 @@ class UnleashClient:
 
         .. code-block:: python
 
-            with UnleashClient(
-                url="https://foo.bar",
-                app_name="myClient1",
-                instance_id="myinstanceid"
-                ) as client:
+            with UnleashClient(url="https://foo.bar", app_name="myClient1") as client:
                 pass
         """
         # Only perform initialization steps if client is not initialized.

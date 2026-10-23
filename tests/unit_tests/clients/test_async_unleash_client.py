@@ -18,6 +18,12 @@ from UnleashClient._async_metrics import _AsyncMetricsReporter
 from UnleashClient._metrics import _MetricsReporter
 from UnleashClient.cache import FileCache
 from UnleashClient.clients.async_unleash_client import AsyncUnleashClient
+from UnleashClient.config import (
+    FetchOptions,
+    HttpOptions,
+    IdentityOptions,
+    MetricsOptions,
+)
 from UnleashClient.constants import (
     ETAG,
     FEATURES_URL,
@@ -82,7 +88,28 @@ def test_both_clients_build_the_same_config(tmpdir):
     )
 
     sync_client = UnleashClient(
-        cache=FileCache(APP_NAME, directory=str(tmpdir)), **kwargs
+        url="http://localhost:4242/api/",
+        app_name=APP_NAME,
+        identity=IdentityOptions(
+            environment="unit",
+            instance_id="123",
+            sdk_flavor="openfeature",
+            sdk_flavor_version="1.2.3",
+        ),
+        http=HttpOptions(
+            headers={"Authorization": "project:environment.hash"},
+            options={"verify": False},
+            timeout=9,
+            retries=2,
+        ),
+        fetching=FetchOptions(
+            interval=1, jitter=2, project_name="ivan", mode="streaming"
+        ),
+        metrics=MetricsOptions(
+            interval=3, jitter=4, disabled=True, disable_registration=True
+        ),
+        verbose_log_level=40,
+        cache=FileCache(APP_NAME, directory=str(tmpdir)),
     )
     try:
         async_client = build_async_client(tmpdir, **kwargs)
@@ -117,10 +144,13 @@ def test_both_clients_build_the_same_headers(tmpdir):
     )
 
     sync_client = UnleashClient(
+        url=URL,
+        app_name=APP_NAME,
+        identity=IdentityOptions(instance_id="123"),
+        http=HttpOptions(headers={"Authorization": "project:environment.hash"}),
+        fetching=FetchOptions(interval=1),
+        metrics=MetricsOptions(interval=3, disabled=True, disable_registration=True),
         cache=FileCache(APP_NAME, directory=str(tmpdir)),
-        disable_metrics=True,
-        disable_registration=True,
-        **kwargs,
     )
     try:
         async_client = build_async_client(tmpdir, **kwargs)
@@ -157,10 +187,11 @@ def test_both_clients_enrich_context_identically(tmpdir):
     }
 
     sync_client = UnleashClient(
+        url=URL,
+        app_name=APP_NAME,
+        identity=IdentityOptions(environment="unit"),
+        metrics=MetricsOptions(disabled=True, disable_registration=True),
         cache=FileCache(APP_NAME, directory=str(tmpdir)),
-        disable_metrics=True,
-        disable_registration=True,
-        **kwargs,
     )
     try:
         async_client = build_async_client(tmpdir, **kwargs)
@@ -200,8 +231,7 @@ def test_both_clients_load_the_same_state(tmpdir):
         URL,
         APP_NAME,
         cache=sync_cache,
-        disable_metrics=True,
-        disable_registration=True,
+        metrics=MetricsOptions(disabled=True, disable_registration=True),
     )
     try:
         async_client = build_async_client(
@@ -253,8 +283,7 @@ def test_both_clients_evaluate_identically(tmpdir):
         URL,
         APP_NAME,
         cache=sync_cache,
-        disable_metrics=True,
-        disable_registration=True,
+        metrics=MetricsOptions(disabled=True, disable_registration=True),
     )
     try:
         async_client = build_async_client(
@@ -289,7 +318,7 @@ def test_both_clients_evaluate_identically(tmpdir):
 
 def test_the_async_client_gets_its_own_evaluator(tmpdir):
     sync_client = UnleashClient(
-        URL, APP_NAME, disable_metrics=True, disable_registration=True
+        URL, APP_NAME, metrics=MetricsOptions(disabled=True, disable_registration=True)
     )
     try:
         async_client = build_async_client(tmpdir, url=URL, app_name=APP_NAME)
@@ -315,10 +344,11 @@ def test_both_clients_build_the_same_impact_metrics(tmpdir):
     kwargs = dict(url=URL, app_name=APP_NAME, environment="unit")
 
     sync_client = UnleashClient(
+        url=URL,
+        app_name=APP_NAME,
+        identity=IdentityOptions(environment="unit"),
+        metrics=MetricsOptions(disabled=True, disable_registration=True),
         cache=FileCache(APP_NAME, directory=str(tmpdir)),
-        disable_metrics=True,
-        disable_registration=True,
-        **kwargs,
     )
     try:
         async_client = build_async_client(tmpdir, **kwargs)
