@@ -1,5 +1,5 @@
 import uuid
-from dataclasses import FrozenInstanceError
+from dataclasses import FrozenInstanceError, asdict
 
 import pytest
 
@@ -36,6 +36,19 @@ def test_defaults():
     assert config.verbose_log_level == 30
 
 
+def test_groups_left_as_none_get_their_defaults():
+    config = UnleashConfig(
+        URL, APP_NAME, identity=None, http=None, fetching=None, metrics=None
+    )
+
+    defaults = asdict(UnleashConfig(URL, APP_NAME))
+    actual = asdict(config)
+    defaults.pop("connection_id")
+    actual.pop("connection_id")
+
+    assert actual == defaults
+
+
 def test_is_immutable():
     config = UnleashConfig(URL, APP_NAME)
 
@@ -49,6 +62,15 @@ def test_is_immutable():
         config.metrics.disabled = True
     with pytest.raises(FrozenInstanceError):
         config.identity.environment = "production"
+
+
+def test_options_are_shared_between_configs_without_copying():
+    http = HttpOptions(headers={"Authorization": "project:environment.hash"})
+
+    first = UnleashConfig(URL, APP_NAME, http=http)
+    second = UnleashConfig(URL, "other", http=http)
+
+    assert first.http is second.http
 
 
 def test_url_is_rstripped():
