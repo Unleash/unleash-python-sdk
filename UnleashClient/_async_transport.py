@@ -60,7 +60,7 @@ class _AsyncTransport:
     def _timeout(self) -> "aiohttp.ClientTimeout":
         # sock_connect/sock_read rather than total: the sync client's scalar
         # timeout bounds each socket operation, not the whole request.
-        seconds = self._config.request_timeout
+        seconds = self._config.http.timeout
         return aiohttp.ClientTimeout(
             total=None, sock_connect=seconds, sock_read=seconds
         )
@@ -107,11 +107,11 @@ class _AsyncTransport:
             base_url = _normalized_url(config.url, FEATURES_URL)
             base_params = {}
 
-            if config.project_name:
-                base_params = {"project": config.project_name}
+            if config.fetching.project_name:
+                base_params = {"project": config.fetching.project_name}
 
             session = await self._get_session()
-            attempts = 1 + max(config.request_retries, 0)
+            attempts = 1 + max(config.http.retries, 0)
 
             for attempt in range(attempts):
                 last_attempt = attempt == attempts - 1

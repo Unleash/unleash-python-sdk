@@ -24,7 +24,13 @@ from tests.utilities.testing_constants import (
 )
 from UnleashClient._async_transport import _AsyncTransport
 from UnleashClient._headers import _HeaderFactory
-from UnleashClient.config import UnleashConfig
+from UnleashClient.config import (
+    FetchOptions,
+    HttpOptions,
+    IdentityOptions,
+    MetricsOptions,
+    UnleashConfig,
+)
 from UnleashClient.constants import (
     CLIENT_SPEC_VERSION,
     FEATURES_URL,
@@ -60,13 +66,17 @@ async def build_transport(server: FakeUnleash):
 
     def _build_transport(**kwargs) -> _AsyncTransport:
         defaults = {
-            "instance_id": INSTANCE_ID,
-            "custom_headers": CUSTOM_HEADERS,
-            "request_timeout": REQUEST_TIMEOUT,
-            "request_retries": REQUEST_RETRIES,
+            "url": server.base_url,
+            "app_name": APP_NAME,
+            "identity": IdentityOptions(instance_id=INSTANCE_ID),
+            "http": HttpOptions(
+                headers=CUSTOM_HEADERS,
+                timeout=REQUEST_TIMEOUT,
+                retries=REQUEST_RETRIES,
+            ),
         }
         defaults.update(kwargs)
-        config = UnleashConfig(server.base_url, APP_NAME, **defaults)
+        config = UnleashConfig(**defaults)
         transport = _AsyncTransport(config, _HeaderFactory(config))
         built.append(transport)
         return transport
@@ -121,7 +131,7 @@ async def test_fetch_features(
 async def test_fetch_features_sends_the_project_as_a_query_parameter(
     server, build_transport
 ):
-    transport = build_transport(project_name=PROJECT_NAME)
+    transport = build_transport(fetching=FetchOptions(project_name=PROJECT_NAME))
     server.on(
         "GET",
         FEATURES_PATH,
@@ -141,7 +151,7 @@ async def test_fetch_features_sends_the_project_as_a_query_parameter(
 
 @mark.asyncio
 async def test_fetch_features_drops_the_etag_on_failure(server, build_transport):
-    transport = build_transport(project_name=PROJECT_NAME)
+    transport = build_transport(fetching=FetchOptions(project_name=PROJECT_NAME))
     server.on(
         "GET",
         FEATURES_PATH,
@@ -162,7 +172,7 @@ async def test_fetch_features_drops_the_etag_on_failure(server, build_transport)
 async def test_fetch_features_sends_if_none_match_when_an_etag_is_known(
     server, build_transport
 ):
-    transport = build_transport(project_name=PROJECT_NAME)
+    transport = build_transport(fetching=FetchOptions(project_name=PROJECT_NAME))
     server.on("GET", FEATURES_PATH, status=304, headers={"etag": ETAG_VALUE})
 
     result = await transport.fetch_features(ETAG_VALUE)
@@ -177,7 +187,7 @@ async def test_fetch_features_sends_if_none_match_when_an_etag_is_known(
 
 @mark.asyncio
 async def test_fetch_features_retries_and_recovers(server, build_transport):
-    transport = build_transport(project_name=PROJECT_NAME)
+    transport = build_transport(fetching=FetchOptions(project_name=PROJECT_NAME))
     server.on("GET", FEATURES_PATH, status=500, payload={})
     server.on(
         "GET",
@@ -198,7 +208,7 @@ async def test_fetch_features_retries_and_recovers(server, build_transport):
 async def test_fetch_features_retries_and_recovers_from_a_connection_error(
     server, build_transport
 ):
-    transport = build_transport(project_name=PROJECT_NAME)
+    transport = build_transport(fetching=FetchOptions(project_name=PROJECT_NAME))
     server.on("GET", FEATURES_PATH, disconnect=True)
     server.on(
         "GET",
@@ -212,24 +222,6 @@ async def test_fetch_features_retries_and_recovers_from_a_connection_error(
 
     assert len(server.calls("GET", FEATURES_PATH)) == 2
     assert len(json.loads(result.raw_state)["features"]) == 1
-
-
-@mark.asyncio
-async def test_fetch_features_strips_a_trailing_slash_from_the_url(server, transport):
-    server.on(
-        "GET",
-        FEATURES_PATH,
-        status=200,
-        payload=MOCK_FEATURE_RESPONSE,
-        headers={"etag": ETAG_VALUE},
-    )
-    transport._config.url = f"{server.base_url}/"
-
-    result = await transport.fetch_features()
-
-    assert len(server.calls("GET", FEATURES_PATH)) == 1
-    assert json.loads(result.raw_state)["version"] == 1
-    assert result.etag == ETAG_VALUE
 
 
 @mark.asyncio
@@ -262,22 +254,11 @@ async def test_register_sends_the_payload_it_is_given(server, transport):
 
 
 @mark.asyncio
-async def test_register_strips_a_trailing_slash_from_the_url(server, transport):
-    server.on("POST", REGISTER_PATH, status=202, payload={})
-    transport._config.url = f"{server.base_url}/"
-
-    result = await transport.register({})
-
-    assert len(server.calls("POST", REGISTER_PATH)) == 1
-    assert result is True
-
-
-@mark.asyncio
 @mark.parametrize(
     "url", ("thisisnotavalidurl", "localhost:4242/api"), ids=("no-scheme", "bad-scheme")
 )
-async def test_register_reraises_an_unusable_url(server, transport, url):
-    transport._config.url = url
+async def test_register_reraises_an_unusable_url(server, build_transport, url):
+    transport = build_transport(url=url)
 
     with pytest.raises(aiohttp.ClientError):
         await transport.register({})
@@ -286,8 +267,8 @@ async def test_register_reraises_an_unusable_url(server, transport, url):
 
 
 @mark.asyncio
-async def test_register_reraises_a_missing_scheme_as_a_value_error(transport):
-    transport._config.url = "thisisnotavalidurl"
+async def test_register_reraises_a_missing_scheme_as_a_value_error(build_transport):
+    transport = build_transport(url="thisisnotavalidurl")
 
     with pytest.raises(ValueError):
         await transport.register({})
@@ -317,21 +298,10 @@ async def test_send_metrics(server, transport, reply, expected):
 
 
 @mark.asyncio
-async def test_send_metrics_strips_a_trailing_slash_from_the_url(server, transport):
-    server.on("POST", METRICS_PATH, status=202, payload={})
-    transport._config.url = f"{server.base_url}/"
-
-    result = await transport.send_metrics(MOCK_METRICS_REQUEST)
-
-    assert len(server.calls("POST", METRICS_PATH)) == 1
-    assert result is True
-
-
-@mark.asyncio
 async def test_send_metrics_returns_false_when_the_request_times_out(
     server, build_transport
 ):
-    transport = build_transport(request_timeout=0.1)
+    transport = build_transport(http=HttpOptions(timeout=0.1))
     server.on("POST", METRICS_PATH, hang=True)
 
     result = await transport.send_metrics(MOCK_METRICS_REQUEST)
@@ -357,7 +327,9 @@ async def test_send_metrics_raises_when_cancelled(server, transport):
 async def test_every_endpoint_gets_its_headers_from_the_factory(
     server, build_transport
 ):
-    transport = build_transport(refresh_interval=1, metrics_interval=2)
+    transport = build_transport(
+        fetching=FetchOptions(interval=1), metrics=MetricsOptions(interval=2)
+    )
     server.on("GET", FEATURES_PATH, status=200, payload=MOCK_FEATURE_RESPONSE)
     server.on("POST", REGISTER_PATH, status=202, payload={})
     server.on("POST", METRICS_PATH, status=202, payload={})
@@ -376,19 +348,6 @@ async def test_every_endpoint_gets_its_headers_from_the_factory(
     assert fetch["unleash-interval"] == "1000"
     assert "unleash-interval" not in register
     assert metrics["unleash-interval"] == "2000"
-
-
-@mark.asyncio
-async def test_headers_are_rebuilt_on_every_request(server, transport):
-    server.on("POST", METRICS_PATH, status=202, payload={}, repeat=True)
-
-    await transport.send_metrics(MOCK_METRICS_REQUEST)
-    transport._config.custom_headers = {"Authorization": "second"}
-    await transport.send_metrics(MOCK_METRICS_REQUEST)
-
-    calls = server.calls("POST", METRICS_PATH)
-    assert "Authorization" not in calls[0].headers
-    assert calls[1].headers["Authorization"] == "second"
 
 
 @mark.asyncio

@@ -3,10 +3,10 @@ from typing import TYPE_CHECKING
 
 from .clients import (
     INSTANCES,
-    ExperimentalMode,
     UnleashClient,
     build_ready_callback,
 )
+from .config import FetchOptions, HttpOptions, IdentityOptions, MetricsOptions
 
 if TYPE_CHECKING:
     from .clients.async_unleash_client import AsyncUnleashClient
