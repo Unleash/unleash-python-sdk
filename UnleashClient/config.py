@@ -7,9 +7,10 @@ from typing import Any, Dict, Literal, Optional, TypedDict
 from UnleashClient.constants import REQUEST_RETRIES, REQUEST_TIMEOUT
 from UnleashClient.utils import extract_environment_from_headers
 
-
-class ExperimentalMode(TypedDict, total=False):
-    type: Literal["streaming", "polling"]
+try:
+    from typing import Literal
+except ImportError:
+    from typing_extensions import Literal  # type: ignore
 
 
 def redact_to_print_safely(value: Optional[str]) -> Optional[str]:
@@ -108,8 +109,8 @@ class UnleashConfig:
     Normalized constructor arguments, shared by every Unleash client flavor.
     Immutable once constructed.
 
-    Types are not validated or coerced beyond what the client constructor has
-    always done: ``url.rstrip("/")`` and ``int()`` on the two jitters.
+    Types are not validated or coerced beyond ``url.rstrip("/")`` and ``int()``
+    on the two jitters.  Option groups left as None get their defaults.
     """
 
     url: str

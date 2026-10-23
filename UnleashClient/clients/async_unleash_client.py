@@ -23,7 +23,6 @@ from UnleashClient._payloads import _build_register_payload
 from UnleashClient.cache import BaseCache, FileCache
 from UnleashClient.clients.unleash_client import _RunState
 from UnleashClient.config import (
-    ExperimentalMode,
     FetchOptions,
     HttpOptions,
     IdentityOptions,
@@ -31,12 +30,7 @@ from UnleashClient.config import (
     UnleashConfig,
 )
 from UnleashClient.connectors._async_connector import _AsyncPollingConnector
-from UnleashClient.constants import (
-    ETAG,
-    METRIC_LAST_SENT_TIME,
-    REQUEST_RETRIES,
-    REQUEST_TIMEOUT,
-)
+from UnleashClient.constants import ETAG, METRIC_LAST_SENT_TIME
 from UnleashClient.events import BaseEvent
 from UnleashClient.impact_metrics import ImpactMetrics
 from UnleashClient.utils import LOGGER, InstanceAllowType
@@ -55,7 +49,7 @@ class AsyncUnleashClient:
         async with AsyncUnleashClient(
             url="https://unleash.example.com/api",
             app_name="my-app",
-            custom_headers={"Authorization": "<API token>"},
+            http=HttpOptions(headers={"Authorization": "<API token>"}),
         ) as client:
             if client.is_enabled("new-checkout", {"userId": "42"}):
                 ...
@@ -66,62 +60,44 @@ class AsyncUnleashClient:
 
             client.impact_metrics.define_counter("purchases", "Number of purchases")
             client.impact_metrics.increment_counter("purchases")
+
+    :param url: URL of the Unleash server, required.
+    :param app_name: Name of the application using the client, required.
+    :param identity: How the client identifies itself.
+    :param http: How the client talks to the server.
+    :param fetching: Which flags the client fetches and how often.
+    :param metrics: How the client reports to the server.
+    :param verbose_log_level: Numerical log level (https://docs.python.org/3/library/logging.html#logging-levels) for cases where checking a feature flag fails.
+    :param custom_strategies: Dictionary of custom strategy names: custom strategy objects.
+    :param cache: Custom cache implementation that extends UnleashClient.cache.BaseCache.  When unset, the client will use FileCache.
+    :param cache_directory: Location of the cache directory.
+    :param multiple_instance_mode: Determines how multiple instances being instantiated is handled by the SDK.  Defaults to InstanceAllowType.WARN.
+    :param event_callback: Function to call if impression events are enabled.  Called on a dedicated background thread.
     """
 
-    def __init__(  # noqa: PLR0913, PLR0917
+    def __init__(
         self,
         url: str,
         app_name: str,
-        environment: str = "default",
-        instance_id: str = "unleash-python-sdk",
-        refresh_interval: int = 15,
-        refresh_jitter: Optional[int] = None,
-        metrics_interval: int = 60,
-        metrics_jitter: Optional[int] = None,
-        disable_metrics: bool = False,
-        disable_registration: bool = False,
-        custom_headers: Optional[dict] = None,
-        custom_options: Optional[dict] = None,
-        request_timeout: int = REQUEST_TIMEOUT,
-        request_retries: int = REQUEST_RETRIES,
-        custom_strategies: Optional[dict] = None,
-        cache_directory: Optional[str] = None,
-        project_name: Optional[str] = None,
+        *,
+        identity: Optional[IdentityOptions] = None,
+        http: Optional[HttpOptions] = None,
+        fetching: Optional[FetchOptions] = None,
+        metrics: Optional[MetricsOptions] = None,
         verbose_log_level: int = 30,
+        custom_strategies: Optional[dict] = None,
         cache: Optional[BaseCache] = None,
+        cache_directory: Optional[str] = None,
         multiple_instance_mode: InstanceAllowType = InstanceAllowType.WARN,
         event_callback: Optional[Callable[[BaseEvent], None]] = None,
-        experimental_mode: Optional[ExperimentalMode] = None,
-        sdk_flavor: Optional[str] = None,
-        sdk_flavor_version: Optional[str] = None,
     ) -> None:
         self._config: UnleashConfig = UnleashConfig(
             url=url,
             app_name=app_name,
-            identity=IdentityOptions(
-                environment=environment,
-                instance_id=instance_id,
-                sdk_flavor=sdk_flavor,
-                sdk_flavor_version=sdk_flavor_version,
-            ),
-            http=HttpOptions(
-                headers=custom_headers,
-                options=custom_options,
-                timeout=request_timeout,
-                retries=request_retries,
-            ),
-            fetching=FetchOptions(
-                interval=refresh_interval,
-                jitter=refresh_jitter,
-                project_name=project_name,
-                mode=(experimental_mode or {}).get("type", "polling"),
-            ),
-            metrics=MetricsOptions(
-                interval=metrics_interval,
-                jitter=metrics_jitter,
-                disabled=disable_metrics,
-                disable_registration=disable_registration,
-            ),
+            identity=identity,
+            http=http,
+            fetching=fetching,
+            metrics=metrics,
             verbose_log_level=verbose_log_level,
         )
         self._custom_strategies: dict = custom_strategies or {}
@@ -255,8 +231,8 @@ class AsyncUnleashClient:
 
         * Client registration
         * Loading the cached feature state
-        * Feature polling, every ``refresh_interval`` seconds
-        * Metrics reporting, every ``metrics_interval`` seconds
+        * Feature polling, every ``fetching.interval`` seconds
+        * Metrics reporting, every ``metrics.interval`` seconds
 
         Awaits the first feature fetch attempt before returning, yielding to the
         event loop during network I/O. If the fetch fails, initialization still
@@ -273,9 +249,7 @@ class AsyncUnleashClient:
         .. code-block:: python
 
             async with AsyncUnleashClient(
-                url="https://foo.bar",
-                app_name="myClient1",
-                instance_id="myinstanceid",
+                url="https://foo.bar", app_name="myClient1"
             ) as client:
                 pass
 
