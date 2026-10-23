@@ -6,6 +6,10 @@ Unleash is a private, secure, and scalable [feature management platform](https:/
 
 You can use this client with [Unleash Enterprise](https://www.getunleash.io/pricing?utm_source=readme&utm_medium=python) or [Unleash Open Source](https://github.com/Unleash/unleash).
 
+> **Migrating to v7**
+>
+> The client's settings are now grouped into option objects, and every argument after `url` and `app_name` is keyword-only. Read the [v7 migration guide](./v7_MIGRATION_GUIDE.md) before upgrading.
+
 > **Migrating to v6**
 >
 > If you use custom strategies or access the `features` property on the Unleash Client, read the complete [migration guide](./v6_MIGRATION_GUIDE.md) before upgrading to v6.
@@ -24,12 +28,12 @@ You must initialize the SDK before you use it. Note that until the SDK has synch
 you have a [bootstrapped configuration](#bootstrap) or you use [fallbacks](#fallback-function).
 
 ```python
-from UnleashClient import UnleashClient
+from UnleashClient import HttpOptions, UnleashClient
 
 client = UnleashClient(
     url="https:<YOUR-API-URL>",
     app_name="my-python-app",
-    custom_headers={'Authorization': '<API token>'})
+    http=HttpOptions(headers={'Authorization': '<API token>'}))
 
 client.initialize_client()
 ```
@@ -109,32 +113,77 @@ The client will evaluate the fallback function if the feature flag is not found 
 
 ### Configuration options
 
-The UnleashClient constructor supports the following configuration options:
+`url` and `app_name` are required. Everything else is a keyword argument, and related settings are grouped into option objects:
 
-| Parameter              | Description                                                                                                                                     | Default                   |
-| ------------              | ------------                                                                                                                                   | ------------              |
-| url                      | URL of your Unleash server. E.g. `https://app.unleash-hosted.com/demo/api/` Required.                                                             | None                      |
-| app_name                  | Name of the application using the client. Required.                                                                                             | None                      |
-| environment               | Logical environment name (deprecated).                                                                                                         | "default"                 |
-| instance_id               | Unique identifier for this client instance.                                                                                                     | "unleash-client-python"   |
-| refresh_interval       | How often to fetch feature flags (seconds).                                                                                                     | 15                        |
-| refresh_jitter            | Jitter to add to refresh interval (seconds).                                                                                                     | None                      |
-| metrics_interval       | How often to send metrics to Unleash (seconds).                                                                                                 | 60                        |
-| metrics_jitter            | Jitter to add to metrics interval (seconds).                                                                                                     | None                      |
-| disable_metrics           | Disable sending usage metrics.                                                                                                                 | False                     |
-| disable_registration      | Disable client registration.                                                                                                                     | False                     |
-| custom_headers            | Additional HTTP headers (e.g. Authorization).                                                                                                     | None                      |
-| custom_options            | Extra options for [HTTP requests](https://requests.readthedocs.io/en/latest/api/#main-interface).                                                 | None                      |
-| request_timeout           | HTTP request timeout (seconds).                                                                                                                 | 30                        |
-| request_retries           | HTTP request retry count.                                                                                                                         | 3                         |
-| custom_strategies      | Dict of `{name: strategy}` for custom activation strategies. See [custom strategies](#custom-strategies) for more information.                      | None                      |
-| cache_directory          | Location for the on-disk cache. Auto-determined.                                                                                                  | None                      |
-| cache                  | Custom cache implementation (must extend BaseCache). See [custom cache](#custom-cache) for more information                                       | BaseCache                 |
-| scheduler              | Custom APScheduler instance. Auto-created.                                                                                                       | BaseScheduler             |
-| verbose_log_level      | Python logging level for debugging feature flag failures. See <https://docs.python.org/3/library/logging.html#logging-levels> for more information. | 30                        |
-| scheduler_executor      | APScheduler executor name to use.                                                                                                                 | None                      |
-| multiple_instance_mode    | How to handle multiple client instances (BLOCK, WARN, SILENTLY_ALLOW).                                                                         | WARN                      |
-| event_callback          | Function to handle impression events. See [impression data](#impression-data) for more information.                                               | None                      |
+```python
+from UnleashClient import (
+    FetchOptions, HttpOptions, IdentityOptions, MetricsOptions, UnleashClient,
+)
+
+client = UnleashClient(
+    url="https://YOUR-API-URL",
+    app_name="my-python-app",
+    identity=IdentityOptions(environment="production"),
+    http=HttpOptions(headers={'Authorization': '<API token>'}, timeout=10),
+    fetching=FetchOptions(interval=30),
+    metrics=MetricsOptions(disabled=True),
+)
+```
+
+Settings can't be changed after the client is created.
+
+| Parameter              | Description                                                                                                                               | Default             |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
+| url                    | URL of your Unleash server, e.g. `https://app.unleash-hosted.com/demo/api/`. Required.                                                    | —                   |
+| app_name               | Name of the application using the client. Required.                                                                                       | —                   |
+| identity               | How the client identifies itself. See [`IdentityOptions`](#identityoptions).                                                              | `IdentityOptions()` |
+| http                   | How the client talks to the server. See [`HttpOptions`](#httpoptions).                                                                    | `HttpOptions()`     |
+| fetching               | Which flags the client fetches, and how often. See [`FetchOptions`](#fetchoptions).                                                       | `FetchOptions()`    |
+| metrics                | How the client reports to the server. See [`MetricsOptions`](#metricsoptions).                                                            | `MetricsOptions()`  |
+| verbose_log_level      | [Log level](https://docs.python.org/3/library/logging.html#logging-levels) for messages about unknown flags and failed impression events. | 30                  |
+| custom_strategies      | Dict of `{name: strategy}` for custom activation strategies. See [custom strategies](#custom-strategies).                                 | None                |
+| cache                  | Custom cache implementation (must extend `BaseCache`). See [custom cache](#custom-cache).                                                 | `FileCache`         |
+| cache_directory        | Directory for the default `FileCache`. When unset, a platform-specific user cache directory is used. Ignored when `cache` is given.       | None                |
+| scheduler              | Custom APScheduler instance. When unset, the client creates a `BackgroundScheduler`. Sync client only.                                    | None                |
+| scheduler_executor     | Name of the executor to use on your custom `scheduler`. Required with `scheduler`. Sync client only.                                      | None                |
+| multiple_instance_mode | How to handle multiple client instances (`BLOCK`, `WARN`, `SILENTLY_ALLOW`).                                                              | `WARN`              |
+| event_callback         | Function that receives impression and lifecycle events. See [events and impression data](#events-and-impression-data).                    | None                |
+
+#### `IdentityOptions`
+
+| Parameter          | Description                                                                            | Default              |
+| ------------------ | -------------------------------------------------------------------------------------- | -------------------- |
+| environment        | Logical environment name. Deprecated: the environment is determined by your API token. | "default"            |
+| instance_id        | Unique identifier for this client instance.                                            | "unleash-python-sdk" |
+| sdk_flavor         | Identifier of an integration built on this SDK (e.g. an OpenFeature provider).         | None                 |
+| sdk_flavor_version | Version of the integration named by `sdk_flavor`.                                      | None                 |
+
+#### `HttpOptions`
+
+| Parameter | Description                                                                                                                        | Default |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| headers   | HTTP headers sent with every request, e.g. `{"Authorization": "<API token>"}`.                                                     | None    |
+| options   | Extra keyword arguments for every [HTTP request](https://requests.readthedocs.io/en/latest/api/#main-interface). Sync client only. | None    |
+| timeout   | HTTP request timeout (seconds).                                                                                                    | 30      |
+| retries   | How many times a failed feature fetch is retried.                                                                                  | 3       |
+
+#### `FetchOptions`
+
+| Parameter    | Description                                                    | Default   |
+| ------------ | -------------------------------------------------------------- | --------- |
+| interval     | How often to fetch feature flags (seconds).                    | 15        |
+| jitter       | Maximum random delay added to each refresh (seconds).          | None      |
+| project_name | Only fetch the feature flags of this project.                  | None      |
+| mode         | `"polling"` or `"streaming"` (experimental). Sync client only. | "polling" |
+
+#### `MetricsOptions`
+
+| Parameter            | Description                                                | Default |
+| -------------------- | ---------------------------------------------------------- | ------- |
+| interval             | How often to send metrics to Unleash (seconds).            | 60      |
+| jitter               | Maximum random delay added to each metrics send (seconds). | None    |
+| disabled             | Disable sending usage metrics.                             | False   |
+| disable_registration | Disable client registration.                               | False   |
 
 ### Bootstrap
 
@@ -236,7 +285,7 @@ client = UnleashClient(
 
     url="https://YOUR-API-URL",
     app_name="my-python-app",
-    custom_headers={'Authorization': '<API token>'},
+    http=HttpOptions(headers={'Authorization': '<API token>'}),
     custom_strategies = my_custom_strategies
 )
 
@@ -259,7 +308,7 @@ Your callback must accept a single UnleashEvent. You can log it, store it, or se
 
 ```python
 from blinker import signal
-from UnleashClient import UnleashClient
+from UnleashClient import HttpOptions, UnleashClient
 from UnleashClient.events import UnleashEvent
 
 send_data = signal('send-data')
@@ -274,7 +323,7 @@ def example_callback(event: UnleashEvent):
 client = UnleashClient(
     url="https://YOUR-API-URL",
     app_name="my-python-app",
-    custom_headers={'Authorization': '<API token>'},
+    http=HttpOptions(headers={'Authorization': '<API token>'}),
     event_callback=example_callback
 )
 client.initialize_client()
@@ -293,7 +342,7 @@ The same event_callback also delivers lifecycle events:
 
 ```python
 from blinker import signal
-from UnleashClient import UnleashClient
+from UnleashClient import HttpOptions, UnleashClient
 from UnleashClient.events import UnleashEvent, UnleashEventType
 
 send_data = signal('send-data')
@@ -312,7 +361,7 @@ def example_callback(event: UnleashEvent):
 client = UnleashClient(
     url="https://YOUR-API-URL",
     app_name="my-python-app",
-    custom_headers={'Authorization': '<API token>'},
+    http=HttpOptions(headers={'Authorization': '<API token>'}),
     event_callback=example_callback
 )
 client.initialize_client()
@@ -434,13 +483,13 @@ See [The Art of Graceful Reloading](https://uwsgi-docs.readthedocs.io/en/latest/
 When using the SDK in Celery tasks, make sure you initialize it inside the worker_process_init event. Otherwise, the worker may run but won’t poll for feature flag updates.
 
 ```python
-from UnleashClient import UnleashClient
+from UnleashClient import HttpOptions, UnleashClient
 from celery.signals import worker_process_init
 
 client = UnleashClient(
     url="https://YOUR-API-URL",
     app_name="my-python-app",
-    custom_headers={'Authorization': '<API token>'}
+    http=HttpOptions(headers={'Authorization': '<API token>'})
 )
 
 @worker_process_init.connect
