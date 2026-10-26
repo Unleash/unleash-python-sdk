@@ -4,7 +4,7 @@ This guide highlights the key changes you should be aware of when upgrading to v
 
 ## Settings are grouped into option objects
 
-`url` and `app_name` are still the first two arguments. Most other settings moved into four option objects: `IdentityOptions`, `HttpOptions`, `FetchOptions` and `MetricsOptions`. All other arguments must now be passed by keyword.
+`url` and `app_name` are still the first two arguments. The API token is now its own `api_key` argument. Most other settings moved into four option objects: `IdentityOptions`, `HttpOptions`, `FetchOptions` and `MetricsOptions`. All other arguments must now be passed by keyword.
 
 Before:
 
@@ -25,14 +25,14 @@ After:
 
 ``` python
 from UnleashClient import (
-    FetchOptions, HttpOptions, IdentityOptions, MetricsOptions, UnleashClient,
+    FetchOptions, IdentityOptions, MetricsOptions, UnleashClient,
 )
 
 client = UnleashClient(
     url="https://YOUR-API-URL",
     app_name="my-python-app",
+    api_key="<API token>",
     identity=IdentityOptions(environment="production"),
-    http=HttpOptions(headers={"Authorization": "<API token>"}),
     fetching=FetchOptions(interval=30, mode="streaming"),
     metrics=MetricsOptions(disabled=True),
     custom_strategies={"EmailStrategy": EmailStrategy()},
@@ -47,11 +47,12 @@ The same applies to `AsyncUnleashClient`.
 | ---------------------- | ------------------------------------------- |
 | `url`                  | unchanged                                   |
 | `app_name`             | unchanged                                   |
+| `custom_headers={"Authorization": ...}` | `api_key=...`              |
 | `environment`          | `IdentityOptions(environment=...)`          |
 | `instance_id`          | `IdentityOptions(instance_id=...)`          |
 | `sdk_flavor`           | `IdentityOptions(sdk_flavor=...)`           |
 | `sdk_flavor_version`   | `IdentityOptions(sdk_flavor_version=...)`   |
-| `custom_headers`       | `HttpOptions(headers=...)`                  |
+| `custom_headers`       | `HttpOptions(headers=...)`, without `Authorization` |
 | `custom_options`       | `HttpOptions(options=...)`                  |
 | `request_timeout`      | `HttpOptions(timeout=...)`                  |
 | `request_retries`      | `HttpOptions(retries=...)`                  |
@@ -68,6 +69,16 @@ The same applies to `AsyncUnleashClient`.
 
 The `ExperimentalMode` type has been removed.
 
+## The API token is passed as `api_key`
+
+Pass the API token as `api_key` instead of as an `Authorization` header:
+
+``` python
+client = UnleashClient(url, app_name, api_key="<API token>")
+```
+
+An `Authorization` header in `HttpOptions.headers` raises a `ValueError`, in any letter case. It is not silently ignored, because a client without a key still starts: its requests fail with 401 and it keeps serving the flags in its cache, so the mistake could go unnoticed. All other custom headers work as before.
+
 ## Settings can't be changed after construction
 
 A client's settings can't be changed after it is created. To change a setting, create a new client.
@@ -79,7 +90,7 @@ In v6.9, assigning to `unleash_url`, `unleash_custom_headers` and the other requ
 The `unleash_*` properties that mirrored settings (`unleash_url`, `unleash_app_name`, `unleash_refresh_interval`, `unleash_custom_headers`, and so on), as well as `strategy_mapping`, `connector_mode` and `unleash_metrics_interval_str_millis`, have been removed. There is no replacement: the settings are the ones you passed in, so keep a reference to the option objects if you need them later.
 
 ``` python
-http = HttpOptions(headers={"Authorization": "<API token>"})
+http = HttpOptions(headers={"X-Custom": "<value>"})
 client = UnleashClient(url, app_name, http=http)
 
 http.headers  # instead of client.unleash_custom_headers

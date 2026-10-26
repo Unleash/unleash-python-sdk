@@ -20,6 +20,7 @@ def test_defaults():
 
     assert config.url == URL
     assert config.app_name == APP_NAME
+    assert config.api_key is None
     assert config.identity == IdentityOptions(
         environment="default",
         instance_id="unleash-python-sdk",
@@ -65,7 +66,7 @@ def test_is_immutable():
 
 
 def test_options_are_shared_between_configs_without_copying():
-    http = HttpOptions(headers={"Authorization": "project:environment.hash"})
+    http = HttpOptions(headers={"X-Custom": "header"})
 
     first = UnleashConfig(URL, APP_NAME, http=http)
     second = UnleashConfig(URL, "other", http=http)
@@ -141,14 +142,14 @@ def test_static_context():
 
 
 def test_headers_and_options_are_copied():
-    headers = {"Authorization": "project:environment.hash"}
+    headers = {"X-Custom": "header"}
     options = {"verify": False}
     http = HttpOptions(headers=headers, options=options)
 
     headers["extra"] = "header"
     options["extra"] = "option"
 
-    assert http.headers == {"Authorization": "project:environment.hash"}
+    assert http.headers == {"X-Custom": "header"}
     assert http.options == {"verify": False}
 
 
@@ -157,6 +158,12 @@ def test_missing_headers_and_options_become_empty_dicts():
 
     assert http.headers == {}
     assert http.options == {}
+
+
+@pytest.mark.parametrize("name", ["Authorization", "authorization", "AUTHORIZATION"])
+def test_an_authorization_header_is_rejected(name):
+    with pytest.raises(ValueError, match="api_key"):
+        HttpOptions(headers={name: "project:environment.hash"})
 
 
 def test_refresh_interval_str_millis():
@@ -190,7 +197,7 @@ def test_impact_metrics_environment_is_taken_from_the_api_token():
         URL,
         APP_NAME,
         identity=IdentityOptions(environment="unit"),
-        http=HttpOptions(headers={"Authorization": "project:production.hash"}),
+        api_key="project:production.hash",
     )
 
     assert config.impact_metrics_environment == "production"
@@ -201,7 +208,7 @@ def test_impact_metrics_environment_falls_back_on_an_unparseable_token():
         URL,
         APP_NAME,
         identity=IdentityOptions(environment="unit"),
-        http=HttpOptions(headers={"Authorization": "no-colon-here"}),
+        api_key="no-colon-here",
     )
 
     assert config.impact_metrics_environment == "unit"
@@ -212,9 +219,7 @@ def test_instance_identifier_redacts_the_api_key():
         URL,
         APP_NAME,
         identity=IdentityOptions(instance_id="123"),
-        http=HttpOptions(
-            headers={"Authorization": "project:environment.abcdefghijklmnop"}
-        ),
+        api_key="project:environment.abcdefghijklmnop",
     )
 
     identifier = config.instance_identifier
@@ -225,7 +230,7 @@ def test_instance_identifier_redacts_the_api_key():
     assert identifier == ("apiKey:project:enviro...nop appName:pytest instanceId:123")
 
 
-def test_instance_identifier_without_headers():
+def test_instance_identifier_without_an_api_key():
     config = UnleashConfig(URL, APP_NAME, identity=IdentityOptions(instance_id="123"))
 
     assert config.instance_identifier == ("apiKey:None appName:pytest instanceId:123")
@@ -235,9 +240,7 @@ def test_repr_does_not_leak_the_api_key():
     config = UnleashConfig(
         URL,
         APP_NAME,
-        http=HttpOptions(
-            headers={"Authorization": "project:environment.abcdefghijklmnop"}
-        ),
+        api_key="project:environment.abcdefghijklmnop",
     )
 
     assert "abcdefghijklmnop" not in repr(config)

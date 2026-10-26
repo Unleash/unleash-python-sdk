@@ -163,10 +163,11 @@ def unleash_client_bootstrap_dependencies(tmp_path):
 
 
 def test_UC_builds_its_config_from_its_arguments(tmp_path):
-    http = HttpOptions(headers={"Authorization": "project:environment.hash"})
+    http = HttpOptions(headers={"X-Custom": "header"})
     client = UnleashClient(
         url=f"{URL}/",
         app_name=APP_NAME,
+        api_key="project:environment.hash",
         http=http,
         verbose_log_level=40,
         cache_directory=str(tmp_path),
@@ -174,6 +175,7 @@ def test_UC_builds_its_config_from_its_arguments(tmp_path):
 
     assert client._config.url == URL
     assert client._config.app_name == APP_NAME
+    assert client._config.api_key == "project:environment.hash"
     assert client._config.http is http
     assert client._config.identity == IdentityOptions()
     assert client._config.fetching == FetchOptions()
@@ -1130,13 +1132,13 @@ def test_multiple_instances_are_unique_on_api_key(caplog, tmp_path):
     client1 = UnleashClient(
         URL,
         "some-probably-unique-app-name",
-        http=HttpOptions(headers={"Authorization": "penguins"}),
+        api_key="penguins",
         cache_directory=str(tmp_path),
     )
     client2 = UnleashClient(
         URL,
         "some-probably-unique-app-name",
-        http=HttpOptions(headers={"Authorization": "hamsters"}),
+        api_key="hamsters",
         cache_directory=str(tmp_path),
     )
     assert not any(
@@ -1167,13 +1169,13 @@ def test_api_key_is_not_logged_in_plain_text_in_multiple_instances_warning(
     client1 = UnleashClient(
         URL,
         APP_NAME,
-        http=HttpOptions(headers={"Authorization": api_key}),
+        api_key=api_key,
         cache_directory=str(tmp_path),
     )
     client2 = UnleashClient(
         URL,
         APP_NAME,
-        http=HttpOptions(headers={"Authorization": api_key}),
+        api_key=api_key,
         cache_directory=str(tmp_path),
     )
 

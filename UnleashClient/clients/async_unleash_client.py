@@ -49,7 +49,7 @@ class AsyncUnleashClient:
         async with AsyncUnleashClient(
             url="https://unleash.example.com/api",
             app_name="my-app",
-            http=HttpOptions(headers={"Authorization": "<API token>"}),
+            api_key="<API token>",
         ) as client:
             if client.is_enabled("new-checkout", {"userId": "42"}):
                 ...
@@ -63,6 +63,7 @@ class AsyncUnleashClient:
 
     :param url: URL of the Unleash server, required.
     :param app_name: Name of the application using the client, required.
+    :param api_key: Client API token.  Optional, because a client that only loads from a backup never talks to the server.
     :param identity: How the client identifies itself.
     :param http: How the client talks to the server.
     :param fetching: Which flags the client fetches and how often.
@@ -80,6 +81,7 @@ class AsyncUnleashClient:
         url: str,
         app_name: str,
         *,
+        api_key: Optional[str] = None,
         identity: Optional[IdentityOptions] = None,
         http: Optional[HttpOptions] = None,
         fetching: Optional[FetchOptions] = None,
@@ -94,6 +96,7 @@ class AsyncUnleashClient:
         self._config: UnleashConfig = UnleashConfig(
             url=url,
             app_name=app_name,
+            api_key=api_key,
             identity=identity,
             http=http,
             fetching=fetching,

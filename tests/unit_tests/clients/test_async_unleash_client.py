@@ -68,6 +68,7 @@ def test_both_clients_build_the_same_config(tmpdir):
     settings = dict(
         url="http://localhost:4242/api/",
         app_name=APP_NAME,
+        api_key="project:environment.hash",
         identity=IdentityOptions(
             environment="unit",
             instance_id="123",
@@ -75,7 +76,7 @@ def test_both_clients_build_the_same_config(tmpdir):
             sdk_flavor_version="1.2.3",
         ),
         http=HttpOptions(
-            headers={"Authorization": "project:environment.hash"},
+            headers={"X-Custom": "header"},
             options={"verify": False},
             timeout=9,
             retries=2,
@@ -140,8 +141,9 @@ def test_both_clients_build_the_same_headers(tmpdir):
     settings = dict(
         url=URL,
         app_name=APP_NAME,
+        api_key="project:environment.hash",
         identity=IdentityOptions(instance_id="123"),
-        http=HttpOptions(headers={"Authorization": "project:environment.hash"}),
+        http=HttpOptions(headers={"X-Custom": "header"}),
         fetching=FetchOptions(interval=1),
         metrics=MetricsOptions(interval=3),
     )

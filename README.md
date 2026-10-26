@@ -28,12 +28,12 @@ You must initialize the SDK before you use it. Note that until the SDK has synch
 you have a [bootstrapped configuration](#bootstrap) or you use [fallbacks](#fallback-function).
 
 ```python
-from UnleashClient import HttpOptions, UnleashClient
+from UnleashClient import UnleashClient
 
 client = UnleashClient(
     url="https:<YOUR-API-URL>",
     app_name="my-python-app",
-    http=HttpOptions(headers={'Authorization': '<API token>'}))
+    api_key="<API token>")
 
 client.initialize_client()
 ```
@@ -124,7 +124,8 @@ client = UnleashClient(
     url="https://YOUR-API-URL",
     app_name="my-python-app",
     identity=IdentityOptions(environment="production"),
-    http=HttpOptions(headers={'Authorization': '<API token>'}, timeout=10),
+    api_key="<API token>",
+    http=HttpOptions(timeout=10),
     fetching=FetchOptions(interval=30),
     metrics=MetricsOptions(disabled=True),
 )
@@ -136,6 +137,7 @@ Settings can't be changed after the client is created.
 | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
 | url                    | URL of your Unleash server, e.g. `https://app.unleash-hosted.com/demo/api/`. Required.                                                    | —                   |
 | app_name               | Name of the application using the client. Required.                                                                                       | —                   |
+| api_key                | Client API token, sent as the `Authorization` header. | None                |
 | identity               | How the client identifies itself. See [`IdentityOptions`](#identityoptions).                                                              | `IdentityOptions()` |
 | http                   | How the client talks to the server. See [`HttpOptions`](#httpoptions).                                                                    | `HttpOptions()`     |
 | fetching               | Which flags the client fetches, and how often. See [`FetchOptions`](#fetchoptions).                                                       | `FetchOptions()`    |
@@ -162,7 +164,7 @@ Settings can't be changed after the client is created.
 
 | Parameter | Description                                                                                                                        | Default |
 | --------- | ---------------------------------------------------------------------------------------------------------------------------------- | ------- |
-| headers   | HTTP headers sent with every request, e.g. `{"Authorization": "<API token>"}`.                                                     | None    |
+| headers   | Extra HTTP headers sent with every request. Pass the API token as `api_key`; an `Authorization` header here raises `ValueError`.   | None    |
 | options   | Extra keyword arguments for every [HTTP request](https://requests.readthedocs.io/en/latest/api/#main-interface). Sync client only. | None    |
 | timeout   | HTTP request timeout (seconds).                                                                                                    | 30      |
 | retries   | How many times a failed feature fetch is retried.                                                                                  | 3       |
@@ -285,7 +287,7 @@ client = UnleashClient(
 
     url="https://YOUR-API-URL",
     app_name="my-python-app",
-    http=HttpOptions(headers={'Authorization': '<API token>'}),
+    api_key="<API token>",
     custom_strategies = my_custom_strategies
 )
 
@@ -308,7 +310,7 @@ Your callback must accept a single UnleashEvent. You can log it, store it, or se
 
 ```python
 from blinker import signal
-from UnleashClient import HttpOptions, UnleashClient
+from UnleashClient import UnleashClient
 from UnleashClient.events import UnleashEvent
 
 send_data = signal('send-data')
@@ -323,7 +325,7 @@ def example_callback(event: UnleashEvent):
 client = UnleashClient(
     url="https://YOUR-API-URL",
     app_name="my-python-app",
-    http=HttpOptions(headers={'Authorization': '<API token>'}),
+    api_key="<API token>",
     event_callback=example_callback
 )
 client.initialize_client()
@@ -342,7 +344,7 @@ The same event_callback also delivers lifecycle events:
 
 ```python
 from blinker import signal
-from UnleashClient import HttpOptions, UnleashClient
+from UnleashClient import UnleashClient
 from UnleashClient.events import UnleashEvent, UnleashEventType
 
 send_data = signal('send-data')
@@ -361,7 +363,7 @@ def example_callback(event: UnleashEvent):
 client = UnleashClient(
     url="https://YOUR-API-URL",
     app_name="my-python-app",
-    http=HttpOptions(headers={'Authorization': '<API token>'}),
+    api_key="<API token>",
     event_callback=example_callback
 )
 client.initialize_client()
@@ -483,13 +485,13 @@ See [The Art of Graceful Reloading](https://uwsgi-docs.readthedocs.io/en/latest/
 When using the SDK in Celery tasks, make sure you initialize it inside the worker_process_init event. Otherwise, the worker may run but won’t poll for feature flag updates.
 
 ```python
-from UnleashClient import HttpOptions, UnleashClient
+from UnleashClient import UnleashClient
 from celery.signals import worker_process_init
 
 client = UnleashClient(
     url="https://YOUR-API-URL",
     app_name="my-python-app",
-    http=HttpOptions(headers={'Authorization': '<API token>'})
+    api_key="<API token>"
 )
 
 @worker_process_init.connect

@@ -27,6 +27,9 @@ class _HeaderFactory:
             # Custom headers go first: the application and identification
             # headers below are not overridable.
             **self._config.http.headers,
+            # HttpOptions rejects an Authorization header, so the custom
+            # headers cannot override the API key.
+            **({"Authorization": self._config.api_key} if self._config.api_key else {}),
             **APPLICATION_HEADERS,
             "unleash-connection-id": self._config.connection_id,
             "unleash-appname": self._config.app_name,

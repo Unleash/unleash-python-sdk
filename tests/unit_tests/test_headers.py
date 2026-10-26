@@ -45,13 +45,27 @@ def test_base_carries_the_application_headers():
 
 
 def test_base_includes_the_custom_headers():
-    factory = build_factory(
-        http=HttpOptions(headers={"Authorization": "project:env.hash"})
-    )
+    factory = build_factory(http=HttpOptions(headers={"X-Custom": "header"}))
+
+    headers = factory.base()
+
+    assert headers["X-Custom"] == "header"
+
+
+def test_base_sends_the_api_key_as_the_authorization_header():
+    factory = build_factory(api_key="project:env.hash")
 
     headers = factory.base()
 
     assert headers["Authorization"] == "project:env.hash"
+
+
+def test_base_has_no_authorization_header_without_an_api_key():
+    factory = build_factory()
+
+    headers = factory.base()
+
+    assert "Authorization" not in headers
 
 
 def test_application_headers_win_over_custom_headers():
@@ -127,7 +141,7 @@ def test_streaming_is_what_the_streaming_connector_used_to_rebuild():
     # StreamingConnector used to re-merge these itself.  Pinning the
     # equivalence keeps the two from drifting apart.
     factory = build_factory(
-        http=HttpOptions(headers={"Authorization": "project:env.hash"})
+        api_key="project:env.hash", http=HttpOptions(headers={"X-Custom": "header"})
     )
 
     headers = factory.streaming()

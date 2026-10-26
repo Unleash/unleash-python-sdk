@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, Literal, Optional, TypedDict
 
 from UnleashClient.constants import REQUEST_RETRIES, REQUEST_TIMEOUT
-from UnleashClient.utils import extract_environment_from_headers
+from UnleashClient.utils import extract_environment_from_api_key
 
 try:
     from typing import Literal
@@ -28,14 +28,15 @@ def _optional_int(value: Any) -> Optional[int]:
 @dataclass(frozen=True)
 class HttpOptions:
     """
-    :param headers: Headers sent with every request, typically ``{"Authorization": "<API key>"}``.
+    :param headers: Extra headers sent with every request.  The API key is not one of them: pass it as ``api_key`` to the client.
     :param options: Extra keyword arguments passed to every ``requests`` call.
     :param timeout: Request timeout in seconds.
     :param retries: Number of retries for failed requests.
+    :raises ValueError: If ``headers`` contains an ``Authorization`` header.
     """
 
-    # repr=False: the dataclass __repr__ would otherwise put the Authorization
-    # API key into logs and tracebacks.
+    # repr=False: custom headers can carry credentials of their own, such as a
+    # proxy's, which the dataclass __repr__ would put into logs and tracebacks.
     headers: Optional[Dict[str, str]] = field(default=None, repr=False)
     options: Optional[Dict[str, Any]] = None
     timeout: int = REQUEST_TIMEOUT
@@ -44,6 +45,13 @@ class HttpOptions:
     def __post_init__(self) -> None:
         object.__setattr__(self, "headers", dict(self.headers or {}))
         object.__setattr__(self, "options", dict(self.options or {}))
+        # not just silently ignoring the authorization header, because not properly migrated v6 clients
+        # could start without an api_key and get 401s and serve cached flags
+        if any(key.lower() == "authorization" for key in self.headers):
+            raise ValueError(
+                "Pass the API key as api_key to the client, "
+                "not as an Authorization header in HttpOptions.headers."
+            )
 
 
 @dataclass(frozen=True)
@@ -111,10 +119,15 @@ class UnleashConfig:
 
     Types are not validated or coerced beyond ``url.rstrip("/")`` and ``int()``
     on the two jitters.  Option groups left as None get their defaults.
+
+    ``api_key`` is optional because a client that only loads from a backup never talks to the server.
     """
 
     url: str
     app_name: str
+    # repr=False: the dataclass __repr__ would otherwise put the API key into
+    # logs and tracebacks.
+    api_key: Optional[str] = field(default=None, repr=False)
     identity: IdentityOptions = field(default_factory=IdentityOptions)
     http: HttpOptions = field(default_factory=HttpOptions)
     fetching: FetchOptions = field(default_factory=FetchOptions)
@@ -148,11 +161,9 @@ class UnleashConfig:
     @property
     def impact_metrics_environment(self) -> str:
         return (
-            extract_environment_from_headers(self.http.headers)
-            or self.identity.environment
+            extract_environment_from_api_key(self.api_key) or self.identity.environment
         )
 
     @property
     def instance_identifier(self) -> str:
-        api_key = self.http.headers.get("Authorization")
-        return f"apiKey:{redact_to_print_safely(api_key)} appName:{self.app_name} instanceId:{self.identity.instance_id}"
+        return f"apiKey:{redact_to_print_safely(self.api_key)} appName:{self.app_name} instanceId:{self.identity.instance_id}"
