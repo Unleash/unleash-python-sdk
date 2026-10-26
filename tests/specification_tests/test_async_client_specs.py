@@ -1,5 +1,3 @@
-import platform
-import sys
 import uuid
 
 import pytest
@@ -53,10 +51,6 @@ async def get_async_client(url, state, test_context=None, cache_directory=None):
     return unleash_client
 
 
-@pytest.mark.skipif(
-    sys.version_info < (3, 9) and platform.system() == "Windows",
-    reason="Requires Python >= 3.9 on Windows",
-)
 @pytest.mark.asyncio
 @pytest.mark.parametrize("spec", TEST_DATA, ids=TEST_NAMES)
 async def test_spec(spec, tmp_path, server):
