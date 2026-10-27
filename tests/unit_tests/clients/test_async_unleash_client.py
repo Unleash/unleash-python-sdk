@@ -1,6 +1,5 @@
 import asyncio
 import json
-from dataclasses import asdict
 from typing import Callable
 
 import pytest
@@ -100,8 +99,8 @@ def test_both_clients_build_the_same_config(tmpdir):
     try:
         async_client = build_async_client(tmpdir, **settings)
 
-        sync_config = asdict(sync_client._config)
-        async_config = asdict(async_client._config)
+        sync_config = dict(vars(sync_client._config))
+        async_config = dict(vars(async_client._config))
         sync_config.pop("connection_id")
         async_config.pop("connection_id")
 

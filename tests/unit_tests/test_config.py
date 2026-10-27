@@ -1,5 +1,5 @@
 import uuid
-from dataclasses import FrozenInstanceError, asdict
+from dataclasses import FrozenInstanceError
 
 import pytest
 
@@ -8,7 +8,6 @@ from UnleashClient.config import (
     IdentityOptions,
     MetricsOptions,
     PollingOptions,
-    StreamingOptions,
     UnleashConfig,
 )
 
@@ -38,15 +37,16 @@ def test_defaults():
 
 def test_groups_left_as_none_get_their_defaults():
     config = UnleashConfig(
-        URL, APP_NAME, identity=None, http=None, mode=None, metrics=None
+        URL,
+        APP_NAME,
+        identity=None,
+        http=None,
+        mode=None,
+        metrics=None,
+        connection_id="fixed-id",
     )
 
-    defaults = asdict(UnleashConfig(URL, APP_NAME))
-    actual = asdict(config)
-    defaults.pop("connection_id")
-    actual.pop("connection_id")
-
-    assert actual == defaults
+    assert config == UnleashConfig(URL, APP_NAME, connection_id="fixed-id")
 
 
 def test_is_immutable():
@@ -162,10 +162,29 @@ def test_missing_headers_and_options_become_empty_dicts():
     assert http.options == {}
 
 
+def test_headers_and_options_are_read_only():
+    http = HttpOptions(headers={"X-Custom": "header"}, options={"verify": True})
+
+    with pytest.raises(TypeError):
+        http.headers["X-Custom"] = "changed"
+    with pytest.raises(TypeError):
+        http.options["verify"] = False
+
+    assert http.headers == {"X-Custom": "header"}
+    assert http.options == {"verify": True}
+
+
 @pytest.mark.parametrize("name", ["Authorization", "authorization", "AUTHORIZATION"])
 def test_an_authorization_header_is_rejected(name):
     with pytest.raises(ValueError, match="api_key"):
         HttpOptions(headers={name: "project:environment.hash"})
+
+
+def test_an_authorization_header_cannot_be_added_later():
+    http = HttpOptions(headers={"X-Custom": "header"})
+
+    with pytest.raises(TypeError):
+        http.headers["Authorization"] = "project:environment.hash"
 
 
 def test_metrics_interval_str_millis():

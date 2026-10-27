@@ -2,7 +2,8 @@
 
 import uuid
 from dataclasses import KW_ONLY, dataclass, field
-from typing import Any, Dict, Optional, Union
+from types import MappingProxyType
+from typing import Any, Dict, Mapping, Optional, Union
 
 from UnleashClient.constants import REQUEST_RETRIES, REQUEST_TIMEOUT
 from UnleashClient.utils import extract_environment_from_api_key
@@ -32,14 +33,14 @@ class HttpOptions:
 
     # repr=False: custom headers can carry credentials of their own, such as a
     # proxy's, which the dataclass __repr__ would put into logs and tracebacks.
-    headers: Optional[Dict[str, str]] = field(default=None, repr=False)
-    options: Optional[Dict[str, Any]] = None
+    headers: Optional[Mapping[str, str]] = field(default=None, repr=False)
+    options: Optional[Mapping[str, Any]] = None
     timeout: int = REQUEST_TIMEOUT
     retries: int = REQUEST_RETRIES
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "headers", dict(self.headers or {}))
-        object.__setattr__(self, "options", dict(self.options or {}))
+        object.__setattr__(self, "headers", MappingProxyType(dict(self.headers or {})))
+        object.__setattr__(self, "options", MappingProxyType(dict(self.options or {})))
         # not just silently ignoring the authorization header, because not properly migrated v6 clients
         # could start without an api_key and get 401s and serve cached flags
         if any(key.lower() == "authorization" for key in self.headers):
