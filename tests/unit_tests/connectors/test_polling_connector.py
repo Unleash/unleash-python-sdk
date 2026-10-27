@@ -161,13 +161,15 @@ def test_polling_connector_emits_ready_once_across_polls(
         transport=build_transport(),
     )
 
-    # Every poll emits READY twice, once from load_from_cache() and once directly.
+    # Every poll emits READY from load_from_cache(), then FETCHED.
     connector._fetch_and_load()
     connector._fetch_and_load()
+
+    # close() drops whatever is still queued, so wait for delivery first
+    assert recorder.wait_for(UnleashEventType.FETCHED, count=2)
     dispatcher.close(timeout=WAIT_TIMEOUT)
 
     assert len(recorder.of_type(UnleashEventType.READY)) == 1
-    assert len(recorder.of_type(UnleashEventType.FETCHED)) == 2
 
 
 @responses.activate

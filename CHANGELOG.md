@@ -1,4 +1,5 @@
 ## Unreleased
+* (Major): Python 3.10 or newer is required. Support for Python 3.8 and 3.9 has been dropped.
 * (Minor): New `FETCH_COMPLETED` event, emitted after every feature fetch with how it ended: `CHANGED`, `NOT_CHANGED`, `UNAUTHORIZED`, `RATE_LIMITED`, `UNAVAILABLE` or `INVALID_RESPONSE`.
 
 ## v6.9.1
