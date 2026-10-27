@@ -34,24 +34,36 @@ class FetchResult(NamedTuple):
     not_modified: bool = False
 
 
+def _failure_status(http_status_code: Optional[int]) -> FetchStatus:
+    """
+    Classifies a failed fetch by the response it got, if any. This is the one
+    place HTTP status codes are read, so the event itself stays free of them.
+    """
+    if http_status_code is None:
+        return FetchStatus.UNAVAILABLE
+    if http_status_code in (401, 403):
+        return FetchStatus.UNAUTHORIZED
+    if http_status_code == 429:
+        return FetchStatus.RATE_LIMITED
+    if http_status_code >= 500:
+        return FetchStatus.UNAVAILABLE
+    return FetchStatus.INVALID_RESPONSE
+
+
+def _fetched_status(raw_state: str) -> FetchStatus:
+    """An empty 200 is not usable: there is no state to apply."""
+    return FetchStatus.CHANGED if raw_state else FetchStatus.INVALID_RESPONSE
+
+
 def _emit_fetch_completed(
-    events: Optional[_EventDispatcher],
-    result: FetchResult,
-    http_status_code: Optional[int],
+    events: Optional[_EventDispatcher], status: FetchStatus
 ) -> None:
     """
-    Reports how a fetch ended. An empty 200 counts as failed, since there is no
-    state to apply. Never raises: a broken listener must not break the fetch.
+    Reports how a fetch ended. Never raises: a broken listener must not break
+    the fetch.
     """
     if events is None:
         return
-
-    if result.not_modified:
-        status = FetchStatus.NOT_CHANGED
-    elif result.raw_state:
-        status = FetchStatus.CHANGED
-    else:
-        status = FetchStatus.FAILED
 
     try:
         events.emit_event(
@@ -59,7 +71,6 @@ def _emit_fetch_completed(
                 event_type=UnleashEventType.FETCH_COMPLETED,
                 event_id=uuid.uuid4(),
                 status=status,
-                http_status_code=http_status_code,
             )
         )
     except Exception:  # pylint: disable=broad-except
@@ -115,12 +126,12 @@ class _Transport:
         :param etag: Etag from the last fetch, or "" to fetch unconditionally.
         :return: The fetched state, or an empty result on a 304 and on failure.
         """
-        result, http_status_code = self._fetch_features(etag)
-        _emit_fetch_completed(self._events, result, http_status_code)
+        result, status = self._fetch_features(etag)
+        _emit_fetch_completed(self._events, status)
         return result
 
-    def _fetch_features(self, etag: str) -> Tuple[FetchResult, Optional[int]]:
-        """The fetch itself, with the final HTTP status code or None."""
+    def _fetch_features(self, etag: str) -> Tuple[FetchResult, FetchStatus]:
+        """The fetch itself, with how it ended."""
         config = self._config
         http_status_code: Optional[int] = None
         try:
@@ -141,12 +152,8 @@ class _Transport:
                 base_params = {"project": config.project_name}
 
             adapter = HTTPAdapter(
-                # raise_on_status=False: once retries run out, hand back the last
-                # response so its status code is reported
                 max_retries=Retry(
-                    total=config.request_retries,
-                    status_forcelist=[500, 502, 504],
-                    raise_on_status=False,
+                    total=config.request_retries, status_forcelist=[500, 502, 504]
                 )
             )
             with requests.Session() as session:
@@ -176,15 +183,18 @@ class _Transport:
                 fetched_etag = resp.headers["etag"]
 
             if resp.status_code == 304:
-                return FetchResult(None, fetched_etag, not_modified=True), 304
+                return (
+                    FetchResult(None, fetched_etag, not_modified=True),
+                    FetchStatus.NOT_CHANGED,
+                )
 
-            return FetchResult(resp.text, fetched_etag), resp.status_code
+            return FetchResult(resp.text, fetched_etag), _fetched_status(resp.text)
         except Exception as exc:
             LOGGER.exception(
                 "Unleash Client feature fetch failed due to exception: %s", exc
             )
 
-        return FetchResult(None, ""), http_status_code
+        return FetchResult(None, ""), _failure_status(http_status_code)
 
     def register(self, payload: Dict[str, Any]) -> bool:
         """

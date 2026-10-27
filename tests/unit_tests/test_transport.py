@@ -377,7 +377,7 @@ class RecordingEvents:
 
 def fetch_outcomes(events: RecordingEvents):
     return [
-        (event.status, event.http_status_code)
+        event.status
         for event in events.events
         if event.event_type == UnleashEventType.FETCH_COMPLETED
     ]
@@ -389,8 +389,14 @@ def fetch_outcomes(events: RecordingEvents):
     (
         param(200, MOCK_FEATURE_RESPONSE, FetchStatus.CHANGED, id="changed"),
         param(304, None, FetchStatus.NOT_CHANGED, id="not-changed"),
-        param(202, MOCK_FEATURE_RESPONSE, FetchStatus.FAILED, id="unexpected"),
-        param(500, {}, FetchStatus.FAILED, id="server-error-after-retries"),
+        param(401, {}, FetchStatus.UNAUTHORIZED, id="unknown-token"),
+        param(403, {}, FetchStatus.UNAUTHORIZED, id="wrong-token-type"),
+        param(429, {}, FetchStatus.RATE_LIMITED, id="rate-limited"),
+        param(500, {}, FetchStatus.UNAVAILABLE, id="server-error-after-retries"),
+        param(503, {}, FetchStatus.UNAVAILABLE, id="server-unavailable"),
+        param(
+            202, MOCK_FEATURE_RESPONSE, FetchStatus.INVALID_RESPONSE, id="unexpected"
+        ),
     ),
 )
 def test_fetch_features_reports_how_the_fetch_ended(
@@ -401,21 +407,21 @@ def test_fetch_features_reports_how_the_fetch_ended(
 
     build_transport(events=events).fetch_features()
 
-    assert fetch_outcomes(events) == [(expected, status)]
+    assert fetch_outcomes(events) == [expected]
 
 
 @responses.activate
-def test_fetch_features_reports_an_empty_200_as_failed(build_transport):
+def test_fetch_features_reports_an_empty_200_as_invalid(build_transport):
     responses.add(responses.GET, FULL_FEATURE_URL, body="", status=200)
     events = RecordingEvents()
 
     build_transport(events=events).fetch_features()
 
-    assert fetch_outcomes(events) == [(FetchStatus.FAILED, 200)]
+    assert fetch_outcomes(events) == [FetchStatus.INVALID_RESPONSE]
 
 
 @responses.activate
-def test_fetch_features_reports_no_status_code_when_no_response_arrives(
+def test_fetch_features_reports_unavailable_when_no_response_arrives(
     build_transport,
 ):
     responses.add(responses.GET, FULL_FEATURE_URL, body=ConnectionError("refused"))
@@ -423,7 +429,7 @@ def test_fetch_features_reports_no_status_code_when_no_response_arrives(
 
     build_transport(events=events).fetch_features()
 
-    assert fetch_outcomes(events) == [(FetchStatus.FAILED, None)]
+    assert fetch_outcomes(events) == [FetchStatus.UNAVAILABLE]
 
 
 @responses.activate

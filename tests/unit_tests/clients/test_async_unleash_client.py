@@ -816,4 +816,4 @@ async def test_async_client_reports_how_each_fetch_ended(server, build_running_c
 
     assert recorder.wait_for(UnleashEventType.FETCH_COMPLETED, count=1)
     event = recorder.of_type(UnleashEventType.FETCH_COMPLETED)[0]
-    assert (event.status, event.http_status_code) == (FetchStatus.CHANGED, 200)
+    assert event.status == FetchStatus.CHANGED

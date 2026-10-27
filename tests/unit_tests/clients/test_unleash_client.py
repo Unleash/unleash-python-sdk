@@ -1912,4 +1912,4 @@ def test_uc_reports_how_each_fetch_ended(cache):
         unleash_client.destroy()
 
     event = recorder.of_type(UnleashEventType.FETCH_COMPLETED)[0]
-    assert (event.status, event.http_status_code) == (FetchStatus.CHANGED, 200)
+    assert event.status == FetchStatus.CHANGED

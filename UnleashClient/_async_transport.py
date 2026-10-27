@@ -10,11 +10,14 @@ from UnleashClient._headers import _HeaderFactory
 from UnleashClient._transport import (
     FetchResult,
     _emit_fetch_completed,
+    _failure_status,
+    _fetched_status,
     _normalized_url,
 )
 from UnleashClient.config import UnleashConfig
 from UnleashClient.constants import FEATURES_URL, METRICS_URL, REGISTER_URL
 from UnleashClient.errors import AlreadyClosedError
+from UnleashClient.events import FetchStatus
 from UnleashClient.utils import LOGGER
 
 try:
@@ -110,12 +113,12 @@ class _AsyncTransport:
         """
         self._raise_if_closed()
 
-        result, http_status_code = await self._fetch_features(etag)
-        _emit_fetch_completed(self._events, result, http_status_code)
+        result, status = await self._fetch_features(etag)
+        _emit_fetch_completed(self._events, status)
         return result
 
-    async def _fetch_features(self, etag: str) -> Tuple[FetchResult, Optional[int]]:
-        """The fetch itself, with the final HTTP status code or None."""
+    async def _fetch_features(self, etag: str) -> Tuple[FetchResult, FetchStatus]:
+        """The fetch itself, with how it ended."""
         config = self._config
         http_status_code: Optional[int] = None
         try:
@@ -137,8 +140,6 @@ class _AsyncTransport:
 
             for attempt in range(attempts):
                 last_attempt = attempt == attempts - 1
-                # A failed attempt's status code must not outlive it
-                http_status_code = None
                 try:
                     async with session.get(
                         base_url,
@@ -165,14 +166,18 @@ class _AsyncTransport:
                         if resp.status == 304:
                             return (
                                 FetchResult(None, fetched_etag, not_modified=True),
-                                304,
+                                FetchStatus.NOT_CHANGED,
                             )
 
+                        raw_state = await resp.text()
                         return (
-                            FetchResult(await resp.text(), fetched_etag),
-                            resp.status,
+                            FetchResult(raw_state, fetched_etag),
+                            _fetched_status(raw_state),
                         )
                 except RETRYABLE_ERRORS:
+                    # No usable response arrived, even if a status line did
+                    # before the body timed out
+                    http_status_code = None
                     if last_attempt:
                         raise
         except Exception as exc:
@@ -180,7 +185,7 @@ class _AsyncTransport:
                 "Unleash Client feature fetch failed due to exception: %s", exc
             )
 
-        return FetchResult(None, ""), http_status_code
+        return FetchResult(None, ""), _failure_status(http_status_code)
 
     async def register(self, payload: Dict[str, Any]) -> bool:
         """

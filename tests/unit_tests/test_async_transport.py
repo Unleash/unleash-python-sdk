@@ -443,7 +443,7 @@ class RecordingEvents:
 
 def fetch_outcomes(events: RecordingEvents):
     return [
-        (event.status, event.http_status_code)
+        event.status
         for event in events.events
         if event.event_type == UnleashEventType.FETCH_COMPLETED
     ]
@@ -455,9 +455,15 @@ def fetch_outcomes(events: RecordingEvents):
     (
         param(200, MOCK_FEATURE_RESPONSE, FetchStatus.CHANGED, id="changed"),
         param(304, None, FetchStatus.NOT_CHANGED, id="not-changed"),
-        param(202, MOCK_FEATURE_RESPONSE, FetchStatus.FAILED, id="unexpected"),
-        param(500, {}, FetchStatus.FAILED, id="server-error-after-retries"),
-        param(200, None, FetchStatus.FAILED, id="empty-200"),
+        param(401, {}, FetchStatus.UNAUTHORIZED, id="unknown-token"),
+        param(403, {}, FetchStatus.UNAUTHORIZED, id="wrong-token-type"),
+        param(429, {}, FetchStatus.RATE_LIMITED, id="rate-limited"),
+        param(500, {}, FetchStatus.UNAVAILABLE, id="server-error-after-retries"),
+        param(503, {}, FetchStatus.UNAVAILABLE, id="server-unavailable"),
+        param(
+            202, MOCK_FEATURE_RESPONSE, FetchStatus.INVALID_RESPONSE, id="unexpected"
+        ),
+        param(200, None, FetchStatus.INVALID_RESPONSE, id="empty-200"),
     ),
 )
 async def test_fetch_features_reports_how_the_fetch_ended(
@@ -468,11 +474,11 @@ async def test_fetch_features_reports_how_the_fetch_ended(
 
     await build_transport(events=events).fetch_features()
 
-    assert fetch_outcomes(events) == [(expected, status)]
+    assert fetch_outcomes(events) == [expected]
 
 
 @mark.asyncio
-async def test_fetch_features_reports_no_status_code_when_no_response_arrives(
+async def test_fetch_features_reports_unavailable_when_no_response_arrives(
     server, build_transport
 ):
     server.on("GET", FEATURES_PATH, disconnect=True, repeat=True)
@@ -480,17 +486,16 @@ async def test_fetch_features_reports_no_status_code_when_no_response_arrives(
 
     await build_transport(events=events).fetch_features()
 
-    assert fetch_outcomes(events) == [(FetchStatus.FAILED, None)]
+    assert fetch_outcomes(events) == [FetchStatus.UNAVAILABLE]
 
 
 @mark.asyncio
-async def test_fetch_features_does_not_report_an_earlier_attempts_status_code(
+async def test_fetch_features_reports_unavailable_when_the_body_times_out(
     server, build_transport, monkeypatch
 ):
-    # The first attempt gets a 200 but its body never arrives; the retry gets no
-    # response at all, so the fetch must report no status code, not that 200.
-    server.on("GET", FEATURES_PATH, payload=MOCK_FEATURE_RESPONSE)
-    server.on("GET", FEATURES_PATH, disconnect=True, repeat=True)
+    # A 200 status line arrives but its body never does. That is the server
+    # being unreachable, not a bad response.
+    server.on("GET", FEATURES_PATH, payload=MOCK_FEATURE_RESPONSE, repeat=True)
 
     async def body_times_out(_response):
         raise asyncio.TimeoutError()
@@ -500,4 +505,4 @@ async def test_fetch_features_does_not_report_an_earlier_attempts_status_code(
 
     await build_transport(events=events).fetch_features()
 
-    assert fetch_outcomes(events) == [(FetchStatus.FAILED, None)]
+    assert fetch_outcomes(events) == [FetchStatus.UNAVAILABLE]

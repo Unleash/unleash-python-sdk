@@ -23,8 +23,26 @@ class FetchStatus(Enum):
     """
 
     CHANGED = "changed"
+    """New feature state arrived."""
+
     NOT_CHANGED = "not_changed"
-    FAILED = "failed"
+    """The server had nothing new since the last fetch."""
+
+    UNAUTHORIZED = "unauthorized"
+    """The server rejected the token: missing, unknown or the wrong type.
+    Won't recover on its own."""
+
+    RATE_LIMITED = "rate_limited"
+    """The server is throttling this client. Back off."""
+
+    UNAVAILABLE = "unavailable"
+    """The server or the network is down: a server error after retries, a
+    timeout or no response at all. Transient."""
+
+    INVALID_RESPONSE = "invalid_response"
+    """A response arrived that the client can't use, for example an empty
+    body or an unexpected status. Something between the client and the
+    server may be answering in its place."""
 
 
 @dataclass
@@ -77,10 +95,8 @@ class UnleashFetchedEvent(BaseEvent):
 class UnleashFetchCompletedEvent(BaseEvent):
     """
     Event emitted after every feature fetch, whether it brought new state, nothing
-    new, or failed. ``http_status_code`` is None when no response arrived, for
-    example on a timeout or a refused connection. It is sent as soon as the
-    fetch ends, before the fetched state is applied.
+    new, or failed. It is sent as soon as the fetch ends, before the fetched
+    state is applied.
     """
 
     status: FetchStatus
-    http_status_code: Optional[int] = None
