@@ -1642,6 +1642,23 @@ def test_uc_offline_falls_back_on_polling_defaults_when_streaming(tmp_path):
         unleash_client.destroy()
 
 
+def test_uc_polls_when_mode_is_of_the_wrong_type(monkeypatch, tmp_path):
+    unleash_client = UnleashClient(
+        URL,
+        APP_NAME,
+        mode="streaming",
+        metrics=MetricsOptions(disabled=True, disable_registration=True),
+        cache_directory=str(tmp_path),
+    )
+    try:
+        monkeypatch.setattr(PollingConnector, "start", lambda self: None)
+        unleash_client.initialize_client()
+
+        assert isinstance(unleash_client.connector, PollingConnector)
+    finally:
+        unleash_client.destroy()
+
+
 @responses.activate
 def test_spec_header_is_sent_when_fetching_features(tmp_path):
     responses.add(

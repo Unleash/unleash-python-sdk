@@ -6,7 +6,7 @@ from types import MappingProxyType
 from typing import Any, Dict, Mapping, Optional, Union
 
 from UnleashClient.constants import REQUEST_RETRIES, REQUEST_TIMEOUT
-from UnleashClient.utils import extract_environment_from_api_key
+from UnleashClient.utils import LOGGER, extract_environment_from_api_key
 
 
 def redact_to_print_safely(value: Optional[str]) -> Optional[str]:
@@ -150,6 +150,13 @@ class UnleashConfig:
             object.__setattr__(self, "mode", PollingOptions())
         if self.metrics is None:
             object.__setattr__(self, "metrics", MetricsOptions())
+        if not isinstance(self.mode, (PollingOptions, StreamingOptions)):
+            LOGGER.warning(
+                "mode must be PollingOptions or StreamingOptions, got %s. "
+                "Polling instead.",
+                type(self.mode).__name__,
+            )
+            object.__setattr__(self, "mode", PollingOptions())
 
     @property
     def static_context(self) -> Dict[str, Any]:
