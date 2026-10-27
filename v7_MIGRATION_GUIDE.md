@@ -70,6 +70,8 @@ The same applies to `AsyncUnleashClient`, but only polling is supported.
 
 The `ExperimentalMode` type has been removed.
 
+Offline mode (`initialize_client(fetch_toggles=False)`) reloads the cache every `PollingOptions.interval` seconds. With `StreamingOptions` it uses the default, 15 seconds, where v6 used `refresh_interval`; to change it, pass `PollingOptions(interval=...)` instead.
+
 ## The API token is passed as `api_key`
 
 Pass the API token as `api_key` instead of as an `Authorization` header:
