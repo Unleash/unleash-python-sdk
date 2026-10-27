@@ -35,10 +35,7 @@ class FetchResult(NamedTuple):
 
 
 def _failure_status(http_status_code: Optional[int]) -> FetchStatus:
-    """
-    Classifies a failed fetch by the response it got, if any. This is the one
-    place HTTP status codes are read, so the event itself stays free of them.
-    """
+    """Classifies a failed fetch by the response it got, if any."""
     if http_status_code is None:
         return FetchStatus.UNAVAILABLE
     if http_status_code in (401, 403):
