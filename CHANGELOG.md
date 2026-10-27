@@ -1,3 +1,6 @@
+## Unreleased
+* (Major): Python 3.10 or newer is required. Support for Python 3.8 and 3.9 has been dropped.
+
 ## v6.9.1
 * (Bugfix): Capped yggdrasil-engine below 3.0.0 so installs don't pick up a breaking major version.
 
