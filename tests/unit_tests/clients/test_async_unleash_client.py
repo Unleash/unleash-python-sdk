@@ -19,10 +19,11 @@ from UnleashClient._metrics import _MetricsReporter
 from UnleashClient.cache import FileCache
 from UnleashClient.clients.async_unleash_client import AsyncUnleashClient
 from UnleashClient.config import (
-    FetchOptions,
     HttpOptions,
     IdentityOptions,
     MetricsOptions,
+    PollingOptions,
+    StreamingOptions,
 )
 from UnleashClient.constants import (
     ETAG,
@@ -60,8 +61,13 @@ def test_async_client_builds_the_shared_config(tmpdir):
 
     assert client._config.url == URL
     assert client._config.app_name == APP_NAME
-    assert client._config.fetching.interval == 15
-    assert client._config.fetching.mode == "polling"
+    assert client._config.mode.interval == 15
+    assert isinstance(client._config.mode, PollingOptions)
+
+
+def test_async_client_rejects_streaming(tmpdir):
+    with pytest.raises(ValueError, match="does not support streaming"):
+        build_async_client(tmpdir, url=URL, app_name=APP_NAME, mode=StreamingOptions())
 
 
 def test_both_clients_build_the_same_config(tmpdir):
@@ -81,7 +87,7 @@ def test_both_clients_build_the_same_config(tmpdir):
             timeout=9,
             retries=2,
         ),
-        fetching=FetchOptions(interval=1, jitter=2, project_name="ivan"),
+        mode=PollingOptions(interval=1, jitter=2, project_name="ivan"),
         metrics=MetricsOptions(
             interval=3, jitter=4, disabled=True, disable_registration=True
         ),
@@ -144,7 +150,7 @@ def test_both_clients_build_the_same_headers(tmpdir):
         api_key="project:environment.hash",
         identity=IdentityOptions(instance_id="123"),
         http=HttpOptions(headers={"X-Custom": "header"}),
-        fetching=FetchOptions(interval=1),
+        mode=PollingOptions(interval=1),
         metrics=MetricsOptions(interval=3),
     )
 
@@ -154,9 +160,16 @@ def test_both_clients_build_the_same_headers(tmpdir):
     try:
         async_client = build_async_client(tmpdir, **settings)
 
-        for build in ("base", "polling", "metrics", "streaming"):
-            sync_headers = getattr(sync_client._headers, build)()
-            async_headers = getattr(async_client._headers, build)()
+        polling = PollingOptions(interval=1)
+        builds = {
+            "base": (),
+            "polling": (polling,),
+            "metrics": (),
+            "streaming": (),
+        }
+        for build, args in builds.items():
+            sync_headers = getattr(sync_client._headers, build)(*args)
+            async_headers = getattr(async_client._headers, build)(*args)
             # A fresh uuid per client, so it can never match.
             sync_headers.pop("unleash-connection-id")
             async_headers.pop("unleash-connection-id")
@@ -504,7 +517,7 @@ async def until(predicate: Callable[[], bool]) -> None:
 
 @pytest.mark.asyncio
 async def test_initializing_registers_with_the_server(server, build_running_client):
-    client = build_running_client(fetching=FetchOptions(interval=3600))
+    client = build_running_client(mode=PollingOptions(interval=3600))
 
     await client.initialize_client()
 
@@ -518,7 +531,7 @@ async def test_initializing_does_not_register_when_registration_is_disabled(
     server, build_running_client
 ):
     client = build_running_client(
-        fetching=FetchOptions(interval=3600),
+        mode=PollingOptions(interval=3600),
         metrics=MetricsOptions(disable_registration=True),
     )
 
@@ -532,7 +545,7 @@ async def test_initializing_awaits_the_first_fetch_while_yielding_to_the_event_l
     server, build_running_client, monkeypatch
 ):
     server.on("GET", FEATURES_PATH, payload=MOCK_FEATURE_RESPONSE)
-    client = build_running_client(fetching=FetchOptions(interval=3600))
+    client = build_running_client(mode=PollingOptions(interval=3600))
     started = asyncio.Event()
     release = asyncio.Event()
     fetch_features = client._transport.fetch_features
@@ -562,7 +575,7 @@ async def test_caller_can_cancel_initialization_before_destroying(
     server, build_running_client
 ):
     server.on("GET", FEATURES_PATH, hang=True)
-    client = build_running_client(fetching=FetchOptions(interval=3600))
+    client = build_running_client(mode=PollingOptions(interval=3600))
     initializing = asyncio.create_task(client.initialize_client())
     await until(lambda: len(server.calls("GET", FEATURES_PATH)) == 1)
 
@@ -576,7 +589,7 @@ async def test_caller_can_cancel_initialization_before_destroying(
 @pytest.mark.asyncio
 async def test_the_client_polls_features_from_the_server(server, build_running_client):
     server.on("GET", FEATURES_PATH, payload=MOCK_FEATURE_RESPONSE, repeat=True)
-    client = build_running_client(fetching=FetchOptions(interval=0.01))
+    client = build_running_client(mode=PollingOptions(interval=0.01))
 
     await client.initialize_client()
 
@@ -588,7 +601,7 @@ async def test_the_client_polls_even_when_asked_not_to_fetch_toggles(
     server, build_running_client
 ):
     server.on("GET", FEATURES_PATH, payload=MOCK_FEATURE_RESPONSE, repeat=True)
-    client = build_running_client(fetching=FetchOptions(interval=0.01))
+    client = build_running_client(mode=PollingOptions(interval=0.01))
 
     await client.initialize_client(fetch_toggles=False)
 
@@ -602,7 +615,7 @@ async def test_the_first_poll_ignores_a_previously_cached_etag(
     server.on("GET", FEATURES_PATH, payload=MOCK_FEATURE_RESPONSE, repeat=True)
     cache = FileCache(APP_NAME, directory=str(tmpdir))
     cache.set(ETAG, "W/stale")
-    client = build_running_client(cache=cache, fetching=FetchOptions(interval=0.01))
+    client = build_running_client(cache=cache, mode=PollingOptions(interval=0.01))
 
     await client.initialize_client()
 
@@ -614,7 +627,7 @@ async def test_the_first_poll_ignores_a_previously_cached_etag(
 async def test_initializing_twice_warns_and_registers_once(
     server, build_running_client
 ):
-    client = build_running_client(fetching=FetchOptions(interval=3600))
+    client = build_running_client(mode=PollingOptions(interval=3600))
     await client.initialize_client()
 
     with pytest.warns(UserWarning, match="already been initialized"):
@@ -627,7 +640,7 @@ async def test_initializing_twice_warns_and_registers_once(
 async def test_initializing_a_destroyed_client_warns_and_does_nothing(
     server, build_running_client
 ):
-    client = build_running_client(fetching=FetchOptions(interval=3600))
+    client = build_running_client(mode=PollingOptions(interval=3600))
     await client.destroy()
 
     with pytest.warns(UserWarning, match="already been initialized"):
@@ -640,7 +653,7 @@ async def test_initializing_a_destroyed_client_warns_and_does_nothing(
 @pytest.mark.asyncio
 async def test_destroy_stops_polling(server, build_running_client):
     server.on("GET", FEATURES_PATH, payload=MOCK_FEATURE_RESPONSE, repeat=True)
-    client = build_running_client(fetching=FetchOptions(interval=0.01))
+    client = build_running_client(mode=PollingOptions(interval=0.01))
     await client.initialize_client()
     await until(lambda: len(server.calls("GET", FEATURES_PATH)) >= 1)
 
@@ -655,7 +668,7 @@ async def test_destroy_stops_polling(server, build_running_client):
 @pytest.mark.asyncio
 async def test_destroy_sends_the_remaining_metrics(server, build_running_client):
     client = build_running_client(
-        fetching=FetchOptions(interval=3600),
+        mode=PollingOptions(interval=3600),
         metrics=MetricsOptions(interval=3600, disabled=False),
     )
     await client.initialize_client()
@@ -671,7 +684,7 @@ async def test_destroy_sends_the_remaining_metrics(server, build_running_client)
 
 @pytest.mark.asyncio
 async def test_destroy_can_be_called_more_than_once(server, build_running_client):
-    client = build_running_client(fetching=FetchOptions(interval=3600))
+    client = build_running_client(mode=PollingOptions(interval=3600))
     await client.initialize_client()
 
     await client.destroy()
@@ -690,7 +703,7 @@ async def test_destroy_during_registration_leaves_nothing_polling(
     server, build_running_client
 ):
     server.on("GET", FEATURES_PATH, payload=MOCK_FEATURE_RESPONSE, repeat=True)
-    client = build_running_client(fetching=FetchOptions(interval=0.01))
+    client = build_running_client(mode=PollingOptions(interval=0.01))
     client._transport.register = lambda payload: asyncio.sleep(0.05)
 
     initializing = asyncio.ensure_future(client.initialize_client())
@@ -708,7 +721,7 @@ async def test_the_context_manager_initializes_and_destroys(
     server, build_running_client
 ):
     server.on("GET", FEATURES_PATH, payload=MOCK_FEATURE_RESPONSE, repeat=True)
-    client = build_running_client(fetching=FetchOptions(interval=0.01))
+    client = build_running_client(mode=PollingOptions(interval=0.01))
 
     async with client as entered:
         assert entered is client
@@ -726,7 +739,7 @@ async def test_is_enabled_resolves_toggles_from_the_cached_state(
 ):
     cache = FileCache(APP_NAME, directory=str(tmpdir))
     cache.set(FEATURES_URL, json.dumps(MOCK_FEATURE_RESPONSE))
-    client = build_running_client(cache=cache, fetching=FetchOptions(interval=3600))
+    client = build_running_client(cache=cache, mode=PollingOptions(interval=3600))
 
     await client.initialize_client()
 
@@ -736,7 +749,7 @@ async def test_is_enabled_resolves_toggles_from_the_cached_state(
 
 @pytest.mark.asyncio
 async def test_is_enabled_is_false_for_an_unknown_toggle(build_running_client):
-    client = build_running_client(fetching=FetchOptions(interval=3600))
+    client = build_running_client(mode=PollingOptions(interval=3600))
 
     await client.initialize_client()
 
@@ -747,7 +760,7 @@ async def test_is_enabled_is_false_for_an_unknown_toggle(build_running_client):
 async def test_is_enabled_answers_unknown_toggles_with_the_fallback(
     build_running_client,
 ):
-    client = build_running_client(fetching=FetchOptions(interval=3600))
+    client = build_running_client(mode=PollingOptions(interval=3600))
 
     await client.initialize_client()
 
@@ -767,7 +780,7 @@ async def test_is_enabled_emits_impression_events(tmpdir, build_running_client):
     cache.set(FEATURES_URL, json.dumps(MOCK_FEATURE_RESPONSE))
     recorder = EventRecorder()
     client = build_running_client(
-        cache=cache, event_callback=recorder, fetching=FetchOptions(interval=3600)
+        cache=cache, event_callback=recorder, mode=PollingOptions(interval=3600)
     )
 
     await client.initialize_client()
@@ -785,7 +798,7 @@ async def test_get_variant_resolves_variants_from_the_cached_state(
 ):
     cache = FileCache(APP_NAME, directory=str(tmpdir))
     cache.set(FEATURES_URL, json.dumps(MOCK_FEATURE_RESPONSE))
-    client = build_running_client(cache=cache, fetching=FetchOptions(interval=3600))
+    client = build_running_client(cache=cache, mode=PollingOptions(interval=3600))
 
     await client.initialize_client()
 
@@ -797,7 +810,7 @@ async def test_get_variant_resolves_variants_from_the_cached_state(
 
 @pytest.mark.asyncio
 async def test_get_variant_is_disabled_for_an_unknown_toggle(build_running_client):
-    client = build_running_client(fetching=FetchOptions(interval=3600))
+    client = build_running_client(mode=PollingOptions(interval=3600))
 
     await client.initialize_client()
 
@@ -813,7 +826,7 @@ async def test_get_variant_emits_impression_events(tmpdir, build_running_client)
     cache.set(FEATURES_URL, json.dumps(MOCK_FEATURE_RESPONSE))
     recorder = EventRecorder()
     client = build_running_client(
-        cache=cache, event_callback=recorder, fetching=FetchOptions(interval=3600)
+        cache=cache, event_callback=recorder, mode=PollingOptions(interval=3600)
     )
 
     await client.initialize_client()
@@ -832,7 +845,7 @@ async def test_feature_definitions_reports_the_toggles_in_the_cached_state(
 ):
     cache = FileCache(APP_NAME, directory=str(tmpdir))
     cache.set(FEATURES_URL, json.dumps(MOCK_FEATURE_RESPONSE_PROJECT))
-    client = build_running_client(cache=cache, fetching=FetchOptions(interval=3600))
+    client = build_running_client(cache=cache, mode=PollingOptions(interval=3600))
 
     await client.initialize_client()
 
@@ -843,7 +856,7 @@ async def test_feature_definitions_reports_the_toggles_in_the_cached_state(
 
 @pytest.mark.asyncio
 async def test_feature_definitions_is_empty_without_any_state(build_running_client):
-    client = build_running_client(fetching=FetchOptions(interval=3600))
+    client = build_running_client(mode=PollingOptions(interval=3600))
 
     await client.initialize_client()
 

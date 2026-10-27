@@ -6,7 +6,13 @@ from .clients import (
     UnleashClient,
     build_ready_callback,
 )
-from .config import FetchOptions, HttpOptions, IdentityOptions, MetricsOptions
+from .config import (
+    HttpOptions,
+    IdentityOptions,
+    MetricsOptions,
+    PollingOptions,
+    StreamingOptions,
+)
 
 if TYPE_CHECKING:
     from .clients.async_unleash_client import AsyncUnleashClient

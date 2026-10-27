@@ -117,7 +117,7 @@ The client will evaluate the fallback function if the feature flag is not found 
 
 ```python
 from UnleashClient import (
-    FetchOptions, HttpOptions, IdentityOptions, MetricsOptions, UnleashClient,
+    HttpOptions, IdentityOptions, MetricsOptions, PollingOptions, UnleashClient,
 )
 
 client = UnleashClient(
@@ -126,7 +126,7 @@ client = UnleashClient(
     identity=IdentityOptions(environment="production"),
     api_key="<API token>",
     http=HttpOptions(timeout=10),
-    fetching=FetchOptions(interval=30),
+    mode=PollingOptions(interval=30),
     metrics=MetricsOptions(disabled=True),
 )
 ```
@@ -140,7 +140,7 @@ Settings can't be changed after the client is created.
 | api_key                | Client API token, sent as the `Authorization` header. | None                |
 | identity               | How the client identifies itself. See [`IdentityOptions`](#identityoptions).                                                              | `IdentityOptions()` |
 | http                   | How the client talks to the server. See [`HttpOptions`](#httpoptions).                                                                    | `HttpOptions()`     |
-| fetching               | Which flags the client fetches, and how often. See [`FetchOptions`](#fetchoptions).                                                       | `FetchOptions()`    |
+| mode                   | How the client receives flag updates: [`PollingOptions`](#pollingoptions) or [`StreamingOptions`](#streamingoptions).                     | `PollingOptions()`  |
 | metrics                | How the client reports to the server. See [`MetricsOptions`](#metricsoptions).                                                            | `MetricsOptions()`  |
 | verbose_log_level      | [Log level](https://docs.python.org/3/library/logging.html#logging-levels) for messages about unknown flags and failed impression events. | 30                  |
 | custom_strategies      | Dict of `{name: strategy}` for custom activation strategies. See [custom strategies](#custom-strategies).                                 | None                |
@@ -169,14 +169,19 @@ Settings can't be changed after the client is created.
 | timeout   | HTTP request timeout (seconds).                                                                                                    | 30      |
 | retries   | How many times a failed feature fetch is retried.                                                                                  | 3       |
 
-#### `FetchOptions`
+#### `PollingOptions`
 
-| Parameter    | Description                                                    | Default   |
-| ------------ | -------------------------------------------------------------- | --------- |
-| interval     | How often to fetch feature flags (seconds).                    | 15        |
-| jitter       | Maximum random delay added to each refresh (seconds).          | None      |
-| project_name | Only fetch the feature flags of this project.                  | None      |
-| mode         | `"polling"` or `"streaming"` (experimental). Sync client only. | "polling" |
+The default: the client fetches feature flags from the server on an interval.
+
+| Parameter    | Description                                           | Default |
+| ------------ | ----------------------------------------------------- | ------- |
+| interval     | How often to fetch feature flags (seconds).           | 15      |
+| jitter       | Maximum random delay added to each refresh (seconds). | None    |
+| project_name | Only fetch the feature flags of this project.         | None    |
+
+#### `StreamingOptions`
+
+Experimental: the client keeps a streaming connection open and receives flag updates as they happen. Pass `mode=StreamingOptions()`. It has no settings yet. `AsyncUnleashClient` doesn't support streaming.
 
 #### `MetricsOptions`
 

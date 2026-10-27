@@ -25,10 +25,10 @@ from tests.utilities.testing_constants import (
 from UnleashClient._async_transport import _AsyncTransport
 from UnleashClient._headers import _HeaderFactory
 from UnleashClient.config import (
-    FetchOptions,
     HttpOptions,
     IdentityOptions,
     MetricsOptions,
+    PollingOptions,
     UnleashConfig,
 )
 from UnleashClient.constants import (
@@ -121,7 +121,7 @@ async def test_fetch_features(
         repeat=True,
     )
 
-    result = await transport.fetch_features()
+    result = await transport.fetch_features(options=PollingOptions())
 
     assert len(server.calls("GET", FEATURES_PATH)) == call_count
     assert expected(result.raw_state)
@@ -131,7 +131,7 @@ async def test_fetch_features(
 async def test_fetch_features_sends_the_project_as_a_query_parameter(
     server, build_transport
 ):
-    transport = build_transport(fetching=FetchOptions(project_name=PROJECT_NAME))
+    transport = build_transport()
     server.on(
         "GET",
         FEATURES_PATH,
@@ -140,7 +140,9 @@ async def test_fetch_features_sends_the_project_as_a_query_parameter(
         headers={"etag": ETAG_VALUE},
     )
 
-    result = await transport.fetch_features()
+    result = await transport.fetch_features(
+        options=PollingOptions(project_name=PROJECT_NAME)
+    )
 
     calls = server.calls("GET", FEATURES_PATH)
     assert len(calls) == 1
@@ -151,7 +153,7 @@ async def test_fetch_features_sends_the_project_as_a_query_parameter(
 
 @mark.asyncio
 async def test_fetch_features_drops_the_etag_on_failure(server, build_transport):
-    transport = build_transport(fetching=FetchOptions(project_name=PROJECT_NAME))
+    transport = build_transport()
     server.on(
         "GET",
         FEATURES_PATH,
@@ -161,7 +163,9 @@ async def test_fetch_features_drops_the_etag_on_failure(server, build_transport)
         repeat=True,
     )
 
-    result = await transport.fetch_features()
+    result = await transport.fetch_features(
+        options=PollingOptions(project_name=PROJECT_NAME)
+    )
 
     assert len(server.calls("GET", FEATURES_PATH)) == 4
     assert not result.etag
@@ -172,10 +176,12 @@ async def test_fetch_features_drops_the_etag_on_failure(server, build_transport)
 async def test_fetch_features_sends_if_none_match_when_an_etag_is_known(
     server, build_transport
 ):
-    transport = build_transport(fetching=FetchOptions(project_name=PROJECT_NAME))
+    transport = build_transport()
     server.on("GET", FEATURES_PATH, status=304, headers={"etag": ETAG_VALUE})
 
-    result = await transport.fetch_features(ETAG_VALUE)
+    result = await transport.fetch_features(
+        ETAG_VALUE, options=PollingOptions(project_name=PROJECT_NAME)
+    )
 
     calls = server.calls("GET", FEATURES_PATH)
     assert len(calls) == 1
@@ -187,7 +193,7 @@ async def test_fetch_features_sends_if_none_match_when_an_etag_is_known(
 
 @mark.asyncio
 async def test_fetch_features_retries_and_recovers(server, build_transport):
-    transport = build_transport(fetching=FetchOptions(project_name=PROJECT_NAME))
+    transport = build_transport()
     server.on("GET", FEATURES_PATH, status=500, payload={})
     server.on(
         "GET",
@@ -197,7 +203,9 @@ async def test_fetch_features_retries_and_recovers(server, build_transport):
         headers={"etag": ETAG_VALUE},
     )
 
-    result = await transport.fetch_features(ETAG_VALUE)
+    result = await transport.fetch_features(
+        ETAG_VALUE, options=PollingOptions(project_name=PROJECT_NAME)
+    )
 
     assert len(server.calls("GET", FEATURES_PATH)) == 2
     assert len(json.loads(result.raw_state)["features"]) == 1
@@ -208,7 +216,7 @@ async def test_fetch_features_retries_and_recovers(server, build_transport):
 async def test_fetch_features_retries_and_recovers_from_a_connection_error(
     server, build_transport
 ):
-    transport = build_transport(fetching=FetchOptions(project_name=PROJECT_NAME))
+    transport = build_transport()
     server.on("GET", FEATURES_PATH, disconnect=True)
     server.on(
         "GET",
@@ -218,7 +226,9 @@ async def test_fetch_features_retries_and_recovers_from_a_connection_error(
         headers={"etag": ETAG_VALUE},
     )
 
-    result = await transport.fetch_features(ETAG_VALUE)
+    result = await transport.fetch_features(
+        ETAG_VALUE, options=PollingOptions(project_name=PROJECT_NAME)
+    )
 
     assert len(server.calls("GET", FEATURES_PATH)) == 2
     assert len(json.loads(result.raw_state)["features"]) == 1
@@ -327,14 +337,12 @@ async def test_send_metrics_raises_when_cancelled(server, transport):
 async def test_every_endpoint_gets_its_headers_from_the_factory(
     server, build_transport
 ):
-    transport = build_transport(
-        fetching=FetchOptions(interval=1), metrics=MetricsOptions(interval=2)
-    )
+    transport = build_transport(metrics=MetricsOptions(interval=2))
     server.on("GET", FEATURES_PATH, status=200, payload=MOCK_FEATURE_RESPONSE)
     server.on("POST", REGISTER_PATH, status=202, payload={})
     server.on("POST", METRICS_PATH, status=202, payload={})
 
-    await transport.fetch_features()
+    await transport.fetch_features(options=PollingOptions(interval=1))
     await transport.register({})
     await transport.send_metrics(MOCK_METRICS_REQUEST)
 
@@ -366,7 +374,10 @@ async def test_the_session_is_reused_across_requests(server, transport):
 @mark.parametrize(
     "call",
     (
-        param(lambda transport: transport.fetch_features(), id="fetch_features"),
+        param(
+            lambda transport: transport.fetch_features(options=PollingOptions()),
+            id="fetch_features",
+        ),
         param(lambda transport: transport.register({}), id="register"),
         param(
             lambda transport: transport.send_metrics(MOCK_METRICS_REQUEST),

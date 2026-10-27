@@ -26,10 +26,10 @@ from tests.utilities.testing_constants import (
 from UnleashClient._headers import _HeaderFactory
 from UnleashClient._transport import _Transport
 from UnleashClient.config import (
-    FetchOptions,
     HttpOptions,
     IdentityOptions,
     MetricsOptions,
+    PollingOptions,
     UnleashConfig,
 )
 from UnleashClient.constants import (
@@ -99,7 +99,7 @@ def test_fetch_features(transport, response, status, calls, expected):
         headers={"etag": ETAG_VALUE},
     )
 
-    result = transport.fetch_features()
+    result = transport.fetch_features(options=PollingOptions())
 
     # 4 calls on a 500 is 1 + REQUEST_RETRIES: the mounted HTTPAdapter/Retry
     # has to survive every move of this code.
@@ -117,9 +117,9 @@ def test_fetch_features_sends_the_project_as_a_query_parameter(build_transport):
         headers={"etag": ETAG_VALUE},
     )
 
-    result = build_transport(
-        fetching=FetchOptions(project_name=PROJECT_NAME)
-    ).fetch_features()
+    result = build_transport().fetch_features(
+        options=PollingOptions(project_name=PROJECT_NAME)
+    )
 
     assert len(responses.calls) == 1
     assert len(json.loads(result.raw_state)["features"]) == 1
@@ -132,9 +132,9 @@ def test_fetch_features_drops_the_etag_on_failure(build_transport):
         responses.GET, PROJECT_URL, json={}, status=500, headers={"etag": ETAG_VALUE}
     )
 
-    result = build_transport(
-        fetching=FetchOptions(project_name=PROJECT_NAME)
-    ).fetch_features()
+    result = build_transport().fetch_features(
+        options=PollingOptions(project_name=PROJECT_NAME)
+    )
 
     assert len(responses.calls) == 4
     assert not result.etag
@@ -145,9 +145,9 @@ def test_fetch_features_drops_the_etag_on_failure(build_transport):
 def test_fetch_features_sends_if_none_match_when_an_etag_is_known(build_transport):
     responses.add(responses.GET, PROJECT_URL, status=304, headers={"etag": ETAG_VALUE})
 
-    result = build_transport(
-        fetching=FetchOptions(project_name=PROJECT_NAME)
-    ).fetch_features(ETAG_VALUE)
+    result = build_transport().fetch_features(
+        ETAG_VALUE, options=PollingOptions(project_name=PROJECT_NAME)
+    )
 
     assert len(responses.calls) == 1
     assert responses.calls[0].request.headers["If-None-Match"] == ETAG_VALUE
@@ -168,9 +168,9 @@ def test_fetch_features_retries_and_recovers(build_transport):
         headers={"etag": ETAG_VALUE},
     )
 
-    result = build_transport(
-        fetching=FetchOptions(project_name=PROJECT_NAME)
-    ).fetch_features(ETAG_VALUE)
+    result = build_transport().fetch_features(
+        ETAG_VALUE, options=PollingOptions(project_name=PROJECT_NAME)
+    )
 
     assert len(responses.calls) == 2
     assert len(json.loads(result.raw_state)["features"]) == 1
@@ -185,7 +185,9 @@ def test_fetch_features_swallows_a_bad_custom_option(build_transport):
 
     # `timeout` collides with the keyword the transport already passes. It is a
     # TypeError, not a RequestException, and fetch_features swallows everything.
-    result = build_transport(http=HttpOptions(options={"timeout": 5})).fetch_features()
+    result = build_transport(http=HttpOptions(options={"timeout": 5})).fetch_features(
+        options=PollingOptions()
+    )
 
     assert result == (None, "", False)
 
@@ -305,11 +307,9 @@ def test_every_endpoint_gets_its_headers_from_the_factory(build_transport):
     )
     responses.add(responses.POST, FULL_REGISTER_URL, json={}, status=202)
     responses.add(responses.POST, FULL_METRICS_URL, json={}, status=202)
-    transport = build_transport(
-        fetching=FetchOptions(interval=1), metrics=MetricsOptions(interval=2)
-    )
+    transport = build_transport(metrics=MetricsOptions(interval=2))
 
-    transport.fetch_features()
+    transport.fetch_features(options=PollingOptions(interval=1))
     transport.register({})
     transport.send_metrics(MOCK_METRICS_REQUEST)
 

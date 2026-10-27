@@ -6,7 +6,7 @@ Asynchronous Unleash client. Requires the optional ``aiohttp`` dependency:
 import asyncio
 import warnings
 from datetime import datetime, timezone
-from typing import Callable, Optional
+from typing import Callable, Optional, cast
 
 from yggdrasil_engine.engine import UnleashEngine
 
@@ -23,10 +23,11 @@ from UnleashClient._payloads import _build_register_payload
 from UnleashClient.cache import BaseCache, FileCache
 from UnleashClient.clients.unleash_client import _RunState
 from UnleashClient.config import (
-    FetchOptions,
     HttpOptions,
     IdentityOptions,
     MetricsOptions,
+    PollingOptions,
+    StreamingOptions,
     UnleashConfig,
 )
 from UnleashClient.connectors._async_connector import _AsyncPollingConnector
@@ -42,7 +43,7 @@ class AsyncUnleashClient:
 
     The client keeps feature state fresh by polling the Unleash server on the
     event loop it was initialized on, and reports metrics on the same loop.
-    Streaming, offline mode and bootstrapping are not supported.
+    Streaming, offline mode and bootstrapping are not supported yet.
 
     Example::
 
@@ -66,7 +67,7 @@ class AsyncUnleashClient:
     :param api_key: Client API token.  Optional, because a client that only loads from a backup never talks to the server.
     :param identity: How the client identifies itself.
     :param http: How the client talks to the server.
-    :param fetching: Which flags the client fetches and how often.
+    :param mode: How often the client polls for flag updates.  Streaming is not supported yet.
     :param metrics: How the client reports to the server.
     :param verbose_log_level: Numerical log level (https://docs.python.org/3/library/logging.html#logging-levels) for cases where checking a feature flag fails.
     :param custom_strategies: Dictionary of custom strategy names: custom strategy objects.
@@ -84,7 +85,7 @@ class AsyncUnleashClient:
         api_key: Optional[str] = None,
         identity: Optional[IdentityOptions] = None,
         http: Optional[HttpOptions] = None,
-        fetching: Optional[FetchOptions] = None,
+        mode: Optional[PollingOptions] = None,
         metrics: Optional[MetricsOptions] = None,
         verbose_log_level: int = 30,
         custom_strategies: Optional[dict] = None,
@@ -93,13 +94,18 @@ class AsyncUnleashClient:
         multiple_instance_mode: InstanceAllowType = InstanceAllowType.WARN,
         event_callback: Optional[Callable[[BaseEvent], None]] = None,
     ) -> None:
+        if isinstance(mode, StreamingOptions):
+            raise ValueError(
+                "AsyncUnleashClient does not support streaming yet. "
+                "Use PollingOptions, or UnleashClient for streaming."
+            )
         self._config: UnleashConfig = UnleashConfig(
             url=url,
             app_name=app_name,
             api_key=api_key,
             identity=identity,
             http=http,
-            fetching=fetching,
+            mode=mode,
             metrics=metrics,
             verbose_log_level=verbose_log_level,
         )
@@ -234,7 +240,7 @@ class AsyncUnleashClient:
 
         * Client registration
         * Loading the cached feature state
-        * Feature polling, every ``fetching.interval`` seconds
+        * Feature polling, every ``mode.interval`` seconds
         * Metrics reporting, every ``metrics.interval`` seconds
 
         Awaits the first feature fetch attempt before returning, yielding to the
@@ -287,8 +293,7 @@ class AsyncUnleashClient:
             self._connector = _AsyncPollingConnector(
                 store=self._store,
                 transport=self._transport,
-                refresh_interval=self._config.fetching.interval,
-                refresh_jitter=self._config.fetching.jitter,
+                options=cast(PollingOptions, self._config.mode),
             )
             await self._connector.start()
 

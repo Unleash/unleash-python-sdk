@@ -14,7 +14,7 @@ from UnleashClient._async_transport import _AsyncTransport
 from UnleashClient._event_dispatcher import _EventDispatcher
 from UnleashClient._feature_store import _FeatureStore
 from UnleashClient._headers import _HeaderFactory
-from UnleashClient.config import HttpOptions, UnleashConfig
+from UnleashClient.config import HttpOptions, PollingOptions, UnleashConfig
 from UnleashClient.connectors._async_connector import _AsyncPollingConnector
 from UnleashClient.constants import ETAG, FEATURES_URL
 from UnleashClient.events import UnleashEventType
@@ -50,8 +50,7 @@ async def build_connector(server: FakeUnleash):
         connector = _AsyncPollingConnector(
             store=store,
             transport=transport,
-            refresh_interval=refresh_interval,
-            refresh_jitter=refresh_jitter,
+            options=PollingOptions(interval=refresh_interval, jitter=refresh_jitter),
         )
         built.append((connector, transport))
         return connector

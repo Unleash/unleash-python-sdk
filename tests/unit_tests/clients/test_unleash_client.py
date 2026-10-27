@@ -35,11 +35,13 @@ from tests.utilities.testing_constants import (
 from UnleashClient import INSTANCES, UnleashClient
 from UnleashClient.cache import BaseCache, FileCache
 from UnleashClient.config import (
-    FetchOptions,
     HttpOptions,
     IdentityOptions,
     MetricsOptions,
+    PollingOptions,
+    StreamingOptions,
 )
+from UnleashClient.connectors import OfflineConnector, PollingConnector
 from UnleashClient.constants import FEATURES_URL, METRICS_URL, REGISTER_URL
 from UnleashClient.errors import MultipleInstancesNotAllowedError
 from UnleashClient.events import UnleashEventType
@@ -88,7 +90,7 @@ def readyable_unleash_client(cache):
     unleash_client = UnleashClient(
         URL,
         APP_NAME,
-        fetching=FetchOptions(interval=REFRESH_INTERVAL),
+        mode=PollingOptions(interval=REFRESH_INTERVAL),
         metrics=MetricsOptions(interval=METRICS_INTERVAL),
         cache=cache,
         event_callback=event_handler,
@@ -104,7 +106,7 @@ def readyable_unleash_client_project(cache):
     unleash_client = UnleashClient(
         URL,
         APP_NAME,
-        fetching=FetchOptions(interval=REFRESH_INTERVAL, project_name=PROJECT_NAME),
+        mode=PollingOptions(interval=REFRESH_INTERVAL, project_name=PROJECT_NAME),
         metrics=MetricsOptions(interval=METRICS_INTERVAL),
         cache=cache,
         event_callback=event_handler,
@@ -120,7 +122,7 @@ def readyable_unleash_client_nodestroy(cache):
     unleash_client = UnleashClient(
         URL,
         APP_NAME,
-        fetching=FetchOptions(interval=REFRESH_INTERVAL),
+        mode=PollingOptions(interval=REFRESH_INTERVAL),
         metrics=MetricsOptions(interval=METRICS_INTERVAL),
         cache=cache,
         event_callback=event_handler,
@@ -135,7 +137,7 @@ def readyable_unleash_client_toggle_only(cache):
     unleash_client = UnleashClient(
         URL,
         APP_NAME,
-        fetching=FetchOptions(interval=REFRESH_INTERVAL),
+        mode=PollingOptions(interval=REFRESH_INTERVAL),
         metrics=MetricsOptions(
             interval=METRICS_INTERVAL, disabled=True, disable_registration=True
         ),
@@ -178,7 +180,7 @@ def test_UC_builds_its_config_from_its_arguments(tmp_path):
     assert client._config.api_key == "project:environment.hash"
     assert client._config.http is http
     assert client._config.identity == IdentityOptions()
-    assert client._config.fetching == FetchOptions()
+    assert client._config.mode == PollingOptions()
     assert client._config.metrics == MetricsOptions()
     assert client._config.verbose_log_level == 40
     client.destroy()
@@ -912,7 +914,7 @@ def test_uc_cache_bootstrap_dict(cache):
     unleash_client = UnleashClient(
         URL,
         APP_NAME,
-        fetching=FetchOptions(interval=REFRESH_INTERVAL),
+        mode=PollingOptions(interval=REFRESH_INTERVAL),
         metrics=MetricsOptions(interval=METRICS_INTERVAL),
         cache=cache,
         event_callback=event_handler,
@@ -948,7 +950,7 @@ def test_uc_cache_bootstrap_file(cache):
     unleash_client = UnleashClient(
         URL,
         APP_NAME,
-        fetching=FetchOptions(interval=REFRESH_INTERVAL),
+        mode=PollingOptions(interval=REFRESH_INTERVAL),
         metrics=MetricsOptions(interval=METRICS_INTERVAL),
         cache=cache,
     )
@@ -974,7 +976,7 @@ def test_uc_cache_bootstrap_url(cache):
     unleash_client = UnleashClient(
         URL,
         APP_NAME,
-        fetching=FetchOptions(interval=REFRESH_INTERVAL),
+        mode=PollingOptions(interval=REFRESH_INTERVAL),
         metrics=MetricsOptions(interval=METRICS_INTERVAL),
         cache=cache,
     )
@@ -1003,7 +1005,7 @@ def test_uc_custom_scheduler(cache):
     unleash_client = UnleashClient(
         URL,
         APP_NAME,
-        fetching=FetchOptions(interval=REFRESH_INTERVAL),
+        mode=PollingOptions(interval=REFRESH_INTERVAL),
         metrics=MetricsOptions(disabled=True, disable_registration=True),
         cache=cache,
         scheduler=custom_scheduler,
@@ -1111,13 +1113,13 @@ def test_multiple_instances_no_warnings_or_errors_with_different_client_configs(
         URL,
         "some-probably-unique-app-name",
         identity=IdentityOptions(instance_id="some-unique-instance-id"),
-        fetching=FetchOptions(interval="60"),
+        mode=PollingOptions(interval="60"),
         cache_directory=str(tmp_path),
     )
     client3 = UnleashClient(
         URL,
         "some-probably-unique-but-different-app-name",
-        fetching=FetchOptions(interval="60"),
+        mode=PollingOptions(interval="60"),
         cache_directory=str(tmp_path),
     )
     assert not any(
@@ -1199,7 +1201,7 @@ def test_signals_feature_flag(cache):
     unleash_client = UnleashClient(
         URL,
         APP_NAME,
-        fetching=FetchOptions(interval=REFRESH_INTERVAL),
+        mode=PollingOptions(interval=REFRESH_INTERVAL),
         metrics=MetricsOptions(disabled=True, disable_registration=True),
         cache=cache,
         event_callback=recorder,
@@ -1243,7 +1245,7 @@ def test_fetch_signal(cache):
     unleash_client = UnleashClient(
         URL,
         APP_NAME,
-        fetching=FetchOptions(interval=REFRESH_INTERVAL),
+        mode=PollingOptions(interval=REFRESH_INTERVAL),
         metrics=MetricsOptions(interval=METRICS_INTERVAL),
         cache=cache,
         event_callback=recorder,
@@ -1268,7 +1270,7 @@ def test_ready_signal(cache):
     unleash_client = UnleashClient(
         URL,
         APP_NAME,
-        fetching=FetchOptions(interval=1),
+        mode=PollingOptions(interval=1),
         metrics=MetricsOptions(disabled=True, disable_registration=True),
         cache=cache,
         event_callback=recorder,
@@ -1349,7 +1351,7 @@ def test_refresh_jitter_reaches_the_polling_job(tmp_path):
     unleash_client = UnleashClient(
         URL,
         APP_NAME,
-        fetching=FetchOptions(interval=REFRESH_INTERVAL, jitter=10),
+        mode=PollingOptions(interval=REFRESH_INTERVAL, jitter=10),
         metrics=MetricsOptions(disabled=True, disable_registration=True),
         cache_directory=str(tmp_path),
         scheduler=RecordingScheduler(),
@@ -1515,7 +1517,7 @@ def test_identification_values_are_passed_in(tmp_path):
     unleash_client = UnleashClient(
         URL,
         APP_NAME,
-        fetching=FetchOptions(interval=refresh_interval),
+        mode=PollingOptions(interval=refresh_interval),
         metrics=MetricsOptions(interval=metrics_interval),
         cache_directory=str(tmp_path),
         event_callback=event_handler,
@@ -1599,6 +1601,45 @@ def test_uc_bootstrap_initializes_offline_connector(tmp_path):
     assert unleash_client.is_enabled("testFlag")
 
     unleash_client.destroy()
+
+
+def test_uc_passes_its_polling_options_to_the_polling_connector(
+    monkeypatch, tmp_path
+):
+    mode = PollingOptions(interval=30, jitter=5, project_name=PROJECT_NAME)
+    unleash_client = UnleashClient(
+        URL,
+        APP_NAME,
+        mode=mode,
+        metrics=MetricsOptions(disabled=True, disable_registration=True),
+        cache_directory=str(tmp_path),
+    )
+    try:
+        monkeypatch.setattr(PollingConnector, "start", lambda self: None)
+        unleash_client.initialize_client()
+
+        assert isinstance(unleash_client.connector, PollingConnector)
+        assert unleash_client.connector.options is mode
+    finally:
+        unleash_client.destroy()
+
+
+def test_uc_offline_falls_back_on_polling_defaults_when_streaming(tmp_path):
+    unleash_client = UnleashClient(
+        URL,
+        APP_NAME,
+        mode=StreamingOptions(),
+        metrics=MetricsOptions(disabled=True, disable_registration=True),
+        cache_directory=str(tmp_path),
+    )
+    try:
+        unleash_client.initialize_client(fetch_toggles=False)
+
+        assert isinstance(unleash_client.connector, OfflineConnector)
+        assert unleash_client.connector.refresh_interval == PollingOptions().interval
+        assert unleash_client.connector.refresh_jitter == PollingOptions().jitter
+    finally:
+        unleash_client.destroy()
 
 
 @responses.activate

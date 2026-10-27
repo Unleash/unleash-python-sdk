@@ -11,7 +11,7 @@ import urllib3
 
 from UnleashClient import INSTANCES, UnleashClient
 from UnleashClient.cache import FileCache
-from UnleashClient.config import FetchOptions, IdentityOptions, MetricsOptions
+from UnleashClient.config import IdentityOptions, MetricsOptions, StreamingOptions
 
 
 @pytest.fixture(autouse=True)
@@ -162,7 +162,7 @@ def test_client_streaming_hydration(monkeypatch, clean_cache):
         url="http://localhost:4242",
         app_name="test-app",
         identity=IdentityOptions(instance_id="test-instance"),
-        fetching=FetchOptions(mode="streaming"),
+        mode=StreamingOptions(),
         metrics=MetricsOptions(disabled=True, disable_registration=True),
         cache=clean_cache,
     )
@@ -226,7 +226,7 @@ def test_client_streaming_retry(monkeypatch, clean_cache):
         url="http://localhost:4242",
         app_name="test-app",
         identity=IdentityOptions(instance_id="test-instance"),
-        fetching=FetchOptions(mode="streaming"),
+        mode=StreamingOptions(),
         metrics=MetricsOptions(disabled=True, disable_registration=True),
         cache=clean_cache,
     )
@@ -275,7 +275,7 @@ def test_client_streaming_error_handling(monkeypatch, clean_cache):
         url="http://localhost:4242",
         app_name="test-app",
         identity=IdentityOptions(instance_id="test-instance"),
-        fetching=FetchOptions(mode="streaming"),
+        mode=StreamingOptions(),
         metrics=MetricsOptions(disabled=True, disable_registration=True),
         cache=clean_cache,
     )

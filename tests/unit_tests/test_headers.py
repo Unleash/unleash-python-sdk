@@ -1,9 +1,9 @@
 from UnleashClient._headers import _HeaderFactory
 from UnleashClient.config import (
-    FetchOptions,
     HttpOptions,
     IdentityOptions,
     MetricsOptions,
+    PollingOptions,
     UnleashConfig,
 )
 from UnleashClient.constants import (
@@ -102,9 +102,9 @@ def test_each_call_returns_a_fresh_dict():
 
 
 def test_polling_adds_the_refresh_interval():
-    factory = build_factory(fetching=FetchOptions(interval=1))
+    factory = build_factory()
 
-    assert factory.polling()["unleash-interval"] == "1000"
+    assert factory.polling(PollingOptions(interval=1))["unleash-interval"] == "1000"
     assert "unleash-interval" not in factory.base()
 
 
@@ -115,11 +115,9 @@ def test_metrics_adds_the_metrics_interval():
 
 
 def test_polling_and_metrics_differ_only_in_the_interval():
-    factory = build_factory(
-        fetching=FetchOptions(interval=1), metrics=MetricsOptions(interval=2)
-    )
+    factory = build_factory(metrics=MetricsOptions(interval=2))
 
-    polling = factory.polling()
+    polling = factory.polling(PollingOptions(interval=1))
     metrics = factory.metrics()
 
     assert polling.keys() == metrics.keys()
@@ -156,9 +154,9 @@ def test_streaming_is_what_the_streaming_connector_used_to_rebuild():
 def test_polling_is_what_the_polling_connector_used_to_rebuild():
     # PollingConnector used to merge the interval in on every tick.
     refresh_interval = 7
-    factory = build_factory(fetching=FetchOptions(interval=refresh_interval))
+    factory = build_factory()
 
-    headers = factory.polling()
+    headers = factory.polling(PollingOptions(interval=refresh_interval))
 
     assert {
         **headers,

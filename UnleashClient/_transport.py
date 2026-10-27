@@ -8,7 +8,7 @@ from requests.exceptions import InvalidHeader, InvalidSchema, InvalidURL, Missin
 from urllib3 import Retry
 
 from UnleashClient._headers import _HeaderFactory
-from UnleashClient.config import UnleashConfig
+from UnleashClient.config import PollingOptions, UnleashConfig
 from UnleashClient.constants import FEATURES_URL, METRICS_URL, REGISTER_URL
 from UnleashClient.utils import LOGGER
 
@@ -51,7 +51,7 @@ class _Transport:
         self._headers: _HeaderFactory = headers
 
     # pylint: disable=broad-except
-    def fetch_features(self, etag: str = "") -> FetchResult:
+    def fetch_features(self, etag: str = "", *, options: PollingOptions) -> FetchResult:
         """
         Fetch feature state, sending ``If-None-Match`` when an etag is known.
 
@@ -59,6 +59,8 @@ class _Transport:
         a polling job keeps running against a server that is down.
 
         :param etag: Etag from the last fetch, or "" to fetch unconditionally.
+        :param options: The polling settings: the project to filter on, and the
+                        interval reported to the server.
         :return: The fetched state, or an empty result on a 304 and on failure.
         """
         config = self._config
@@ -76,8 +78,8 @@ class _Transport:
             base_url = _normalized_url(config.url, FEATURES_URL)
             base_params = {}
 
-            if config.fetching.project_name:
-                base_params = {"project": config.fetching.project_name}
+            if options.project_name:
+                base_params = {"project": options.project_name}
 
             adapter = HTTPAdapter(
                 max_retries=Retry(
@@ -89,7 +91,10 @@ class _Transport:
                 session.mount("http://", adapter)
                 resp = session.get(
                     base_url,
-                    headers={**self._headers.polling(), **request_specific_headers},
+                    headers={
+                        **self._headers.polling(options),
+                        **request_specific_headers,
+                    },
                     params=base_params,
                     timeout=config.http.timeout,
                     **config.http.options,

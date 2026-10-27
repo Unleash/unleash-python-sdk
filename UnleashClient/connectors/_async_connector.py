@@ -1,9 +1,9 @@
 from abc import ABC, abstractmethod
-from typing import Optional
 
 from UnleashClient._async_scheduler import _AsyncScheduler
 from UnleashClient._async_transport import _AsyncTransport
 from UnleashClient._feature_store import _FeatureStore
+from UnleashClient.config import PollingOptions
 
 
 class _AsyncBaseConnector(ABC):
@@ -33,7 +33,7 @@ class _AsyncPollingConnector(_AsyncBaseConnector):
         connector = _AsyncPollingConnector(
             store=store,
             transport=transport,
-            refresh_interval=15,
+            options=PollingOptions(interval=15),
         )
         await connector.start()
 
@@ -44,38 +44,36 @@ class _AsyncPollingConnector(_AsyncBaseConnector):
         self,
         store: _FeatureStore,
         transport: _AsyncTransport,
-        refresh_interval: float = 15,
-        refresh_jitter: Optional[float] = None,
+        options: PollingOptions,
     ) -> None:
         """
         :param store: Applies feature state to the engine and the cache.
         :param transport: Performs the fetch against the Unleash server.
-        :param refresh_interval: Seconds between fetches.
-        :param refresh_jitter: Maximum seconds to randomly offset each fetch by, or
-                               None for no jitter.
+        :param options: How often to fetch, and which project to fetch.
         """
         super().__init__(store)
         self._transport: _AsyncTransport = transport
-        self._refresh_interval = refresh_interval
-        self._refresh_jitter = refresh_jitter
+        self._options: PollingOptions = options
         self._scheduler: _AsyncScheduler = _AsyncScheduler()
 
     async def _fetch_and_load(self) -> None:
-        result = await self._transport.fetch_features(etag=self._store.cached_etag)
+        result = await self._transport.fetch_features(
+            etag=self._store.cached_etag, options=self._options
+        )
 
         self._store.apply_fetched(raw_state=result.raw_state, etag=result.etag)
 
     async def start(self) -> None:
         """
         Loads the cached feature state and awaits an immediate fetch. Once that
-        attempt finishes, schedules polling every ``refresh_interval`` seconds.
+        attempt finishes, schedules polling every ``options.interval`` seconds.
         """
         self._store.load_from_cache()
         await self._fetch_and_load()
 
         _ = self._scheduler.every(
-            interval_seconds=self._refresh_interval,
-            jitter_seconds=self._refresh_jitter,
+            interval_seconds=self._options.interval,
+            jitter_seconds=self._options.jitter,
             fn=self._fetch_and_load,
         )
         self._scheduler.start()

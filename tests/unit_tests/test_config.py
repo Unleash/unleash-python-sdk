@@ -4,10 +4,11 @@ from dataclasses import FrozenInstanceError, asdict
 import pytest
 
 from UnleashClient.config import (
-    FetchOptions,
     HttpOptions,
     IdentityOptions,
     MetricsOptions,
+    PollingOptions,
+    StreamingOptions,
     UnleashConfig,
 )
 
@@ -27,9 +28,7 @@ def test_defaults():
         sdk_flavor=None,
         sdk_flavor_version=None,
     )
-    assert config.fetching == FetchOptions(
-        interval=15, jitter=None, project_name=None, mode="polling"
-    )
+    assert config.mode == PollingOptions(interval=15, jitter=None, project_name=None)
     assert config.metrics == MetricsOptions(
         interval=60, jitter=None, disabled=False, disable_registration=False
     )
@@ -39,7 +38,7 @@ def test_defaults():
 
 def test_groups_left_as_none_get_their_defaults():
     config = UnleashConfig(
-        URL, APP_NAME, identity=None, http=None, fetching=None, metrics=None
+        URL, APP_NAME, identity=None, http=None, mode=None, metrics=None
     )
 
     defaults = asdict(UnleashConfig(URL, APP_NAME))
@@ -56,7 +55,7 @@ def test_is_immutable():
     with pytest.raises(FrozenInstanceError):
         config.url = "http://elsewhere:4242/api"
     with pytest.raises(FrozenInstanceError):
-        config.fetching.interval = 1
+        config.mode.interval = 1
     with pytest.raises(FrozenInstanceError):
         config.http.timeout = 1
     with pytest.raises(FrozenInstanceError):
@@ -84,22 +83,25 @@ def test_jitters_are_int_coerced():
     config = UnleashConfig(
         URL,
         APP_NAME,
-        fetching=FetchOptions(jitter=5.9),
+        mode=PollingOptions(jitter=5.9),
         metrics=MetricsOptions(jitter="7"),
     )
 
-    assert config.fetching.jitter == 5
+    assert config.mode.jitter == 5
     assert config.metrics.jitter == 7
 
 
 def test_zero_jitter_is_preserved_and_not_confused_with_none():
     config = UnleashConfig(
-        URL, APP_NAME, fetching=FetchOptions(jitter=0), metrics=MetricsOptions(jitter=0)
+        URL,
+        APP_NAME,
+        mode=PollingOptions(jitter=0),
+        metrics=MetricsOptions(jitter=0),
     )
 
-    assert config.fetching.jitter == 0
+    assert config.mode.jitter == 0
     assert config.metrics.jitter == 0
-    assert UnleashConfig(URL, APP_NAME).fetching.jitter is None
+    assert UnleashConfig(URL, APP_NAME).mode.jitter is None
 
 
 def test_no_other_coercion():
@@ -108,11 +110,11 @@ def test_no_other_coercion():
         URL,
         APP_NAME,
         http=HttpOptions(timeout="9"),
-        fetching=FetchOptions(interval="60"),
+        mode=PollingOptions(interval="60"),
         metrics=MetricsOptions(interval="60"),
     )
 
-    assert config.fetching.interval == "60"
+    assert config.mode.interval == "60"
     assert config.metrics.interval == "60"
     assert config.http.timeout == "9"
 
@@ -164,16 +166,6 @@ def test_missing_headers_and_options_become_empty_dicts():
 def test_an_authorization_header_is_rejected(name):
     with pytest.raises(ValueError, match="api_key"):
         HttpOptions(headers={name: "project:environment.hash"})
-
-
-def test_refresh_interval_str_millis():
-    assert UnleashConfig(URL, APP_NAME).refresh_interval_str_millis == "15000"
-    assert (
-        UnleashConfig(
-            URL, APP_NAME, fetching=FetchOptions(interval=2)
-        ).refresh_interval_str_millis
-        == "2000"
-    )
 
 
 def test_metrics_interval_str_millis():

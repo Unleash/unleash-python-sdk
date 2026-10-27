@@ -1,16 +1,11 @@
 """Configuration value object shared by the sync and async Unleash clients."""
 
 import uuid
-from dataclasses import dataclass, field
-from typing import Any, Dict, Literal, Optional, TypedDict
+from dataclasses import KW_ONLY, dataclass, field
+from typing import Any, Dict, Optional, Union
 
 from UnleashClient.constants import REQUEST_RETRIES, REQUEST_TIMEOUT
 from UnleashClient.utils import extract_environment_from_api_key
-
-try:
-    from typing import Literal
-except ImportError:
-    from typing_extensions import Literal  # type: ignore
 
 
 def redact_to_print_safely(value: Optional[str]) -> Optional[str]:
@@ -25,7 +20,7 @@ def _optional_int(value: Any) -> Optional[int]:
     return int(value) if value is not None else None
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class HttpOptions:
     """
     :param headers: Extra headers sent with every request.  The API key is not one of them: pass it as ``api_key`` to the client.
@@ -54,7 +49,7 @@ class HttpOptions:
             )
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class IdentityOptions:
     """
     How the client identifies itself to the Unleash server.
@@ -71,27 +66,33 @@ class IdentityOptions:
     sdk_flavor_version: Optional[str] = None
 
 
-@dataclass(frozen=True)
-class FetchOptions:
+@dataclass(frozen=True, kw_only=True)
+class PollingOptions:
     """
-    Which feature flags the client fetches, and how.
+    Receive flag updates by polling the Unleash server.
 
     :param interval: Refresh interval in seconds.
     :param jitter: Maximum random delay, in seconds, added to each refresh.
     :param project_name: Only fetch the feature flags of this project.
-    :param mode: "polling" (default) or "streaming".  Streaming is experimental and only supported by the sync client.
     """
 
     interval: int = 15
     jitter: Optional[int] = None
     project_name: Optional[str] = None
-    mode: Literal["polling", "streaming"] = "polling"
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "jitter", _optional_int(self.jitter))
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
+class StreamingOptions:
+    """
+    Receive flag updates over a streaming connection to the Unleash server.
+    Experimental, only supported by the sync client.
+    """
+
+
+@dataclass(frozen=True, kw_only=True)
 class MetricsOptions:
     """
     How the client reports to the Unleash server.
@@ -125,12 +126,15 @@ class UnleashConfig:
 
     url: str
     app_name: str
+    _: KW_ONLY
     # repr=False: the dataclass __repr__ would otherwise put the API key into
     # logs and tracebacks.
     api_key: Optional[str] = field(default=None, repr=False)
     identity: IdentityOptions = field(default_factory=IdentityOptions)
     http: HttpOptions = field(default_factory=HttpOptions)
-    fetching: FetchOptions = field(default_factory=FetchOptions)
+    mode: Union[PollingOptions, StreamingOptions] = field(
+        default_factory=PollingOptions
+    )
     metrics: MetricsOptions = field(default_factory=MetricsOptions)
     verbose_log_level: int = 30
     connection_id: str = field(default_factory=lambda: str(uuid.uuid4()))
@@ -141,18 +145,14 @@ class UnleashConfig:
             object.__setattr__(self, "identity", IdentityOptions())
         if self.http is None:
             object.__setattr__(self, "http", HttpOptions())
-        if self.fetching is None:
-            object.__setattr__(self, "fetching", FetchOptions())
+        if self.mode is None:
+            object.__setattr__(self, "mode", PollingOptions())
         if self.metrics is None:
             object.__setattr__(self, "metrics", MetricsOptions())
 
     @property
     def static_context(self) -> Dict[str, Any]:
         return {"appName": self.app_name, "environment": self.identity.environment}
-
-    @property
-    def refresh_interval_str_millis(self) -> str:
-        return str(self.fetching.interval * 1000)
 
     @property
     def metrics_interval_str_millis(self) -> str:

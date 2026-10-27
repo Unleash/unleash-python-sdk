@@ -4,7 +4,7 @@ import uuid
 import warnings
 from datetime import datetime, timezone
 from enum import IntEnum
-from typing import Callable, Optional
+from typing import Callable, Optional, Union
 
 from apscheduler.schedulers.base import BaseScheduler
 from yggdrasil_engine.engine import UnleashEngine
@@ -21,10 +21,11 @@ from UnleashClient._scheduler import _ScheduledJob, _Scheduler
 from UnleashClient._transport import _Transport
 from UnleashClient.cache import BaseCache, FileCache
 from UnleashClient.config import (
-    FetchOptions,
     HttpOptions,
     IdentityOptions,
     MetricsOptions,
+    PollingOptions,
+    StreamingOptions,
     UnleashConfig,
     redact_to_print_safely,
 )
@@ -111,7 +112,7 @@ class UnleashClient:
     :param api_key: Client API token.  Optional, because a client that only loads from a backup never talks to the server.
     :param identity: How the client identifies itself, see :class:`~UnleashClient.config.IdentityOptions`.
     :param http: How the client talks to the server, see :class:`~UnleashClient.config.HttpOptions`.
-    :param fetching: Which flags the client fetches and how often, see :class:`~UnleashClient.config.FetchOptions`.
+    :param mode: How the client receives flag update.
     :param metrics: How the client reports to the server, see :class:`~UnleashClient.config.MetricsOptions`.
     :param verbose_log_level: Numerical log level (https://docs.python.org/3/library/logging.html#logging-levels) for cases where checking a feature flag fails.
     :param custom_strategies: Dictionary of custom strategy names : custom strategy objects.
@@ -131,7 +132,7 @@ class UnleashClient:
         api_key: Optional[str] = None,
         identity: Optional[IdentityOptions] = None,
         http: Optional[HttpOptions] = None,
-        fetching: Optional[FetchOptions] = None,
+        mode: Optional[Union[PollingOptions, StreamingOptions]] = None,
         metrics: Optional[MetricsOptions] = None,
         verbose_log_level: int = 30,
         custom_strategies: Optional[dict] = None,
@@ -148,7 +149,7 @@ class UnleashClient:
             api_key=api_key,
             identity=identity,
             http=http,
-            fetching=fetching,
+            mode=mode,
             metrics=metrics,
             verbose_log_level=verbose_log_level,
         )
@@ -293,9 +294,9 @@ class UnleashClient:
                     self._transport.register(
                         _build_register_payload(self._config, self._custom_strategies)
                     )
-                mode = self._config.fetching.mode
+                mode = self._config.mode
 
-                if mode == "streaming" and fetch_toggles:
+                if isinstance(mode, StreamingOptions) and fetch_toggles:
                     self.connector = StreamingConnector(
                         store=self._store,
                         url=self._config.url,
@@ -303,22 +304,27 @@ class UnleashClient:
                         request_timeout=self._config.http.timeout,
                         custom_options=self._config.http.options,
                     )
-                elif fetch_toggles:
+                elif isinstance(mode, PollingOptions) and fetch_toggles:
                     start_scheduler = True
                     self.connector = PollingConnector(
                         store=self._store,
                         scheduler=self._scheduler,
                         transport=self._transport,
-                        refresh_interval=self._config.fetching.interval,
-                        refresh_jitter=self._config.fetching.jitter,
+                        options=mode,
                     )
                 else:
+                    # Offline mode reloads the cache on an interval.  A
+                    # streaming client sets none, so it falls back on the
+                    # polling defaults.
+                    offline = (
+                        mode if isinstance(mode, PollingOptions) else PollingOptions()
+                    )
                     start_scheduler = True
                     self.connector = OfflineConnector(
                         store=self._store,
                         scheduler=self._scheduler,
-                        refresh_interval=self._config.fetching.interval,
-                        refresh_jitter=self._config.fetching.jitter,
+                        refresh_interval=offline.interval,
+                        refresh_jitter=offline.jitter,
                     )
 
                 self.connector.start()

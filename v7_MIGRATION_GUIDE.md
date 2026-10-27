@@ -4,7 +4,7 @@ This guide highlights the key changes you should be aware of when upgrading to v
 
 ## Settings are grouped into option objects
 
-`url` and `app_name` are still the first two arguments. The API token is now its own `api_key` argument. Most other settings moved into four option objects: `IdentityOptions`, `HttpOptions`, `FetchOptions` and `MetricsOptions`. All other arguments must now be passed by keyword.
+`url` and `app_name` are still the first two arguments. The API token is now its own `api_key` argument. All other arguments must now be passed by keyword. Most other settings moved into option objects: `IdentityOptions`, `HttpOptions`, `MetricsOptions`, and either `PollingOptions` or `StreamingOptions`. The option objects take keyword arguments only.
 
 Before:
 
@@ -25,7 +25,7 @@ After:
 
 ``` python
 from UnleashClient import (
-    FetchOptions, IdentityOptions, MetricsOptions, UnleashClient,
+    IdentityOptions, MetricsOptions, StreamingOptions, UnleashClient,
 )
 
 client = UnleashClient(
@@ -33,13 +33,14 @@ client = UnleashClient(
     app_name="my-python-app",
     api_key="<API token>",
     identity=IdentityOptions(environment="production"),
-    fetching=FetchOptions(interval=30, mode="streaming"),
+    mode=StreamingOptions(),
     metrics=MetricsOptions(disabled=True),
     custom_strategies={"EmailStrategy": EmailStrategy()},
 )
 ```
 
-The same applies to `AsyncUnleashClient`.
+A polling client passes it as `mode=PollingOptions(interval=30)`.
+The same applies to `AsyncUnleashClient`, but only polling is supported.
 
 ### Migrating arguments
 
@@ -56,10 +57,10 @@ The same applies to `AsyncUnleashClient`.
 | `custom_options`       | `HttpOptions(options=...)`                  |
 | `request_timeout`      | `HttpOptions(timeout=...)`                  |
 | `request_retries`      | `HttpOptions(retries=...)`                  |
-| `refresh_interval`     | `FetchOptions(interval=...)`                |
-| `refresh_jitter`       | `FetchOptions(jitter=...)`                  |
-| `project_name`         | `FetchOptions(project_name=...)`            |
-| `experimental_mode`    | `FetchOptions(mode="streaming")`, a string instead of `{"type": ...}` |
+| `refresh_interval`     | `PollingOptions(interval=...)`              |
+| `refresh_jitter`       | `PollingOptions(jitter=...)`                |
+| `project_name`         | `PollingOptions(project_name=...)`          |
+| `experimental_mode`    | `mode=StreamingOptions()` instead of `experimental_mode={"type": "streaming"}`; polling is `mode=PollingOptions(...)` |
 | `metrics_interval`     | `MetricsOptions(interval=...)`              |
 | `metrics_jitter`       | `MetricsOptions(jitter=...)`                |
 | `disable_metrics`      | `MetricsOptions(disabled=...)`              |

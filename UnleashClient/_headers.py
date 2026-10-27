@@ -2,7 +2,7 @@
 
 from typing import Dict
 
-from UnleashClient.config import UnleashConfig
+from UnleashClient.config import PollingOptions, UnleashConfig
 from UnleashClient.constants import APPLICATION_HEADERS, SDK_NAME, SDK_VERSION
 
 
@@ -16,7 +16,7 @@ class _HeaderFactory:
     Example::
 
         headers = _HeaderFactory(config)
-        response = requests.get(url, headers=headers.polling())
+        response = requests.get(url, headers=headers.polling(options))
     """
 
     def __init__(self, config: UnleashConfig) -> None:
@@ -37,10 +37,10 @@ class _HeaderFactory:
             "unleash-sdk": f"{SDK_NAME}:{SDK_VERSION}",
         }
 
-    def polling(self) -> Dict[str, str]:
+    def polling(self, options: PollingOptions) -> Dict[str, str]:
         return {
             **self.base(),
-            "unleash-interval": self._config.refresh_interval_str_millis,
+            "unleash-interval": str(options.interval * 1000),
         }
 
     def metrics(self) -> Dict[str, str]:
