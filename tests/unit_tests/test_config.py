@@ -194,16 +194,6 @@ def test_a_mode_of_the_wrong_type_falls_back_on_polling(mode, caplog):
     assert "Polling instead" in caplog.text
 
 
-def test_metrics_interval_str_millis():
-    assert UnleashConfig(URL, APP_NAME).metrics_interval_str_millis == "60000"
-    assert (
-        UnleashConfig(
-            URL, APP_NAME, metrics=MetricsOptions(interval=2)
-        ).metrics_interval_str_millis
-        == "2000"
-    )
-
-
 def test_environment_defaults_to_default_without_an_api_key():
     config = UnleashConfig(URL, APP_NAME)
 

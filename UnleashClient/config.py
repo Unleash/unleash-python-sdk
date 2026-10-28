@@ -161,10 +161,6 @@ class UnleashConfig:
         return {"appName": self.app_name, "environment": self.environment}
 
     @property
-    def metrics_interval_str_millis(self) -> str:
-        return str(self.metrics.interval * 1000)
-
-    @property
     def environment(self) -> str:
         return extract_environment_from_api_key(self.api_key) or "default"
 
