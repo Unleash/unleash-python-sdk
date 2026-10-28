@@ -4,9 +4,8 @@
 * (Major): Settings can no longer be changed on an existing client. The `unleash_*` settings properties and the `strategy_mapping` and `connector_mode` properties have been removed, together with their setters.
 * (Major): The API token is passed as `api_key="<API token>"`. An `Authorization` header in `HttpOptions.headers` raises `ValueError`.
 * (Major): The deprecated `environment` setting has been removed. The `environment` field of the evaluation context and the impact metrics `environment` label come from the API token, or are `"default"` when the token doesn't name one.
-* (Minor): New `FETCH_COMPLETED` event, emitted after every feature fetch with how it ended: `CHANGED`, `NOT_CHANGED`, `UNAUTHORIZED`, `RATE_LIMITED`, `UNAVAILABLE` or `INVALID_RESPONSE`.
 * (Major): Upgraded to yggdrasil-engine 3, new engine built with PyO3 for better performance.
-
+* (Minor): New `FETCH_COMPLETED` event, emitted after every feature fetch with how it ended: `CHANGED`, `NOT_CHANGED`, `UNAUTHORIZED`, `RATE_LIMITED`, `UNAVAILABLE` or `INVALID_RESPONSE`.
 
 ## v6.9.1
 * (Bugfix): Capped yggdrasil-engine below 3.0.0 so installs don't pick up a breaking major version.
