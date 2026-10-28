@@ -31,7 +31,7 @@ class _FeatureStore:
         store = _FeatureStore(engine=UnleashEngine(), cache=cache, events=dispatcher)
         store.load_from_cache()
 
-        result = transport.fetch_features(etag=store.cached_etag)
+        result = transport.fetch_features(etag=store.cached_etag, options=polling)
         store.apply_fetched(raw_state=result.raw_state, etag=result.etag)
     """
 

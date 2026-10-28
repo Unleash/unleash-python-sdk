@@ -2,7 +2,7 @@
 
 from typing import Dict
 
-from UnleashClient.config import UnleashConfig
+from UnleashClient.config import PollingOptions, UnleashConfig
 from UnleashClient.constants import APPLICATION_HEADERS, SDK_NAME, SDK_VERSION
 
 
@@ -10,18 +10,13 @@ class _HeaderFactory:
     """
     Builds the header sets the SDK sends to Unleash.
 
-    Every method returns a fresh dict and reads the config on each call, so
-    reassigning or mutating ``config.custom_headers`` (which
-    ``UnleashClient.unleash_custom_headers`` allows) is picked up by the next
-    call. :class:`~UnleashClient._transport._Transport` holds the factory and asks
-    it once per request, so a change reaches the wire on the next poll or send.
-    The client still calls ``streaming()`` once, at initialization, and hands the
-    dict to the connector; that one keeps the headers it was given.
+    Every method builds a new dict on each call, so a caller can change the
+    headers it was given without affecting the config or other callers.
 
     Example::
 
         headers = _HeaderFactory(config)
-        response = requests.get(url, headers=headers.polling())
+        response = requests.get(url, headers=headers.polling(options))
     """
 
     def __init__(self, config: UnleashConfig) -> None:
@@ -30,20 +25,22 @@ class _HeaderFactory:
     def base(self) -> Dict[str, str]:
         return {
             # Custom headers go first: the application and identification
-            # headers below are not overridable.  `or {}` because the field is
-            # declared Optional, though __post_init__ has already replaced None.
-            **(self._config.custom_headers or {}),
+            # headers below are not overridable.
+            **self._config.http.headers,
+            # HttpOptions rejects an Authorization header, so the custom
+            # headers cannot override the API key.
+            **({"Authorization": self._config.api_key} if self._config.api_key else {}),
             **APPLICATION_HEADERS,
             "unleash-connection-id": self._config.connection_id,
             "unleash-appname": self._config.app_name,
-            "unleash-instanceid": self._config.instance_id,
+            "unleash-instanceid": self._config.identity.instance_id,
             "unleash-sdk": f"{SDK_NAME}:{SDK_VERSION}",
         }
 
-    def polling(self) -> Dict[str, str]:
+    def polling(self, options: PollingOptions) -> Dict[str, str]:
         return {
             **self.base(),
-            "unleash-interval": self._config.refresh_interval_str_millis,
+            "unleash-interval": str(options.interval * 1000),
         }
 
     def metrics(self) -> Dict[str, str]:

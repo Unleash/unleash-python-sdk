@@ -1,35 +1,16 @@
-from UnleashClient.utils import extract_environment_from_headers
+from UnleashClient.utils import extract_environment_from_api_key
 
 
-def test_valid_headers():
-    custom_headers = {
-        "Authorization": "project:environment.hash",
-        "Content-Type": "application/json",
-    }
-
-    result = extract_environment_from_headers(custom_headers)
+def test_valid_api_key():
+    result = extract_environment_from_api_key("project:environment.hash")
     assert result == "environment"
 
 
-def test_case_insensitive_header_keys():
-    custom_headers = {
-        "AUTHORIZATION": "project:environment.hash",
-        "Content-Type": "application/json",
-    }
-
-    result = extract_environment_from_headers(custom_headers)
-    assert result == "environment"
-
-
-def test_authorization_header_not_present():
-    result = extract_environment_from_headers({})
-    assert result is None
+def test_api_key_not_present():
+    assert extract_environment_from_api_key(None) is None
+    assert extract_environment_from_api_key("") is None
 
 
 def test_environment_part_is_empty():
-    custom_headers = {
-        "Authorization": "project:.hash",
-    }
-
-    result = extract_environment_from_headers(custom_headers)
+    result = extract_environment_from_api_key("project:.hash")
     assert result is None

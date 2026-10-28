@@ -11,6 +11,7 @@ import urllib3
 
 from UnleashClient import INSTANCES, UnleashClient
 from UnleashClient.cache import FileCache
+from UnleashClient.config import IdentityOptions, MetricsOptions, StreamingOptions
 
 
 @pytest.fixture(autouse=True)
@@ -160,10 +161,9 @@ def test_client_streaming_hydration(monkeypatch, clean_cache):
     client = UnleashClient(
         url="http://localhost:4242",
         app_name="test-app",
-        instance_id="test-instance",
-        disable_metrics=True,
-        disable_registration=True,
-        experimental_mode={"type": "streaming"},
+        identity=IdentityOptions(instance_id="test-instance"),
+        mode=StreamingOptions(),
+        metrics=MetricsOptions(disabled=True, disable_registration=True),
         cache=clean_cache,
     )
 
@@ -225,10 +225,9 @@ def test_client_streaming_retry(monkeypatch, clean_cache):
     client = UnleashClient(
         url="http://localhost:4242",
         app_name="test-app",
-        instance_id="test-instance",
-        disable_metrics=True,
-        disable_registration=True,
-        experimental_mode={"type": "streaming"},
+        identity=IdentityOptions(instance_id="test-instance"),
+        mode=StreamingOptions(),
+        metrics=MetricsOptions(disabled=True, disable_registration=True),
         cache=clean_cache,
     )
 
@@ -275,10 +274,9 @@ def test_client_streaming_error_handling(monkeypatch, clean_cache):
     client = UnleashClient(
         url="http://localhost:4242",
         app_name="test-app",
-        instance_id="test-instance",
-        disable_metrics=True,
-        disable_registration=True,
-        experimental_mode={"type": "streaming"},
+        identity=IdentityOptions(instance_id="test-instance"),
+        mode=StreamingOptions(),
+        metrics=MetricsOptions(disabled=True, disable_registration=True),
         cache=clean_cache,
     )
 

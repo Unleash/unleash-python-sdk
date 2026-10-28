@@ -140,7 +140,8 @@ def test_every_forwards_the_job_kwargs():
 
 def test_every_does_not_coerce_the_interval():
     # The refresh interval has never been coerced -- the metrics call site int()s its
-    # own. Coercing here would change what a str interval does. See test_UC_type_violation.
+    # own. Coercing here would change what a str interval does. See
+    # test_no_other_coercion in test_config.py.
     scheduler = _Scheduler(BackgroundScheduler(), "default")
 
     with pytest.raises(TypeError):
