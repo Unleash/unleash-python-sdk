@@ -202,28 +202,6 @@ def test_environment_falls_back_on_an_unparseable_token():
     assert config.environment == "default"
 
 
-def test_instance_identifier_redacts_the_api_key():
-    config = UnleashConfig(
-        URL,
-        APP_NAME,
-        identity=IdentityOptions(instance_id="123"),
-        api_key="project:environment.abcdefghijklmnop",
-    )
-
-    identifier = config.instance_identifier
-
-    assert "abcdefghijklmnop" not in identifier
-    # rpartition splits on the last colon, so everything after "project:" is
-    # treated as the secret.
-    assert identifier == ("apiKey:project:enviro...nop appName:pytest instanceId:123")
-
-
-def test_instance_identifier_without_an_api_key():
-    config = UnleashConfig(URL, APP_NAME, identity=IdentityOptions(instance_id="123"))
-
-    assert config.instance_identifier == ("apiKey:None appName:pytest instanceId:123")
-
-
 def test_repr_does_not_leak_the_api_key():
     config = UnleashConfig(
         URL,

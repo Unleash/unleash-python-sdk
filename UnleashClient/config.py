@@ -159,7 +159,3 @@ class UnleashConfig:
     @property
     def environment(self) -> str:
         return extract_environment_from_api_key(self.api_key) or "default"
-
-    @property
-    def instance_identifier(self) -> str:
-        return f"apiKey:{redact_to_print_safely(self.api_key)} appName:{self.app_name} instanceId:{self.identity.instance_id}"

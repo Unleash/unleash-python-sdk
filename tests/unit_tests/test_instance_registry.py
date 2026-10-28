@@ -1,12 +1,41 @@
 import pytest
 
 from UnleashClient import INSTANCES
-from UnleashClient._instance_registry import _get_instance_registry, _InstanceRegistry
+from UnleashClient._instance_registry import (
+    _get_instance_registry,
+    _instance_identifier,
+    _InstanceRegistry,
+)
+from UnleashClient.config import IdentityOptions, UnleashConfig
 from UnleashClient.errors import MultipleInstancesNotAllowedError, UnleashClientError
 from UnleashClient.utils import InstanceAllowType
 
+URL = "http://localhost:4242/api"
+APP_NAME = "pytest"
 IDENTIFIER = "apiKey:None appName:pytest instanceId:123"
 OTHER_IDENTIFIER = "apiKey:None appName:pytest instanceId:456"
+
+
+def test_instance_identifier_redacts_the_api_key():
+    config = UnleashConfig(
+        URL,
+        APP_NAME,
+        identity=IdentityOptions(instance_id="123"),
+        api_key="project:environment.abcdefghijklmnop",
+    )
+
+    identifier = _instance_identifier(config)
+
+    assert "abcdefghijklmnop" not in identifier
+    # rpartition splits on the last colon, so everything after "project:" is
+    # treated as the secret.
+    assert identifier == ("apiKey:project:enviro...nop appName:pytest instanceId:123")
+
+
+def test_instance_identifier_without_an_api_key():
+    config = UnleashConfig(URL, APP_NAME, identity=IdentityOptions(instance_id="123"))
+
+    assert _instance_identifier(config) == IDENTIFIER
 
 
 def duplicate_warnings(caplog) -> list:
