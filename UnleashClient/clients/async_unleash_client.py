@@ -139,7 +139,9 @@ class AsyncUnleashClient:
             config=self._config,
             events=self._event_dispatcher,
         )
-        self._transport: _AsyncTransport = _AsyncTransport(self._config, self._headers)
+        self._transport: _AsyncTransport = _AsyncTransport(
+            self._config, self._headers, self._event_dispatcher
+        )
         self._metrics_scheduler: _AsyncScheduler = _AsyncScheduler()
         self._metrics: _AsyncMetricsReporter = _AsyncMetricsReporter(
             config=self._config,

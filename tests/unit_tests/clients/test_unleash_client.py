@@ -44,7 +44,7 @@ from UnleashClient.config import (
 from UnleashClient.connectors import OfflineConnector, PollingConnector
 from UnleashClient.constants import FEATURES_URL, METRICS_URL, REGISTER_URL
 from UnleashClient.errors import MultipleInstancesNotAllowedError
-from UnleashClient.events import UnleashEventType
+from UnleashClient.events import FetchStatus, UnleashEventType
 from UnleashClient.utils import InstanceAllowType
 
 
@@ -1865,3 +1865,28 @@ def test_events_emitted_after_destroy_are_dropped(tmp_path):
 
     assert unleash_client.is_enabled("testFlag")
     assert len(recorder.events) == delivered_before
+
+
+@responses.activate
+def test_uc_reports_how_each_fetch_ended(cache):
+    responses.add(
+        responses.GET, URL + FEATURES_URL, json=MOCK_FEATURE_RESPONSE, status=200
+    )
+    responses.add(responses.POST, URL + REGISTER_URL, json={}, status=202)
+    recorder = EventRecorder()
+    unleash_client = UnleashClient(
+        URL,
+        APP_NAME,
+        cache=cache,
+        metrics=MetricsOptions(disabled=True),
+        event_callback=recorder,
+    )
+
+    try:
+        unleash_client.initialize_client()
+        assert recorder.wait_for(UnleashEventType.FETCH_COMPLETED, count=1)
+    finally:
+        unleash_client.destroy()
+
+    event = recorder.of_type(UnleashEventType.FETCH_COMPLETED)[0]
+    assert event.status == FetchStatus.CHANGED

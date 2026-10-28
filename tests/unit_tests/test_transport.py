@@ -38,6 +38,7 @@ from UnleashClient.constants import (
     METRICS_URL,
     REGISTER_URL,
 )
+from UnleashClient.events import FetchStatus, UnleashEventType
 
 FULL_FEATURE_URL = URL + FEATURES_URL
 FULL_REGISTER_URL = URL + REGISTER_URL
@@ -48,7 +49,7 @@ FULL_METRICS_URL = URL + METRICS_URL
 def build_transport():
     """Factory. Keyword arguments override the defaults on the config."""
 
-    def _build_transport(**kwargs) -> _Transport:
+    def _build_transport(events=None, **kwargs) -> _Transport:
         defaults = {
             "url": URL,
             "app_name": APP_NAME,
@@ -62,7 +63,7 @@ def build_transport():
         }
         defaults.update(kwargs)
         config = UnleashConfig(**defaults)
-        return _Transport(config, _HeaderFactory(config))
+        return _Transport(config, _HeaderFactory(config), events)
 
     return _build_transport
 
@@ -323,3 +324,87 @@ def test_every_endpoint_gets_its_headers_from_the_factory(build_transport):
     assert fetch["unleash-interval"] == "1000"
     assert "unleash-interval" not in register
     assert metrics["unleash-interval"] == "2000"
+
+
+class RecordingEvents:
+    """Stands in for the dispatcher, keeping emitted events in order."""
+
+    def __init__(self):
+        self.events = []
+
+    def emit_event(self, event):
+        self.events.append(event)
+
+
+def fetch_outcomes(events: RecordingEvents):
+    return [
+        event.status
+        for event in events.events
+        if event.event_type == UnleashEventType.FETCH_COMPLETED
+    ]
+
+
+@responses.activate
+@mark.parametrize(
+    "status,body,expected",
+    (
+        param(200, MOCK_FEATURE_RESPONSE, FetchStatus.CHANGED, id="changed"),
+        param(304, None, FetchStatus.NOT_CHANGED, id="not-changed"),
+        param(401, {}, FetchStatus.UNAUTHORIZED, id="unknown-token"),
+        param(403, {}, FetchStatus.UNAUTHORIZED, id="wrong-token-type"),
+        param(429, {}, FetchStatus.RATE_LIMITED, id="rate-limited"),
+        param(500, {}, FetchStatus.UNAVAILABLE, id="server-error-after-retries"),
+        param(503, {}, FetchStatus.UNAVAILABLE, id="server-unavailable"),
+        param(
+            202, MOCK_FEATURE_RESPONSE, FetchStatus.INVALID_RESPONSE, id="unexpected"
+        ),
+    ),
+)
+def test_fetch_features_reports_how_the_fetch_ended(
+    build_transport, status, body, expected
+):
+    responses.add(responses.GET, FULL_FEATURE_URL, json=body, status=status)
+    events = RecordingEvents()
+
+    build_transport(events=events).fetch_features(options=PollingOptions())
+
+    assert fetch_outcomes(events) == [expected]
+
+
+@responses.activate
+def test_fetch_features_reports_an_empty_200_as_invalid(build_transport):
+    responses.add(responses.GET, FULL_FEATURE_URL, body="", status=200)
+    events = RecordingEvents()
+
+    build_transport(events=events).fetch_features(options=PollingOptions())
+
+    assert fetch_outcomes(events) == [FetchStatus.INVALID_RESPONSE]
+
+
+@responses.activate
+def test_fetch_features_reports_unavailable_when_no_response_arrives(
+    build_transport,
+):
+    responses.add(responses.GET, FULL_FEATURE_URL, body=ConnectionError("refused"))
+    events = RecordingEvents()
+
+    build_transport(events=events).fetch_features(options=PollingOptions())
+
+    assert fetch_outcomes(events) == [FetchStatus.UNAVAILABLE]
+
+
+@responses.activate
+def test_fetch_features_survives_a_listener_that_raises(build_transport):
+    responses.add(
+        responses.GET, FULL_FEATURE_URL, json=MOCK_FEATURE_RESPONSE, status=200
+    )
+
+    class BrokenEvents:
+        def emit_event(self, event):
+            raise RuntimeError("listener is broken")
+
+    result = build_transport(events=BrokenEvents()).fetch_features(
+        options=PollingOptions()
+    )
+
+    assert json.loads(result.raw_state)["version"] == 1

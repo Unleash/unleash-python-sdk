@@ -195,7 +195,7 @@ class UnleashClient:
             events=self.__events,
         )
 
-        self._transport = _Transport(self._config, self._headers)
+        self._transport = _Transport(self._config, self._headers, self.__events)
 
         self._scheduler = _Scheduler(scheduler, scheduler_executor)
 
