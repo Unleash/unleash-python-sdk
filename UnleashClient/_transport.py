@@ -10,7 +10,7 @@ from urllib3 import Retry
 
 from UnleashClient._event_dispatcher import _EventDispatcher
 from UnleashClient._headers import _HeaderFactory
-from UnleashClient.config import UnleashConfig
+from UnleashClient.config import PollingOptions, UnleashConfig
 from UnleashClient.constants import FEATURES_URL, METRICS_URL, REGISTER_URL
 from UnleashClient.events import (
     FetchStatus,
@@ -75,9 +75,7 @@ def _emit_fetch_completed(
 
 
 def _normalized_url(url: str, path: str) -> str:
-    # config.url can carry a trailing slash: the UnleashClient.unleash_url setter
-    # writes it without re-normalizing.
-    return f"{url.rstrip('/')}{path}"
+    return f"{url}{path}"
 
 
 def _log_resp_info(resp: Response) -> None:
@@ -90,10 +88,6 @@ class _Transport:
     """
     Sends the SDK's requests to the Unleash server: feature fetches, client
     registration and metrics submission.
-
-    Config and headers are read on every request, so changes to the client's
-    writable settings (url, timeouts, retries, project, custom headers and
-    options) take effect on the next call.
 
     :param config: Client configuration.
     :param headers: Builds the header set each endpoint needs.
@@ -110,7 +104,7 @@ class _Transport:
         self._events: Optional[_EventDispatcher] = events
 
     # pylint: disable=broad-except
-    def fetch_features(self, etag: str = "") -> FetchResult:
+    def fetch_features(self, etag: str = "", *, options: PollingOptions) -> FetchResult:
         """
         Fetch feature state, sending ``If-None-Match`` when an etag is known.
 
@@ -121,13 +115,17 @@ class _Transport:
         applies the result.
 
         :param etag: Etag from the last fetch, or "" to fetch unconditionally.
+        :param options: The polling settings: the project to filter on, and the
+                        interval reported to the server.
         :return: The fetched state, or an empty result on a 304 and on failure.
         """
-        result, status = self._fetch_features(etag)
+        result, status = self._fetch_features(etag, options)
         _emit_fetch_completed(self._events, status)
         return result
 
-    def _fetch_features(self, etag: str) -> Tuple[FetchResult, FetchStatus]:
+    def _fetch_features(
+        self, etag: str, options: PollingOptions
+    ) -> Tuple[FetchResult, FetchStatus]:
         """The fetch itself, with how it ended."""
         config = self._config
         http_status_code: Optional[int] = None
@@ -136,7 +134,7 @@ class _Transport:
 
             request_specific_headers = {
                 "UNLEASH-APPNAME": config.app_name,
-                "UNLEASH-INSTANCEID": config.instance_id,
+                "UNLEASH-INSTANCEID": config.identity.instance_id,
             }
 
             if etag:
@@ -145,12 +143,12 @@ class _Transport:
             base_url = _normalized_url(config.url, FEATURES_URL)
             base_params = {}
 
-            if config.project_name:
-                base_params = {"project": config.project_name}
+            if options.project_name:
+                base_params = {"project": options.project_name}
 
             adapter = HTTPAdapter(
                 max_retries=Retry(
-                    total=config.request_retries, status_forcelist=[500, 502, 504]
+                    total=config.http.retries, status_forcelist=[500, 502, 504]
                 )
             )
             with requests.Session() as session:
@@ -158,10 +156,13 @@ class _Transport:
                 session.mount("http://", adapter)
                 resp = session.get(
                     base_url,
-                    headers={**self._headers.polling(), **request_specific_headers},
+                    headers={
+                        **self._headers.polling(options),
+                        **request_specific_headers,
+                    },
                     params=base_params,
-                    timeout=config.request_timeout,
-                    **config.custom_options,
+                    timeout=config.http.timeout,
+                    **config.http.options,
                 )
 
             http_status_code = resp.status_code
@@ -215,8 +216,8 @@ class _Transport:
                 _normalized_url(config.url, REGISTER_URL),
                 data=json.dumps(payload),
                 headers=self._headers.base(),
-                timeout=config.request_timeout,
-                **config.custom_options,
+                timeout=config.http.timeout,
+                **config.http.options,
             )
 
             if resp.status_code not in {200, 202}:
@@ -258,8 +259,8 @@ class _Transport:
                 _normalized_url(config.url, METRICS_URL),
                 data=json.dumps(payload),
                 headers=self._headers.metrics(),
-                timeout=config.request_timeout,
-                **config.custom_options,
+                timeout=config.http.timeout,
+                **config.http.options,
             )
 
             if resp.status_code != 202:

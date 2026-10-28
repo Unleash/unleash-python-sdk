@@ -1,6 +1,6 @@
 import logging
 from enum import Enum
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 import mmh3  # pylint: disable=import-error
 
@@ -37,24 +37,11 @@ def get_identifier(context_key_name: str, context: dict) -> Any:
     return value
 
 
-def extract_environment_from_headers(
-    headers: Optional[Dict[str, str]],
-) -> Optional[str]:
-    if not headers:
+def extract_environment_from_api_key(api_key: Optional[str]) -> Optional[str]:
+    if not api_key:
         return None
 
-    auth_key = next(
-        (key for key in headers if key.lower() == "authorization"),
-        None,
-    )
-    if not auth_key:
-        return None
-
-    auth_value = headers.get(auth_key)
-    if not auth_value:
-        return None
-
-    _, sep, after_colon = auth_value.partition(":")
+    _, sep, after_colon = api_key.partition(":")
     if not sep:
         return None
 

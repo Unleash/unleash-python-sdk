@@ -14,7 +14,7 @@ from UnleashClient._transport import (
     _fetched_status,
     _normalized_url,
 )
-from UnleashClient.config import UnleashConfig
+from UnleashClient.config import PollingOptions, UnleashConfig
 from UnleashClient.constants import FEATURES_URL, METRICS_URL, REGISTER_URL
 from UnleashClient.errors import AlreadyClosedError
 from UnleashClient.events import FetchStatus
@@ -75,7 +75,7 @@ class _AsyncTransport:
     def _timeout(self) -> "aiohttp.ClientTimeout":
         # sock_connect/sock_read rather than total: the sync client's scalar
         # timeout bounds each socket operation, not the whole request.
-        seconds = self._config.request_timeout
+        seconds = self._config.http.timeout
         return aiohttp.ClientTimeout(
             total=None, sock_connect=seconds, sock_read=seconds
         )
@@ -97,7 +97,9 @@ class _AsyncTransport:
         if session is not None and not session.closed:
             await session.close()
 
-    async def fetch_features(self, etag: str = "") -> FetchResult:
+    async def fetch_features(
+        self, etag: str = "", *, options: PollingOptions
+    ) -> FetchResult:
         """
         Fetch feature state, sending ``If-None-Match`` when an etag is known.
 
@@ -109,22 +111,25 @@ class _AsyncTransport:
         applies the result.
 
         :param etag: the cached etag, or "" to fetch unconditionally.
+        :param options: the polling settings
         :raises AlreadyClosedError: if the transport has been closed.
         """
         self._raise_if_closed()
 
-        result, status = await self._fetch_features(etag)
+        result, status = await self._fetch_features(etag, options)
         _emit_fetch_completed(self._events, status)
         return result
 
-    async def _fetch_features(self, etag: str) -> Tuple[FetchResult, FetchStatus]:
+    async def _fetch_features(
+        self, etag: str, options: PollingOptions
+    ) -> Tuple[FetchResult, FetchStatus]:
         """The fetch itself, with how it ended."""
         config = self._config
         http_status_code: Optional[int] = None
         try:
             LOGGER.info("Getting feature flags.")
 
-            headers = self._headers.polling()
+            headers = self._headers.polling(options)
 
             if etag:
                 headers["If-None-Match"] = etag
@@ -132,11 +137,11 @@ class _AsyncTransport:
             base_url = _normalized_url(config.url, FEATURES_URL)
             base_params = {}
 
-            if config.project_name:
-                base_params = {"project": config.project_name}
+            if options.project_name:
+                base_params = {"project": options.project_name}
 
             session = await self._get_session()
-            attempts = 1 + max(config.request_retries, 0)
+            attempts = 1 + max(config.http.retries, 0)
 
             for attempt in range(attempts):
                 last_attempt = attempt == attempts - 1

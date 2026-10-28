@@ -23,7 +23,12 @@ from UnleashClient._feature_store import _FeatureStore
 from UnleashClient._headers import _HeaderFactory
 from UnleashClient._scheduler import _Scheduler
 from UnleashClient._transport import _Transport
-from UnleashClient.config import UnleashConfig
+from UnleashClient.config import (
+    HttpOptions,
+    IdentityOptions,
+    PollingOptions,
+    UnleashConfig,
+)
 from UnleashClient.connectors import PollingConnector
 from UnleashClient.constants import ETAG, FEATURES_URL
 from UnleashClient.events import UnleashEventType
@@ -33,11 +38,13 @@ FULL_FEATURE_URL = URL + FEATURES_URL
 
 def build_transport(**kwargs) -> _Transport:
     defaults = {
-        "instance_id": INSTANCE_ID,
-        "custom_headers": CUSTOM_HEADERS,
-        "custom_options": CUSTOM_OPTIONS,
-        "request_timeout": REQUEST_TIMEOUT,
-        "request_retries": REQUEST_RETRIES,
+        "identity": IdentityOptions(instance_id=INSTANCE_ID),
+        "http": HttpOptions(
+            headers=CUSTOM_HEADERS,
+            options=CUSTOM_OPTIONS,
+            timeout=REQUEST_TIMEOUT,
+            retries=REQUEST_RETRIES,
+        ),
     }
     defaults.update(kwargs)
     config = UnleashConfig(URL, APP_NAME, **defaults)
@@ -61,6 +68,7 @@ def test_polling_connector_fetch_and_load(cache_empty):
         store=_FeatureStore(engine=engine, cache=temp_cache),
         scheduler=scheduler,
         transport=build_transport(),
+        options=PollingOptions(),
     )
 
     connector._fetch_and_load()
@@ -81,7 +89,8 @@ def test_polling_connector_fetch_and_load_project(cache_empty):
     connector = PollingConnector(
         store=_FeatureStore(engine=engine, cache=temp_cache),
         scheduler=scheduler,
-        transport=build_transport(project_name=PROJECT_NAME),
+        transport=build_transport(),
+        options=PollingOptions(project_name=PROJECT_NAME),
     )
 
     connector._fetch_and_load()
@@ -102,6 +111,7 @@ def test_polling_connector_fetch_and_load_failure(cache_empty):
         store=_FeatureStore(engine=engine, cache=temp_cache),
         scheduler=scheduler,
         transport=build_transport(),
+        options=PollingOptions(),
     )
 
     connector._fetch_and_load()
@@ -134,7 +144,7 @@ def test_polling_connector_emits_fetched_and_ready(
         transport=build_transport(),
         # Huge refresh interval to avoid any polling during the test. That
         # way we avoid having to call _fetch_and_load() directly and can test the start/stop behavior.
-        refresh_interval=10,
+        options=PollingOptions(interval=10),
     )
 
     connector.start()
@@ -159,6 +169,7 @@ def test_polling_connector_emits_ready_once_across_polls(
         store=_FeatureStore(engine=engine, cache=cache_empty, events=dispatcher),
         scheduler=scheduler,
         transport=build_transport(),
+        options=PollingOptions(),
     )
 
     # Every poll emits READY from load_from_cache(), then FETCHED.
@@ -191,7 +202,7 @@ def test_polling_connector_start_stop(cache_empty):
         store=_FeatureStore(engine=engine, cache=temp_cache),
         scheduler=scheduler,
         transport=build_transport(),
-        refresh_interval=1,
+        options=PollingOptions(interval=1),
     )
 
     connector.start()

@@ -4,6 +4,7 @@ import responses
 from tests.utilities.mocks import MOCK_CUSTOM_STRATEGY
 from tests.utilities.testing_constants import APP_NAME, URL
 from UnleashClient import UnleashClient
+from UnleashClient.config import IdentityOptions
 from UnleashClient.constants import FEATURES_URL, METRICS_URL, REGISTER_URL
 
 
@@ -58,7 +59,7 @@ def test_uc_customstrategy_happypath(recwarn, tmp_path):
     unleash_client = UnleashClient(
         URL,
         APP_NAME,
-        environment="prod",
+        identity=IdentityOptions(environment="prod"),
         custom_strategies=custom_strategies_dict,
         cache_directory=str(tmp_path),
     )
@@ -84,7 +85,7 @@ def test_uc_customstrategy_deprecation_error(tmp_path):
     unleash_client = UnleashClient(
         URL,
         APP_NAME,
-        environment="prod",
+        identity=IdentityOptions(environment="prod"),
         custom_strategies=custom_strategies_dict,
         cache_directory=str(tmp_path),
     )
@@ -109,7 +110,7 @@ def test_uc_customstrategy_safemulti(tmp_path):
     unleash_client = UnleashClient(
         URL,
         APP_NAME,
-        environment="prod",
+        identity=IdentityOptions(environment="prod"),
         custom_strategies=custom_strategies_dict,
         cache_directory=str(tmp_path),
     )

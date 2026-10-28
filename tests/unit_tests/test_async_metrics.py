@@ -12,7 +12,7 @@ from UnleashClient._async_metrics import _AsyncMetricsReporter
 from UnleashClient._async_scheduler import _AsyncJob, _AsyncJobFn, _AsyncScheduler
 from UnleashClient._async_transport import _AsyncTransport
 from UnleashClient._headers import _HeaderFactory
-from UnleashClient.config import UnleashConfig
+from UnleashClient.config import IdentityOptions, MetricsOptions, UnleashConfig
 from UnleashClient.constants import CLIENT_SPEC_VERSION, METRICS_URL
 from UnleashClient.impact_metrics import ImpactMetrics
 
@@ -114,7 +114,7 @@ class TestAsyncMetricsReporter:
 
         def _build_reporter(impact_metrics=None, **kwargs) -> _AsyncMetricsReporter:
             defaults = {
-                "metrics_interval": NEVER,
+                "metrics": MetricsOptions(interval=NEVER),
             }
             defaults.update(kwargs)
             config = UnleashConfig(server.base_url, APP_NAME, **defaults)
@@ -174,7 +174,7 @@ class TestAsyncMetricsReporter:
 
     @mark.asyncio
     async def test_flush_identifies_the_client(self, server, build_reporter):
-        reporter = build_reporter(instance_id="123")
+        reporter = build_reporter(identity=IdentityOptions(instance_id="123"))
         server.on("POST", METRICS_PATH, status=202, payload={})
         reporter._engine.count_toggle(COUNTED_FLAG, True)
 
@@ -201,7 +201,10 @@ class TestAsyncMetricsReporter:
     @mark.asyncio
     async def test_flush_includes_sdk_flavor_when_set(self, server, build_reporter):
         reporter = build_reporter(
-            sdk_flavor="unleash-openfeature-python-provider", sdk_flavor_version="1.2.3"
+            identity=IdentityOptions(
+                sdk_flavor="unleash-openfeature-python-provider",
+                sdk_flavor_version="1.2.3",
+            )
         )
         server.on("POST", METRICS_PATH, status=202, payload={})
         reporter._engine.count_toggle(COUNTED_FLAG, True)
@@ -224,22 +227,6 @@ class TestAsyncMetricsReporter:
         assert "sdkFlavorVersion" not in body
 
     @mark.asyncio
-    async def test_the_config_is_read_on_every_flush(self, server, reporter):
-        # UnleashClient.unleash_app_name has a setter, so a client can change it after the
-        # reporter was constructed.
-        server.on("POST", METRICS_PATH, status=202, payload={}, repeat=True)
-
-        reporter._engine.count_toggle(COUNTED_FLAG, True)
-        await reporter.flush()
-
-        reporter._config.app_name = "renamed"
-        reporter._engine.count_toggle(COUNTED_FLAG, True)
-        await reporter.flush()
-
-        assert metrics_body(server, 0)["appName"] == APP_NAME
-        assert metrics_body(server, 1)["appName"] == "renamed"
-
-    @mark.asyncio
     async def test_the_flush_goes_through_the_async_transport(self, reporter):
         # The flush runs on the client's loop, so a blocking transport would hold it up for
         # the length of every POST.
@@ -254,7 +241,7 @@ class TestAsyncMetricsReporter:
         self,
         build_reporter,
     ):
-        reporter = build_reporter(metrics_interval=30, metrics_jitter=10)
+        reporter = build_reporter(metrics=MetricsOptions(interval=30, jitter=10))
 
         reporter.start()
 
@@ -265,10 +252,8 @@ class TestAsyncMetricsReporter:
 
     @mark.asyncio
     async def test_start_coerces_the_metrics_interval(self, build_reporter):
-        # A client can be built with metrics_interval="30": the constructor does not
-        # validate types.
-        reporter = build_reporter()
-        reporter._config.metrics_interval = "30"
+        # metrics_interval="30" is accepted: the config does not validate types.
+        reporter = build_reporter(metrics=MetricsOptions(interval="30"))
 
         reporter.start()
 
@@ -394,7 +379,7 @@ class TestAsyncMetricsReporter:
     async def test_stop_during_a_send_resends_its_impact_metrics(
         self, server, build_reporter
     ):
-        reporter = build_reporter(metrics_interval=1)
+        reporter = build_reporter(metrics=MetricsOptions(interval=1))
         server.on("POST", METRICS_PATH, hang=True)
         server.on("POST", METRICS_PATH, status=202, payload={})
         reporter._impact_metrics.define_counter("my_counter", "Test counter")

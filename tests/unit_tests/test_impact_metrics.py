@@ -13,6 +13,7 @@ from tests.utilities.testing_constants import (
 )
 from UnleashClient import INSTANCES, UnleashClient
 from UnleashClient.cache import FileCache
+from UnleashClient.config import IdentityOptions, MetricsOptions
 from UnleashClient.constants import METRICS_URL
 from UnleashClient.impact_metrics import ImpactMetrics, MetricFlagContext
 
@@ -51,10 +52,8 @@ def unleash_client(tmp_path):
     client = UnleashClient(
         url=URL,
         app_name=APP_NAME,
-        environment=ENVIRONMENT,
-        instance_id=INSTANCE_ID,
-        disable_metrics=True,
-        disable_registration=True,
+        identity=IdentityOptions(environment=ENVIRONMENT, instance_id=INSTANCE_ID),
+        metrics=MetricsOptions(disabled=True, disable_registration=True),
         cache=cache,
     )
     client.initialize_client(fetch_toggles=False)

@@ -3,9 +3,15 @@ from typing import TYPE_CHECKING
 
 from .clients import (
     INSTANCES,
-    ExperimentalMode,
     UnleashClient,
     build_ready_callback,
+)
+from .config import (
+    HttpOptions,
+    IdentityOptions,
+    MetricsOptions,
+    PollingOptions,
+    StreamingOptions,
 )
 
 if TYPE_CHECKING:

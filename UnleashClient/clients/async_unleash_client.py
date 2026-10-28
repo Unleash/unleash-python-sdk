@@ -6,7 +6,7 @@ Asynchronous Unleash client. Requires the optional ``aiohttp`` dependency:
 import asyncio
 import warnings
 from datetime import datetime, timezone
-from typing import Callable, Optional
+from typing import Callable, Optional, cast
 
 from yggdrasil_engine.engine import UnleashEngine
 
@@ -22,14 +22,16 @@ from UnleashClient._instance_registry import _get_instance_registry
 from UnleashClient._payloads import _build_register_payload
 from UnleashClient.cache import BaseCache, FileCache
 from UnleashClient.clients.unleash_client import _RunState
-from UnleashClient.config import ExperimentalMode, UnleashConfig
-from UnleashClient.connectors._async_connector import _AsyncPollingConnector
-from UnleashClient.constants import (
-    ETAG,
-    METRIC_LAST_SENT_TIME,
-    REQUEST_RETRIES,
-    REQUEST_TIMEOUT,
+from UnleashClient.config import (
+    HttpOptions,
+    IdentityOptions,
+    MetricsOptions,
+    PollingOptions,
+    StreamingOptions,
+    UnleashConfig,
 )
+from UnleashClient.connectors._async_connector import _AsyncPollingConnector
+from UnleashClient.constants import ETAG, METRIC_LAST_SENT_TIME
 from UnleashClient.events import BaseEvent
 from UnleashClient.impact_metrics import ImpactMetrics
 from UnleashClient.utils import LOGGER, InstanceAllowType
@@ -41,14 +43,14 @@ class AsyncUnleashClient:
 
     The client keeps feature state fresh by polling the Unleash server on the
     event loop it was initialized on, and reports metrics on the same loop.
-    Streaming, offline mode and bootstrapping are not supported.
+    Streaming, offline mode and bootstrapping are not supported yet.
 
     Example::
 
         async with AsyncUnleashClient(
             url="https://unleash.example.com/api",
             app_name="my-app",
-            custom_headers={"Authorization": "<API token>"},
+            api_key="<API token>",
         ) as client:
             if client.is_enabled("new-checkout", {"userId": "42"}):
                 ...
@@ -59,57 +61,55 @@ class AsyncUnleashClient:
 
             client.impact_metrics.define_counter("purchases", "Number of purchases")
             client.impact_metrics.increment_counter("purchases")
+
+    :param url: URL of the Unleash server, required.
+    :param app_name: Name of the application using the client, required.
+    :param api_key: Client API token.  Optional, because a client that only loads from a backup never talks to the server.
+    :param identity: How the client identifies itself.
+    :param http: How the client talks to the server.
+    :param mode: How often the client polls for flag updates.  Streaming is not supported yet.
+    :param metrics: How the client reports to the server.
+    :param verbose_log_level: Numerical log level (https://docs.python.org/3/library/logging.html#logging-levels) for cases where checking a feature flag fails.
+    :param custom_strategies: Dictionary of custom strategy names: custom strategy objects.
+    :param cache: Custom cache implementation that extends UnleashClient.cache.BaseCache.  When unset, the client will use FileCache.
+    :param cache_directory: Location of the cache directory.
+    :param multiple_instance_mode: Determines how multiple instances being instantiated is handled by the SDK.  Defaults to InstanceAllowType.WARN.
+    :param event_callback: Function to call if impression events are enabled.  Called on a dedicated background thread.
     """
 
-    def __init__(  # noqa: PLR0913, PLR0917
+    def __init__(
         self,
         url: str,
         app_name: str,
-        environment: str = "default",
-        instance_id: str = "unleash-python-sdk",
-        refresh_interval: int = 15,
-        refresh_jitter: Optional[int] = None,
-        metrics_interval: int = 60,
-        metrics_jitter: Optional[int] = None,
-        disable_metrics: bool = False,
-        disable_registration: bool = False,
-        custom_headers: Optional[dict] = None,
-        custom_options: Optional[dict] = None,
-        request_timeout: int = REQUEST_TIMEOUT,
-        request_retries: int = REQUEST_RETRIES,
-        custom_strategies: Optional[dict] = None,
-        cache_directory: Optional[str] = None,
-        project_name: Optional[str] = None,
+        *,
+        api_key: Optional[str] = None,
+        identity: Optional[IdentityOptions] = None,
+        http: Optional[HttpOptions] = None,
+        mode: Optional[PollingOptions] = None,
+        metrics: Optional[MetricsOptions] = None,
         verbose_log_level: int = 30,
+        custom_strategies: Optional[dict] = None,
         cache: Optional[BaseCache] = None,
+        cache_directory: Optional[str] = None,
         multiple_instance_mode: InstanceAllowType = InstanceAllowType.WARN,
         event_callback: Optional[Callable[[BaseEvent], None]] = None,
-        experimental_mode: Optional[ExperimentalMode] = None,
-        sdk_flavor: Optional[str] = None,
-        sdk_flavor_version: Optional[str] = None,
     ) -> None:
+        if isinstance(mode, StreamingOptions):
+            raise ValueError(
+                "AsyncUnleashClient does not support streaming yet. "
+                "Use PollingOptions, or UnleashClient for streaming."
+            )
         self._config: UnleashConfig = UnleashConfig(
             url=url,
             app_name=app_name,
-            environment=environment,
-            instance_id=instance_id,
-            refresh_interval=refresh_interval,
-            refresh_jitter=refresh_jitter,
-            metrics_interval=metrics_interval,
-            metrics_jitter=metrics_jitter,
-            disable_metrics=disable_metrics,
-            disable_registration=disable_registration,
-            custom_headers=custom_headers,
-            custom_options=custom_options,
-            request_timeout=request_timeout,
-            request_retries=request_retries,
-            project_name=project_name,
+            api_key=api_key,
+            identity=identity,
+            http=http,
+            mode=mode,
+            metrics=metrics,
             verbose_log_level=verbose_log_level,
-            sdk_flavor=sdk_flavor,
-            sdk_flavor_version=sdk_flavor_version,
-            experimental_mode=experimental_mode,
-            custom_strategies=custom_strategies,
         )
+        self._custom_strategies: dict = custom_strategies or {}
         self._enricher: _ContextEnricher = _ContextEnricher(self._config)
         self._headers: _HeaderFactory = _HeaderFactory(self._config)
 
@@ -242,8 +242,8 @@ class AsyncUnleashClient:
 
         * Client registration
         * Loading the cached feature state
-        * Feature polling, every ``refresh_interval`` seconds
-        * Metrics reporting, every ``metrics_interval`` seconds
+        * Feature polling, every ``mode.interval`` seconds
+        * Metrics reporting, every ``metrics.interval`` seconds
 
         Awaits the first feature fetch attempt before returning, yielding to the
         event loop during network I/O. If the fetch fails, initialization still
@@ -260,9 +260,7 @@ class AsyncUnleashClient:
         .. code-block:: python
 
             async with AsyncUnleashClient(
-                url="https://foo.bar",
-                app_name="myClient1",
-                instance_id="myinstanceid",
+                url="https://foo.bar", app_name="myClient1"
             ) as client:
                 pass
 
@@ -283,14 +281,12 @@ class AsyncUnleashClient:
                 {METRIC_LAST_SENT_TIME: datetime.now(timezone.utc), ETAG: ""}
             )
 
-            if self._config.custom_strategies:
-                self._engine.register_custom_strategies(self._config.custom_strategies)
+            if self._custom_strategies:
+                self._engine.register_custom_strategies(self._custom_strategies)
 
-            if not self._config.disable_registration:
+            if not self._config.metrics.disable_registration:
                 await self._transport.register(
-                    _build_register_payload(
-                        self._config, self._config.custom_strategies
-                    )
+                    _build_register_payload(self._config, self._custom_strategies)
                 )
 
             if self._closed:
@@ -299,12 +295,11 @@ class AsyncUnleashClient:
             self._connector = _AsyncPollingConnector(
                 store=self._store,
                 transport=self._transport,
-                refresh_interval=self._config.refresh_interval,
-                refresh_jitter=self._config.refresh_jitter,
+                options=cast(PollingOptions, self._config.mode),
             )
             await self._connector.start()
 
-            if not self._config.disable_metrics:
+            if not self._config.metrics.disabled:
                 self._metrics.start()
                 self._metrics_scheduler.start()
 

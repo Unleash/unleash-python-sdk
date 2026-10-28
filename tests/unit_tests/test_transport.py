@@ -25,7 +25,13 @@ from tests.utilities.testing_constants import (
 )
 from UnleashClient._headers import _HeaderFactory
 from UnleashClient._transport import _Transport
-from UnleashClient.config import UnleashConfig
+from UnleashClient.config import (
+    HttpOptions,
+    IdentityOptions,
+    MetricsOptions,
+    PollingOptions,
+    UnleashConfig,
+)
 from UnleashClient.constants import (
     CLIENT_SPEC_VERSION,
     FEATURES_URL,
@@ -45,14 +51,18 @@ def build_transport():
 
     def _build_transport(events=None, **kwargs) -> _Transport:
         defaults = {
-            "instance_id": INSTANCE_ID,
-            "custom_headers": CUSTOM_HEADERS,
-            "custom_options": CUSTOM_OPTIONS,
-            "request_timeout": REQUEST_TIMEOUT,
-            "request_retries": REQUEST_RETRIES,
+            "url": URL,
+            "app_name": APP_NAME,
+            "identity": IdentityOptions(instance_id=INSTANCE_ID),
+            "http": HttpOptions(
+                headers=CUSTOM_HEADERS,
+                options=CUSTOM_OPTIONS,
+                timeout=REQUEST_TIMEOUT,
+                retries=REQUEST_RETRIES,
+            ),
         }
         defaults.update(kwargs)
-        config = UnleashConfig(URL, APP_NAME, **defaults)
+        config = UnleashConfig(**defaults)
         return _Transport(config, _HeaderFactory(config), events)
 
     return _build_transport
@@ -90,7 +100,7 @@ def test_fetch_features(transport, response, status, calls, expected):
         headers={"etag": ETAG_VALUE},
     )
 
-    result = transport.fetch_features()
+    result = transport.fetch_features(options=PollingOptions())
 
     # 4 calls on a 500 is 1 + REQUEST_RETRIES: the mounted HTTPAdapter/Retry
     # has to survive every move of this code.
@@ -108,7 +118,9 @@ def test_fetch_features_sends_the_project_as_a_query_parameter(build_transport):
         headers={"etag": ETAG_VALUE},
     )
 
-    result = build_transport(project_name=PROJECT_NAME).fetch_features()
+    result = build_transport().fetch_features(
+        options=PollingOptions(project_name=PROJECT_NAME)
+    )
 
     assert len(responses.calls) == 1
     assert len(json.loads(result.raw_state)["features"]) == 1
@@ -121,7 +133,9 @@ def test_fetch_features_drops_the_etag_on_failure(build_transport):
         responses.GET, PROJECT_URL, json={}, status=500, headers={"etag": ETAG_VALUE}
     )
 
-    result = build_transport(project_name=PROJECT_NAME).fetch_features()
+    result = build_transport().fetch_features(
+        options=PollingOptions(project_name=PROJECT_NAME)
+    )
 
     assert len(responses.calls) == 4
     assert not result.etag
@@ -132,7 +146,9 @@ def test_fetch_features_drops_the_etag_on_failure(build_transport):
 def test_fetch_features_sends_if_none_match_when_an_etag_is_known(build_transport):
     responses.add(responses.GET, PROJECT_URL, status=304, headers={"etag": ETAG_VALUE})
 
-    result = build_transport(project_name=PROJECT_NAME).fetch_features(ETAG_VALUE)
+    result = build_transport().fetch_features(
+        ETAG_VALUE, options=PollingOptions(project_name=PROJECT_NAME)
+    )
 
     assert len(responses.calls) == 1
     assert responses.calls[0].request.headers["If-None-Match"] == ETAG_VALUE
@@ -153,31 +169,12 @@ def test_fetch_features_retries_and_recovers(build_transport):
         headers={"etag": ETAG_VALUE},
     )
 
-    result = build_transport(project_name=PROJECT_NAME).fetch_features(ETAG_VALUE)
+    result = build_transport().fetch_features(
+        ETAG_VALUE, options=PollingOptions(project_name=PROJECT_NAME)
+    )
 
     assert len(responses.calls) == 2
     assert len(json.loads(result.raw_state)["features"]) == 1
-    assert result.etag == ETAG_VALUE
-
-
-@responses.activate
-def test_fetch_features_strips_a_trailing_slash_from_the_url(transport):
-    responses.add(
-        responses.GET,
-        FULL_FEATURE_URL,
-        json=MOCK_FEATURE_RESPONSE,
-        status=200,
-        headers={"etag": ETAG_VALUE},
-    )
-    # The unleash_url setter writes config.url directly and never re-normalizes,
-    # so the trailing slash has to be stripped at request time.
-    transport._config.url = f"{URL}/"
-
-    result = transport.fetch_features()
-
-    assert len(responses.calls) == 1
-    assert responses.calls[0].request.url == FULL_FEATURE_URL
-    assert json.loads(result.raw_state)["version"] == 1
     assert result.etag == ETAG_VALUE
 
 
@@ -189,7 +186,9 @@ def test_fetch_features_swallows_a_bad_custom_option(build_transport):
 
     # `timeout` collides with the keyword the transport already passes. It is a
     # TypeError, not a RequestException, and fetch_features swallows everything.
-    result = build_transport(custom_options={"timeout": 5}).fetch_features()
+    result = build_transport(http=HttpOptions(options={"timeout": 5})).fetch_features(
+        options=PollingOptions()
+    )
 
     assert result == (None, "", False)
 
@@ -235,20 +234,8 @@ def test_register_sends_the_payload_it_is_given(transport):
 
 
 @responses.activate
-def test_register_strips_a_trailing_slash_from_the_url(transport):
-    responses.add(responses.POST, FULL_REGISTER_URL, json={}, status=202)
-    transport._config.url = f"{URL}/"
-
-    result = transport.register({})
-
-    assert len(responses.calls) == 1
-    assert responses.calls[0].request.url == FULL_REGISTER_URL
-    assert result is True
-
-
-@responses.activate
-def test_register_reraises_a_missing_schema(transport):
-    transport._config.url = "thisisnotavalidurl"
+def test_register_reraises_a_missing_schema(build_transport):
+    transport = build_transport(url="thisisnotavalidurl")
 
     # initialize_client() fails loudly on a malformed URL because these four
     # are re-raised rather than reported as False. See test_uc_with_invalid_url,
@@ -258,8 +245,8 @@ def test_register_reraises_a_missing_schema(transport):
 
 
 @responses.activate
-def test_register_reraises_an_invalid_schema(transport):
-    transport._config.url = "localhost:4242/api"
+def test_register_reraises_an_invalid_schema(build_transport):
+    transport = build_transport(url="localhost:4242/api")
 
     with pytest.raises(InvalidSchema):
         transport.register({})
@@ -272,7 +259,7 @@ def test_register_lets_a_bad_custom_option_escape(build_transport):
     # A TypeError is not a RequestException, so unlike fetch_features this
     # propagates and fails initialize_client().
     with pytest.raises(TypeError):
-        build_transport(custom_options={"timeout": 5}).register({})
+        build_transport(http=HttpOptions(options={"timeout": 5})).register({})
 
 
 # send_metrics
@@ -307,23 +294,11 @@ def test_send_metrics(transport, payload, status, expected):
 
 
 @responses.activate
-def test_send_metrics_strips_a_trailing_slash_from_the_url(transport):
-    responses.add(responses.POST, FULL_METRICS_URL, json={}, status=202)
-    transport._config.url = f"{URL}/"
-
-    result = transport.send_metrics(MOCK_METRICS_REQUEST)
-
-    assert len(responses.calls) == 1
-    assert responses.calls[0].request.url == FULL_METRICS_URL
-    assert result is True
-
-
-@responses.activate
 def test_send_metrics_lets_a_bad_custom_option_escape(build_transport):
     responses.add(responses.POST, FULL_METRICS_URL, json={}, status=202)
 
     with pytest.raises(TypeError):
-        build_transport(custom_options={"timeout": 5}).send_metrics({})
+        build_transport(http=HttpOptions(options={"timeout": 5})).send_metrics({})
 
 
 @responses.activate
@@ -333,9 +308,9 @@ def test_every_endpoint_gets_its_headers_from_the_factory(build_transport):
     )
     responses.add(responses.POST, FULL_REGISTER_URL, json={}, status=202)
     responses.add(responses.POST, FULL_METRICS_URL, json={}, status=202)
-    transport = build_transport(refresh_interval=1, metrics_interval=2)
+    transport = build_transport(metrics=MetricsOptions(interval=2))
 
-    transport.fetch_features()
+    transport.fetch_features(options=PollingOptions(interval=1))
     transport.register({})
     transport.send_metrics(MOCK_METRICS_REQUEST)
 
@@ -349,20 +324,6 @@ def test_every_endpoint_gets_its_headers_from_the_factory(build_transport):
     assert fetch["unleash-interval"] == "1000"
     assert "unleash-interval" not in register
     assert metrics["unleash-interval"] == "2000"
-
-
-@responses.activate
-def test_headers_are_rebuilt_on_every_request(transport):
-    responses.add(responses.POST, FULL_METRICS_URL, json={}, status=202)
-
-    transport.send_metrics(MOCK_METRICS_REQUEST)
-    # unleash_custom_headers is a public setter, so the factory has to be asked
-    # again rather than its answer captured.
-    transport._config.custom_headers = {"Authorization": "second"}
-    transport.send_metrics(MOCK_METRICS_REQUEST)
-
-    assert "Authorization" not in responses.calls[0].request.headers
-    assert responses.calls[1].request.headers["Authorization"] == "second"
 
 
 class RecordingEvents:
@@ -405,7 +366,7 @@ def test_fetch_features_reports_how_the_fetch_ended(
     responses.add(responses.GET, FULL_FEATURE_URL, json=body, status=status)
     events = RecordingEvents()
 
-    build_transport(events=events).fetch_features()
+    build_transport(events=events).fetch_features(options=PollingOptions())
 
     assert fetch_outcomes(events) == [expected]
 
@@ -415,7 +376,7 @@ def test_fetch_features_reports_an_empty_200_as_invalid(build_transport):
     responses.add(responses.GET, FULL_FEATURE_URL, body="", status=200)
     events = RecordingEvents()
 
-    build_transport(events=events).fetch_features()
+    build_transport(events=events).fetch_features(options=PollingOptions())
 
     assert fetch_outcomes(events) == [FetchStatus.INVALID_RESPONSE]
 
@@ -427,7 +388,7 @@ def test_fetch_features_reports_unavailable_when_no_response_arrives(
     responses.add(responses.GET, FULL_FEATURE_URL, body=ConnectionError("refused"))
     events = RecordingEvents()
 
-    build_transport(events=events).fetch_features()
+    build_transport(events=events).fetch_features(options=PollingOptions())
 
     assert fetch_outcomes(events) == [FetchStatus.UNAVAILABLE]
 
@@ -442,6 +403,8 @@ def test_fetch_features_survives_a_listener_that_raises(build_transport):
         def emit_event(self, event):
             raise RuntimeError("listener is broken")
 
-    result = build_transport(events=BrokenEvents()).fetch_features()
+    result = build_transport(events=BrokenEvents()).fetch_features(
+        options=PollingOptions()
+    )
 
     assert json.loads(result.raw_state)["version"] == 1
