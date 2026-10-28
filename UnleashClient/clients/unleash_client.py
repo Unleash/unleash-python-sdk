@@ -175,7 +175,7 @@ class UnleashClient:
         self.impact_metrics = ImpactMetrics(
             self._engine,
             self._config.app_name,
-            self._config.impact_metrics_environment,
+            self._config.environment,
         )
 
         self._cache = cache or FileCache(

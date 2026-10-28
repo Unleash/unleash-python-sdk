@@ -78,9 +78,7 @@ def build_sync_reporter(
         impact_metrics=(
             impact_metrics
             if impact_metrics is not None
-            else ImpactMetrics(
-                engine, config.app_name, config.impact_metrics_environment
-            )
+            else ImpactMetrics(engine, config.app_name, config.environment)
         ),
     )
 

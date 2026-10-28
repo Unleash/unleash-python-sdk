@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, timezone
 
 from UnleashClient._context import _ContextEnricher
-from UnleashClient.config import IdentityOptions, UnleashConfig
+from UnleashClient.config import UnleashConfig
 
 URL = "http://localhost:4242/api"
 APP_NAME = "pytest"
@@ -13,16 +13,22 @@ def build_enricher(**kwargs) -> _ContextEnricher:
 
 
 def test_static_context_is_merged_in():
-    enricher = build_enricher(identity=IdentityOptions(environment="unit"))
+    enricher = build_enricher(api_key="project:production.hash")
 
     context = enricher.build({})
 
     assert context["appName"] == APP_NAME
-    assert context["environment"] == "unit"
+    assert context["environment"] == "production"
+
+
+def test_environment_is_default_without_an_api_key():
+    context = build_enricher().build({})
+
+    assert context["environment"] == "default"
 
 
 def test_caller_overrides_the_static_context():
-    enricher = build_enricher(identity=IdentityOptions(environment="unit"))
+    enricher = build_enricher(api_key="project:production.hash")
 
     context = enricher.build({"environment": "qa", "appName": "other"})
 

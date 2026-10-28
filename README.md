@@ -117,13 +117,12 @@ The client will evaluate the fallback function if the feature flag is not found 
 
 ```python
 from UnleashClient import (
-    HttpOptions, IdentityOptions, MetricsOptions, PollingOptions, UnleashClient,
+    HttpOptions, MetricsOptions, PollingOptions, UnleashClient,
 )
 
 client = UnleashClient(
     url="https://YOUR-API-URL",
     app_name="my-python-app",
-    identity=IdentityOptions(environment="production"),
     api_key="<API token>",
     http=HttpOptions(timeout=10),
     mode=PollingOptions(interval=30),
@@ -155,7 +154,6 @@ Settings can't be changed after the client is created.
 
 | Parameter          | Description                                                                            | Default              |
 | ------------------ | -------------------------------------------------------------------------------------- | -------------------- |
-| environment        | Logical environment name. Deprecated: the environment is determined by your API token. | "default"            |
 | instance_id        | Unique identifier for this client instance.                                            | "unleash-python-sdk" |
 | sdk_flavor         | Identifier of an integration built on this SDK (e.g. an OpenFeature provider).         | None                 |
 | sdk_flavor_version | Version of the integration named by `sdk_flavor`.                                      | None                 |
@@ -382,7 +380,7 @@ Impact metrics are lightweight, application-level time-series metrics stored and
 
 These metrics help validate feature impact and automate release processes. For instance, you can monitor usage patterns or performance to determine if a feature meets its goals.
 
-The SDK automatically attaches context labels to metrics: `appName` and `environment`.
+The SDK automatically attaches context labels to metrics: `appName` and `environment`. The environment is taken from your API token, or is `"default"` when the token doesn't name one.
 
 #### Counters
 

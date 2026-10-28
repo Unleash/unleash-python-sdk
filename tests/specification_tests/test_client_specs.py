@@ -28,23 +28,18 @@ def load_specs():
         return json.load(_f)
 
 
-def get_client(state, test_context=None, cache_directory=None):
+def get_client(state, cache_directory=None):
     cache_kwargs = {}
     if cache_directory is not None:
         cache_kwargs["directory"] = str(cache_directory)
 
     cache = FileCache("MOCK_CACHE", **cache_kwargs)
     cache.bootstrap_from_dict(state)
-    env = "default"
-    if test_context is not None and "environment" in test_context:
-        env = test_context["environment"]
 
     unleash_client = UnleashClient(
         url=URL,
         app_name=APP_NAME,
-        identity=IdentityOptions(
-            environment=env, instance_id="pytest_%s" % uuid.uuid4()
-        ),
+        identity=IdentityOptions(instance_id="pytest_%s" % uuid.uuid4()),
         metrics=MetricsOptions(disabled=True, disable_registration=True),
         cache=cache,
     )
@@ -79,7 +74,7 @@ except FileNotFoundError:
 def test_spec(spec, tmp_path):
     state, test_data, is_variant_test = spec
     context = test_data.get("context")
-    unleash_client = get_client(state, context, tmp_path)
+    unleash_client = get_client(state, tmp_path)
     try:
         if not is_variant_test:
             toggle_name = test_data["toggleName"]

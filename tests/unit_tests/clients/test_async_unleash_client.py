@@ -75,7 +75,6 @@ def test_both_clients_build_the_same_config(tmpdir):
         app_name=APP_NAME,
         api_key="project:environment.hash",
         identity=IdentityOptions(
-            environment="unit",
             instance_id="123",
             sdk_flavor="openfeature",
             sdk_flavor_version="1.2.3",
@@ -180,7 +179,7 @@ def test_both_clients_build_the_same_headers(tmpdir):
 
 def test_async_client_enriches_context_over_its_own_config(tmpdir):
     client = build_async_client(
-        tmpdir, url=URL, app_name=APP_NAME, identity=IdentityOptions(environment="unit")
+        tmpdir, url=URL, app_name=APP_NAME, api_key="project:unit.hash"
     )
 
     context = client._enricher.build({"myContext": "1234"})
@@ -191,9 +190,7 @@ def test_async_client_enriches_context_over_its_own_config(tmpdir):
 
 
 def test_both_clients_enrich_context_identically(tmpdir):
-    settings = dict(
-        url=URL, app_name=APP_NAME, identity=IdentityOptions(environment="unit")
-    )
+    settings = dict(url=URL, app_name=APP_NAME)
     # currentTime is supplied so the two clients don't each generate their own.
     context = {
         "userId": 7,
@@ -266,7 +263,6 @@ def test_async_client_builds_an_evaluator_over_its_engine_and_config(tmpdir):
         tmpdir,
         url=URL,
         app_name=APP_NAME,
-        identity=IdentityOptions(environment="unit"),
         cache=cache,
     )
     client._store.load_from_cache()
@@ -280,12 +276,10 @@ def test_async_client_builds_an_evaluator_over_its_engine_and_config(tmpdir):
 
 
 def test_the_async_clients_evaluator_enriches_over_its_own_config(tmpdir):
-    client = build_async_client(
-        tmpdir, url=URL, app_name=APP_NAME, identity=IdentityOptions(environment="unit")
-    )
+    client = build_async_client(tmpdir, url=URL, app_name=APP_NAME)
 
     def fallback(feature_name, context):
-        return context["appName"] == APP_NAME and context["environment"] == "unit"
+        return context["appName"] == APP_NAME
 
     assert client._evaluator.is_enabled("notAFlag", fallback_function=fallback) is True
 
@@ -360,9 +354,7 @@ def test_async_client_exposes_impact_metrics(tmpdir):
 
 
 def test_both_clients_build_the_same_impact_metrics(tmpdir):
-    settings = dict(
-        url=URL, app_name=APP_NAME, identity=IdentityOptions(environment="unit")
-    )
+    settings = dict(url=URL, app_name=APP_NAME, api_key="project:unit.hash")
 
     sync_client = UnleashClient(
         cache=FileCache(APP_NAME, directory=str(tmpdir)), **settings
@@ -370,8 +362,8 @@ def test_both_clients_build_the_same_impact_metrics(tmpdir):
     try:
         async_client = build_async_client(tmpdir, **settings)
 
-        # Both label from config.impact_metrics_environment, which applies the header
-        # override, rather than from `environment` directly.
+        # Both label from config.environment, which takes the
+        # environment from the API key.
         assert (
             async_client.impact_metrics._base_labels
             == sync_client.impact_metrics._base_labels

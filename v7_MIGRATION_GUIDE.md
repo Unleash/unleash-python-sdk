@@ -25,14 +25,13 @@ After:
 
 ``` python
 from UnleashClient import (
-    IdentityOptions, MetricsOptions, StreamingOptions, UnleashClient,
+    MetricsOptions, StreamingOptions, UnleashClient,
 )
 
 client = UnleashClient(
     url="https://YOUR-API-URL",
     app_name="my-python-app",
     api_key="<API token>",
-    identity=IdentityOptions(environment="production"),
     mode=StreamingOptions(),
     metrics=MetricsOptions(disabled=True),
     custom_strategies={"EmailStrategy": EmailStrategy()},
@@ -49,7 +48,7 @@ The same applies to `AsyncUnleashClient`, but only polling is supported.
 | `url`                  | unchanged                                   |
 | `app_name`             | unchanged                                   |
 | `custom_headers={"Authorization": ...}` | `api_key=...`              |
-| `environment`          | `IdentityOptions(environment=...)`          |
+| `environment`          | removed, see [below](#environment-has-been-removed) |
 | `instance_id`          | `IdentityOptions(instance_id=...)`          |
 | `sdk_flavor`           | `IdentityOptions(sdk_flavor=...)`           |
 | `sdk_flavor_version`   | `IdentityOptions(sdk_flavor_version=...)`   |
@@ -81,6 +80,25 @@ client = UnleashClient(url, app_name, api_key="<API token>")
 ```
 
 An `Authorization` header in `HttpOptions.headers` raises a `ValueError`, in any letter case. It is not silently ignored, because a client without a key still starts: its requests fail with 401 and it keeps serving the flags in its cache, so the mistake could go unnoticed. All other custom headers work as before.
+
+## `environment` has been removed
+
+The `environment` argument has been removed, with no replacement. Your API token decides which environment the client gets flags for.
+
+The `environment` field of the evaluation context and the `environment` label on impact metrics are now taken from your API token, or are `"default"`.
+
+In v6 the context got the `environment` setting, `"default"` unless you set it, whatever the token said. So if the token names an environment, the context value changes:
+
+| API token             | v6 `environment` setting | v6 context     | v7 context     |
+| --------------------- | ------------------------ | -------------- | -------------- |
+| `*:production.abc123` | not set                  | `"default"`    | `"production"` |
+| `*:production.abc123` | `"staging"`              | `"staging"`    | `"production"` |
+
+This only matters if strategies or constraints use the `environment` context field. A constraint such as `environment IN [default]` matched every call in v6 and won't match in v7. Update the constraint to the token's environment, or pass the value you need with each call:
+
+``` python
+client.is_enabled("my-flag", {"environment": "default"})
+```
 
 ## Settings can't be changed after construction
 

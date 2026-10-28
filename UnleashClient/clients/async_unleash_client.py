@@ -125,7 +125,7 @@ class AsyncUnleashClient:
         self.impact_metrics: ImpactMetrics = ImpactMetrics(
             self._engine,
             self._config.app_name,
-            self._config.impact_metrics_environment,
+            self._config.environment,
         )
         self._cache: BaseCache = cache or FileCache(
             self._config.app_name, directory=cache_directory

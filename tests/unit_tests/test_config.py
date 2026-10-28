@@ -22,7 +22,6 @@ def test_defaults():
     assert config.app_name == APP_NAME
     assert config.api_key is None
     assert config.identity == IdentityOptions(
-        environment="default",
         instance_id="unleash-python-sdk",
         sdk_flavor=None,
         sdk_flavor_version=None,
@@ -61,7 +60,7 @@ def test_is_immutable():
     with pytest.raises(FrozenInstanceError):
         config.metrics.disabled = True
     with pytest.raises(FrozenInstanceError):
-        config.identity.environment = "production"
+        config.identity.instance_id = "other"
 
 
 def test_options_are_shared_between_configs_without_copying():
@@ -134,7 +133,7 @@ def test_connection_id_can_be_supplied():
 
 
 def test_static_context():
-    config = UnleashConfig(URL, APP_NAME, identity=IdentityOptions(environment="unit"))
+    config = UnleashConfig(URL, APP_NAME, api_key="project:unit.hash")
 
     assert config.static_context == {"appName": APP_NAME, "environment": "unit"}
 
@@ -205,32 +204,22 @@ def test_metrics_interval_str_millis():
     )
 
 
-def test_impact_metrics_environment_defaults_to_environment():
-    config = UnleashConfig(URL, APP_NAME, identity=IdentityOptions(environment="unit"))
+def test_environment_defaults_to_default_without_an_api_key():
+    config = UnleashConfig(URL, APP_NAME)
 
-    assert config.impact_metrics_environment == "unit"
-
-
-def test_impact_metrics_environment_is_taken_from_the_api_token():
-    config = UnleashConfig(
-        URL,
-        APP_NAME,
-        identity=IdentityOptions(environment="unit"),
-        api_key="project:production.hash",
-    )
-
-    assert config.impact_metrics_environment == "production"
+    assert config.environment == "default"
 
 
-def test_impact_metrics_environment_falls_back_on_an_unparseable_token():
-    config = UnleashConfig(
-        URL,
-        APP_NAME,
-        identity=IdentityOptions(environment="unit"),
-        api_key="no-colon-here",
-    )
+def test_environment_is_taken_from_the_api_token():
+    config = UnleashConfig(URL, APP_NAME, api_key="project:production.hash")
 
-    assert config.impact_metrics_environment == "unit"
+    assert config.environment == "production"
+
+
+def test_environment_falls_back_on_an_unparseable_token():
+    config = UnleashConfig(URL, APP_NAME, api_key="no-colon-here")
+
+    assert config.environment == "default"
 
 
 def test_instance_identifier_redacts_the_api_key():

@@ -26,23 +26,18 @@ async def server():
         await fake.close()
 
 
-async def get_async_client(url, state, test_context=None, cache_directory=None):
+async def get_async_client(url, state, cache_directory=None):
     cache_kwargs = {}
     if cache_directory is not None:
         cache_kwargs["directory"] = str(cache_directory)
 
     cache = FileCache("MOCK_CACHE", **cache_kwargs)
     cache.bootstrap_from_dict(state)
-    env = "default"
-    if test_context is not None and "environment" in test_context:
-        env = test_context["environment"]
 
     unleash_client = AsyncUnleashClient(
         url=url,
         app_name=APP_NAME,
-        identity=IdentityOptions(
-            environment=env, instance_id="pytest_%s" % uuid.uuid4()
-        ),
+        identity=IdentityOptions(instance_id="pytest_%s" % uuid.uuid4()),
         http=HttpOptions(retries=0),
         metrics=MetricsOptions(disabled=True, disable_registration=True),
         cache=cache,
@@ -60,7 +55,6 @@ async def test_spec(spec, tmp_path, server):
     unleash_client = await get_async_client(
         url=server.base_url,
         state=state,
-        test_context=context,
         cache_directory=tmp_path,
     )
     try:

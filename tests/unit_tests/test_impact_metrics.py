@@ -52,7 +52,8 @@ def unleash_client(tmp_path):
     client = UnleashClient(
         url=URL,
         app_name=APP_NAME,
-        identity=IdentityOptions(environment=ENVIRONMENT, instance_id=INSTANCE_ID),
+        api_key=f"project:{ENVIRONMENT}.hash",
+        identity=IdentityOptions(instance_id=INSTANCE_ID),
         metrics=MetricsOptions(disabled=True, disable_registration=True),
         cache=cache,
     )
