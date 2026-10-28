@@ -3,7 +3,7 @@
 import uuid
 from dataclasses import KW_ONLY, dataclass, field
 from types import MappingProxyType
-from typing import Any, Dict, Mapping, Optional, Union
+from typing import Any, Mapping, Optional, Union
 
 from UnleashClient.constants import REQUEST_RETRIES, REQUEST_TIMEOUT
 from UnleashClient.utils import LOGGER, extract_environment_from_api_key
@@ -155,10 +155,6 @@ class UnleashConfig:
                 type(self.mode).__name__,
             )
             object.__setattr__(self, "mode", PollingOptions())
-
-    @property
-    def static_context(self) -> Dict[str, Any]:
-        return {"appName": self.app_name, "environment": self.environment}
 
     @property
     def environment(self) -> str:

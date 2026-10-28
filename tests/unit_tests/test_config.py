@@ -132,16 +132,6 @@ def test_connection_id_can_be_supplied():
     assert config.connection_id == "fixed-id"
 
 
-def test_static_context():
-    config = UnleashConfig(URL, APP_NAME, api_key="project:unit.hash")
-
-    assert config.static_context == {"appName": APP_NAME, "environment": "unit"}
-
-    # A fresh dict every time, so a caller can't change the config through it.
-    config.static_context["environment"] = "qa"
-    assert config.static_context["environment"] == "unit"
-
-
 def test_headers_and_options_are_copied():
     headers = {"X-Custom": "header"}
     options = {"verify": False}

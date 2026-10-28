@@ -36,7 +36,10 @@ class _ContextEnricher:
         self._config: UnleashConfig = config
 
     def build(self, context: Optional[dict] = None) -> dict:
-        new_context: Dict[str, Any] = self._config.static_context
+        new_context: Dict[str, Any] = {
+            "appName": self._config.app_name,
+            "environment": self._config.environment,
+        }
         new_context.update(context or {})
 
         if "currentTime" not in new_context:
