@@ -1603,9 +1603,7 @@ def test_uc_bootstrap_initializes_offline_connector(tmp_path):
     unleash_client.destroy()
 
 
-def test_uc_passes_its_polling_options_to_the_polling_connector(
-    monkeypatch, tmp_path
-):
+def test_uc_passes_its_polling_options_to_the_polling_connector(monkeypatch, tmp_path):
     mode = PollingOptions(interval=30, jitter=5, project_name=PROJECT_NAME)
     unleash_client = UnleashClient(
         URL,
