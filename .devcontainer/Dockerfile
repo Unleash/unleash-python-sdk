@@ -1,5 +1,5 @@
-# [Choice] Python version (use -bullseye variants on local arm64/Apple Silicon): 3, 3.10, 3.9, 3.8, 3-bullseye, 3.10-bullseye, 3.9-bullseye, 3.8-bullseye, 3-buster, 3.10-buster, 3.9-buster, 3.8-buster
-ARG VARIANT=3.8
+# [Choice] Python version (use -bullseye variants on local arm64/Apple Silicon): 3, 3.10, 3-bullseye, 3.10-bullseye, 3-buster, 3.10-buster
+ARG VARIANT=3.10
 FROM mcr.microsoft.com/vscode/devcontainers/python:${VARIANT}
 
 # [Choice] Node.js version: none, lts/*, 16, 14, 12, 10
@@ -21,8 +21,8 @@ RUN git clone --depth=1 https://github.com/pyenv/pyenv.git .pyenv
 ENV PYENV_ROOT="/home/vscode/.pyenv"
 ENV PATH="$PYENV_ROOT/shims:$PYENV_ROOT/bin:$PATH"
 
-RUN pyenv install 3.8 3.9 3.10 3.11 3.12 3.13
-RUN pyenv local 3.8 3.9 3.10 3.11 3.12 3.13
+RUN pyenv install 3.10 3.11 3.12 3.13
+RUN pyenv local 3.10 3.11 3.12 3.13
 RUN pyenv global ${VARIANT}
 
 # Set up pyenv-virtualenv
