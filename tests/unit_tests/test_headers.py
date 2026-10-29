@@ -114,6 +114,10 @@ def test_metrics_adds_the_metrics_interval():
     assert factory.metrics()["unleash-interval"] == "2000"
 
 
+def test_metrics_interval_defaults_to_sixty_seconds():
+    assert build_factory().metrics()["unleash-interval"] == "60000"
+
+
 def test_polling_and_metrics_differ_only_in_the_interval():
     factory = build_factory(metrics=MetricsOptions(interval=2))
 

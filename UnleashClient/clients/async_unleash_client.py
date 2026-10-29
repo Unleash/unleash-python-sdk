@@ -18,7 +18,10 @@ from UnleashClient._evaluator import _Evaluator
 from UnleashClient._event_dispatcher import _EventDispatcher
 from UnleashClient._feature_store import _FeatureStore
 from UnleashClient._headers import _HeaderFactory
-from UnleashClient._instance_registry import _get_instance_registry
+from UnleashClient._instance_registry import (
+    _get_instance_registry,
+    _instance_identifier,
+)
 from UnleashClient._payloads import _build_register_payload
 from UnleashClient.cache import BaseCache, FileCache
 from UnleashClient.clients.unleash_client import _RunState
@@ -118,7 +121,7 @@ class AsyncUnleashClient:
         )
 
         _get_instance_registry().register(
-            identifier=self._config.instance_identifier, mode=multiple_instance_mode
+            identifier=_instance_identifier(self._config), mode=multiple_instance_mode
         )
 
         self._engine: UnleashEngine = UnleashEngine()

@@ -3,27 +3,31 @@
 import threading
 from typing import Dict
 
+from UnleashClient.config import UnleashConfig, redact_to_print_safely
 from UnleashClient.errors import MultipleInstancesNotAllowedError
 from UnleashClient.utils import LOGGER, InstanceAllowType
+
+
+def _instance_identifier(config: UnleashConfig) -> str:
+    """The key a client is registered under.  Redacts the API key."""
+    return f"apiKey:{redact_to_print_safely(config.api_key)} appName:{config.app_name} instanceId:{config.identity.instance_id}"
 
 
 class _InstanceRegistry:
     """
     Counts live client configurations and applies the duplicate-instance policy.
 
-    Clients are keyed by
-    :attr:`~UnleashClient.config.UnleashConfig.instance_identifier`, which
-    redacts the API key. A client rejected under
+    Clients are keyed by :func:`_instance_identifier`, which redacts the API
+    key. A client rejected under
     :attr:`~UnleashClient.utils.InstanceAllowType.BLOCK` is not counted, so the
     count only ever covers clients that were actually built.
 
     Example::
 
         registry = _get_instance_registry()
-        registry.register(
-            identifier=config.instance_identifier, mode=InstanceAllowType.WARN
-        )
-        registry.count(key=config.instance_identifier)
+        identifier = _instance_identifier(config)
+        registry.register(identifier=identifier, mode=InstanceAllowType.WARN)
+        registry.count(key=identifier)
     """
 
     def __init__(self) -> None:

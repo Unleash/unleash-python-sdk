@@ -132,16 +132,6 @@ def test_connection_id_can_be_supplied():
     assert config.connection_id == "fixed-id"
 
 
-def test_static_context():
-    config = UnleashConfig(URL, APP_NAME, api_key="project:unit.hash")
-
-    assert config.static_context == {"appName": APP_NAME, "environment": "unit"}
-
-    # A fresh dict every time, so a caller can't change the config through it.
-    config.static_context["environment"] = "qa"
-    assert config.static_context["environment"] == "unit"
-
-
 def test_headers_and_options_are_copied():
     headers = {"X-Custom": "header"}
     options = {"verify": False}
@@ -194,16 +184,6 @@ def test_a_mode_of_the_wrong_type_falls_back_on_polling(mode, caplog):
     assert "Polling instead" in caplog.text
 
 
-def test_metrics_interval_str_millis():
-    assert UnleashConfig(URL, APP_NAME).metrics_interval_str_millis == "60000"
-    assert (
-        UnleashConfig(
-            URL, APP_NAME, metrics=MetricsOptions(interval=2)
-        ).metrics_interval_str_millis
-        == "2000"
-    )
-
-
 def test_environment_defaults_to_default_without_an_api_key():
     config = UnleashConfig(URL, APP_NAME)
 
@@ -220,28 +200,6 @@ def test_environment_falls_back_on_an_unparseable_token():
     config = UnleashConfig(URL, APP_NAME, api_key="no-colon-here")
 
     assert config.environment == "default"
-
-
-def test_instance_identifier_redacts_the_api_key():
-    config = UnleashConfig(
-        URL,
-        APP_NAME,
-        identity=IdentityOptions(instance_id="123"),
-        api_key="project:environment.abcdefghijklmnop",
-    )
-
-    identifier = config.instance_identifier
-
-    assert "abcdefghijklmnop" not in identifier
-    # rpartition splits on the last colon, so everything after "project:" is
-    # treated as the secret.
-    assert identifier == ("apiKey:project:enviro...nop appName:pytest instanceId:123")
-
-
-def test_instance_identifier_without_an_api_key():
-    config = UnleashConfig(URL, APP_NAME, identity=IdentityOptions(instance_id="123"))
-
-    assert config.instance_identifier == ("apiKey:None appName:pytest instanceId:123")
 
 
 def test_repr_does_not_leak_the_api_key():

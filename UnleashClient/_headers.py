@@ -46,7 +46,7 @@ class _HeaderFactory:
     def metrics(self) -> Dict[str, str]:
         return {
             **self.base(),
-            "unleash-interval": self._config.metrics_interval_str_millis,
+            "unleash-interval": str(self._config.metrics.interval * 1000),
         }
 
     def streaming(self) -> Dict[str, str]:
