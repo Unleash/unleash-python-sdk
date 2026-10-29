@@ -55,13 +55,11 @@ class IdentityOptions:
     """
     How the client identifies itself to the Unleash server.
 
-    :param environment: Name of the environment, sent as part of the context.
     :param instance_id: Unique identifier for this client instance.
     :param sdk_flavor: Identifier of an integration built on top of this SDK. Leave unset for plain SDK usage.
     :param sdk_flavor_version: Version of the integration named by sdk_flavor.
     """
 
-    environment: str = "default"
     instance_id: str = "unleash-python-sdk"
     sdk_flavor: Optional[str] = None
     sdk_flavor_version: Optional[str] = None
@@ -160,17 +158,15 @@ class UnleashConfig:
 
     @property
     def static_context(self) -> Dict[str, Any]:
-        return {"appName": self.app_name, "environment": self.identity.environment}
+        return {"appName": self.app_name, "environment": self.environment}
 
     @property
     def metrics_interval_str_millis(self) -> str:
         return str(self.metrics.interval * 1000)
 
     @property
-    def impact_metrics_environment(self) -> str:
-        return (
-            extract_environment_from_api_key(self.api_key) or self.identity.environment
-        )
+    def environment(self) -> str:
+        return extract_environment_from_api_key(self.api_key) or "default"
 
     @property
     def instance_identifier(self) -> str:

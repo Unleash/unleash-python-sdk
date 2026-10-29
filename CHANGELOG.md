@@ -4,6 +4,7 @@
 * (Major): `UnleashClient` and `AsyncUnleashClient` take their settings as option groups: `identity=IdentityOptions(...)`, `http=HttpOptions(...)`, `mode=PollingOptions(...)` or `mode=StreamingOptions()`, and `metrics=MetricsOptions(...)`. Every argument after `url` and `app_name` is keyword-only. `ExperimentalMode` has been removed. See the [v7 migration guide](./v7_MIGRATION_GUIDE.md).
 * (Major): Settings can no longer be changed on an existing client. The `unleash_*` settings properties and the `strategy_mapping` and `connector_mode` properties have been removed, together with their setters.
 * (Major): The API token is passed as `api_key="<API token>"`. An `Authorization` header in `HttpOptions.headers` raises `ValueError`.
+* (Major): The deprecated `environment` setting has been removed. The `environment` field of the evaluation context and the impact metrics `environment` label come from the API token, or are `"default"` when the token doesn't name one.
 * (Minor): New `FETCH_COMPLETED` event, emitted after every feature fetch with how it ended: `CHANGED`, `NOT_CHANGED`, `UNAUTHORIZED`, `RATE_LIMITED`, `UNAVAILABLE` or `INVALID_RESPONSE`.
 
 ## v6.9.1

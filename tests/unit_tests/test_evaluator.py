@@ -10,7 +10,7 @@ from tests.utilities.mocks.mock_features import (
 )
 from UnleashClient._context import _ContextEnricher
 from UnleashClient._evaluator import _Evaluator
-from UnleashClient.config import IdentityOptions, UnleashConfig
+from UnleashClient.config import UnleashConfig
 from UnleashClient.events import UnleashEventType
 
 URL = "http://localhost:4242/api"
@@ -126,9 +126,7 @@ def test_an_impression_event_carries_the_flag_result(dispatcher, recorder):
 
 
 def test_an_impression_event_carries_the_enriched_context(dispatcher, recorder):
-    evaluator = build_evaluator(
-        identity=IdentityOptions(environment="unit"), events=dispatcher
-    )
+    evaluator = build_evaluator(events=dispatcher)
 
     evaluator.is_enabled(IMPRESSION_FLAG, {"userId": "7"})
 
@@ -136,7 +134,7 @@ def test_an_impression_event_carries_the_enriched_context(dispatcher, recorder):
     assert events is not None
     assert events[0].context["userId"] == "7"
     assert events[0].context["appName"] == APP_NAME
-    assert events[0].context["environment"] == "unit"
+    assert events[0].context["environment"] == "default"
 
 
 def test_a_variant_impression_event_carries_the_variant_name(dispatcher, recorder):

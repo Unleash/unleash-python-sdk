@@ -155,7 +155,6 @@ def unleash_client_bootstrap_dependencies(tmp_path):
     unleash_client = UnleashClient(
         url=URL,
         app_name=APP_NAME,
-        identity=IdentityOptions(environment="default"),
         metrics=MetricsOptions(disabled=True, disable_registration=True),
         cache=cache,
     )
@@ -457,7 +456,6 @@ def test_uc_is_enabled_with_context(tmp_path):
     unleash_client = UnleashClient(
         URL,
         APP_NAME,
-        identity=IdentityOptions(environment="prod"),
         custom_strategies=custom_strategies_dict,
         cache_directory=str(tmp_path),
         event_callback=event_handler,
@@ -466,7 +464,8 @@ def test_uc_is_enabled_with_context(tmp_path):
     unleash_client.initialize_client()
 
     assert ready_signal.wait(timeout=WAIT_TIMEOUT)
-    assert unleash_client.is_enabled("testContextFlag")
+    assert unleash_client.is_enabled("testContextFlag", {"environment": "prod"})
+    assert not unleash_client.is_enabled("testContextFlag")
     unleash_client.destroy()
 
 
@@ -572,7 +571,6 @@ def test_uc_get_variant_feature_enabled_no_variants(tmp_path):
     unleash_client = UnleashClient(
         url=URL,
         app_name=APP_NAME,
-        identity=IdentityOptions(environment="default"),
         metrics=MetricsOptions(disabled=True, disable_registration=True),
         cache=cache,
     )
@@ -1370,7 +1368,6 @@ def test_context_handles_numerics(tmp_path):
     unleash_client = UnleashClient(
         url=URL,
         app_name=APP_NAME,
-        identity=IdentityOptions(environment="default"),
         metrics=MetricsOptions(disabled=True, disable_registration=True),
         cache=cache,
     )
@@ -1388,7 +1385,6 @@ def test_context_handles_datetimes(tmp_path):
     unleash_client = UnleashClient(
         url=URL,
         app_name=APP_NAME,
-        identity=IdentityOptions(environment="default"),
         metrics=MetricsOptions(disabled=True, disable_registration=True),
         cache=cache,
     )
@@ -1407,7 +1403,6 @@ def test_context_adds_current_time_if_not_set(tmp_path):
     unleash_client = UnleashClient(
         url=URL,
         app_name=APP_NAME,
-        identity=IdentityOptions(environment="default"),
         metrics=MetricsOptions(disabled=True, disable_registration=True),
         cache=cache,
     )
