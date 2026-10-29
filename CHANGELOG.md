@@ -6,6 +6,8 @@
 * (Major): The deprecated `environment` setting has been removed. The `environment` field of the evaluation context and the impact metrics `environment` label come from the API token, or are `"default"` when the token doesn't name one.
 * (Major): Upgraded to yggdrasil-engine 3, new engine built with PyO3 for better performance.
 * (Minor): New `FETCH_COMPLETED` event, emitted after every feature fetch with how it ended: `CHANGED`, `NOT_CHANGED`, `UNAUTHORIZED`, `RATE_LIMITED`, `UNAVAILABLE` or `INVALID_RESPONSE`.
+* (Minor): `feature_definitions()` reports whether each feature is enabled in the environment.
+* (Minor): New `evaluate_all_toggles()` evaluates every feature for one context in a single call, without recording usage metrics.
 
 ## v6.9.1
 * (Bugfix): Capped yggdrasil-engine below 3.0.0 so installs don't pick up a breaking major version.

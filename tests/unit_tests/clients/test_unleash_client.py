@@ -1885,3 +1885,20 @@ def test_uc_reports_how_each_fetch_ended(cache):
 
     event = recorder.of_type(UnleashEventType.FETCH_COMPLETED)[0]
     assert event.status == FetchStatus.CHANGED
+
+
+def test_evaluate_all_toggles_reports_the_bootstrapped_toggles(cache):
+    cache.bootstrap_from_dict(initial_config=MOCK_FEATURE_RESPONSE_PROJECT)
+    unleash_client = UnleashClient(
+        URL, APP_NAME, cache=cache, metrics=MetricsOptions(disabled=True)
+    )
+
+    try:
+        assert unleash_client.evaluate_all_toggles() == {
+            "ivan-project": {
+                "enabled": True,
+                "variant": {"name": "disabled", "enabled": False},
+            }
+        }
+    finally:
+        unleash_client.destroy()
