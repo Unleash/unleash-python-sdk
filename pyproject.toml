@@ -24,7 +24,6 @@ classifiers=[
 dependencies=[
     "requests",
     "fcache",
-    "mmh3",
     "apscheduler < 4.0.0",
     "importlib_metadata",
     "python-dateutil",

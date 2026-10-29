@@ -2,8 +2,6 @@ import logging
 from enum import Enum
 from typing import Any, Optional
 
-import mmh3  # pylint: disable=import-error
-
 LOGGER = logging.getLogger("UnleashClient")
 
 
@@ -11,16 +9,6 @@ class InstanceAllowType(Enum):
     BLOCK = 1
     WARN = 2
     SILENTLY_ALLOW = 3
-
-
-def normalized_hash(
-    identifier: str, activation_group: str, normalizer: int = 100, seed: int = 0
-) -> int:
-    return (
-        mmh3.hash(f"{activation_group}:{identifier}", signed=False, seed=seed)
-        % normalizer
-        + 1
-    )
 
 
 def get_identifier(context_key_name: str, context: dict) -> Any:
