@@ -4,7 +4,7 @@
 * (Major): Settings can no longer be changed on an existing client. The `unleash_*` settings properties and the `strategy_mapping` and `connector_mode` properties have been removed, together with their setters.
 * (Major): The API token is passed as `api_key="<API token>"`. An `Authorization` header in `HttpOptions.headers` raises `ValueError`.
 * (Major): The deprecated `environment` setting has been removed. The `environment` field of the evaluation context and the impact metrics `environment` label come from the API token, or are `"default"` when the token doesn't name one.
-* (Major): `initialize_client()` raises `ValueError` if `url` is not an absolute http(s) URL with a host, for every client, including ones that never contact the server.
+* (Major): The `UnleashClient` and `AsyncUnleashClient` constructors raise `ValueError` if `url` is not an absolute http(s) URL with a host, for every client.
 * (Major): Upgraded to yggdrasil-engine 3, new engine built with PyO3 for better performance.
 * (Minor): New `FETCH_COMPLETED` event, emitted after every feature fetch with how it ended: `CHANGED`, `NOT_CHANGED`, `UNAUTHORIZED`, `RATE_LIMITED`, `UNAVAILABLE` or `INVALID_RESPONSE`.
 * (Minor): `feature_definitions()` reports whether each feature is enabled in the environment.

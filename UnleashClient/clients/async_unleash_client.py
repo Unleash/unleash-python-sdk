@@ -65,7 +65,7 @@ class AsyncUnleashClient:
             client.impact_metrics.define_counter("purchases", "Number of purchases")
             client.impact_metrics.increment_counter("purchases")
 
-    :param url: URL of the Unleash server, required.
+    :param url: URL of the Unleash server, required. Must be an absolute http(s) URL with a host.
     :param app_name: Name of the application using the client, required.
     :param api_key: Client API token.  Optional, because a client that only loads from a backup never talks to the server.
     :param identity: How the client identifies itself.
@@ -307,10 +307,10 @@ class AsyncUnleashClient:
 
         :param fetch_toggles: Accepted for parity with :class:`UnleashClient`. It
                               has no effect: the client always polls.
-        :raises ValueError: If the URL is not an absolute http(s) URL with a host,
-                            or a custom strategy is invalid.
+        :raises ValueError: If a custom strategy is invalid.
         :raises aiohttp.InvalidURL: If registration is enabled and aiohttp
-                                    rejects a URL that passed the check above.
+                                    rejects a URL that passed the constructor's
+                                    check.
         """
         if self._closed or self._starting or self._run_state > _RunState.UNINITIALIZED:
             warnings.warn(

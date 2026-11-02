@@ -233,18 +233,28 @@ def test_register_sends_the_payload_it_is_given(transport):
     }
 
 
+@pytest.fixture
+def skip_url_validation(monkeypatch):
+    """
+    UnleashConfig rejects these urls on construction, so register() only sees
+    one that slipped past that check. Skip it to reach the re-raise.
+    """
+    monkeypatch.setattr("UnleashClient.config._validate_url", lambda url: None)
+
+
 @responses.activate
+@pytest.mark.usefixtures("skip_url_validation")
 def test_register_reraises_a_missing_schema(build_transport):
     transport = build_transport(url="thisisnotavalidurl")
 
-    # initialize_client() fails loudly on a malformed URL because these four
-    # are re-raised rather than reported as False. See test_uc_with_invalid_url,
-    # which only sees the ValueError that MissingSchema also subclasses.
+    # These four are re-raised rather than reported as False, so a url
+    # requests rejects still fails initialize_client() loudly.
     with pytest.raises(MissingSchema):
         transport.register({})
 
 
 @responses.activate
+@pytest.mark.usefixtures("skip_url_validation")
 def test_register_reraises_an_invalid_schema(build_transport):
     transport = build_transport(url="localhost:4242/api")
 
