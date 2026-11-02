@@ -290,7 +290,7 @@ class UnleashClient:
                 return
             try:
                 start_scheduler = False
-                
+
                 _validate_url(self._config.url)
 
                 if self._custom_strategies:
