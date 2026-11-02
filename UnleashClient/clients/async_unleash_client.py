@@ -12,7 +12,7 @@ from yggdrasil_engine.engine import UnleashEngine
 
 from UnleashClient._async_metrics import _AsyncMetricsReporter
 from UnleashClient._async_scheduler import _AsyncScheduler
-from UnleashClient._async_transport import _AsyncTransport
+from UnleashClient._async_unleash_api_client import _AsyncUnleashApiClient
 from UnleashClient._context import _ContextEnricher
 from UnleashClient._evaluator import _Evaluator
 from UnleashClient._event_dispatcher import _EventDispatcher
@@ -142,13 +142,13 @@ class AsyncUnleashClient:
             config=self._config,
             events=self._event_dispatcher,
         )
-        self._transport: _AsyncTransport = _AsyncTransport(
+        self._api: _AsyncUnleashApiClient = _AsyncUnleashApiClient(
             self._config, self._headers, self._event_dispatcher
         )
         self._metrics_scheduler: _AsyncScheduler = _AsyncScheduler()
         self._metrics: _AsyncMetricsReporter = _AsyncMetricsReporter(
             config=self._config,
-            transport=self._transport,
+            api_client=self._api,
             scheduler=self._metrics_scheduler,
             engine=self._engine,
             impact_metrics=self.impact_metrics,
@@ -292,7 +292,7 @@ class AsyncUnleashClient:
                 self._engine.register_custom_strategies(self._custom_strategies)
 
             if not self._config.metrics.disable_registration:
-                await self._transport.register(
+                await self._api.register(
                     _build_register_payload(self._config, self._custom_strategies)
                 )
 
@@ -301,7 +301,7 @@ class AsyncUnleashClient:
 
             self._connector = _AsyncPollingConnector(
                 store=self._store,
-                transport=self._transport,
+                api_client=self._api,
                 options=cast(PollingOptions, self._config.mode),
             )
             await self._connector.start()
@@ -346,7 +346,7 @@ class AsyncUnleashClient:
         except Exception as exc:
             LOGGER.warning("Exception during scheduler teardown: %s", exc)
 
-        await self._transport.aclose()
+        await self._api.aclose()
 
         if not isinstance(self._cache, FileCache):
             try:

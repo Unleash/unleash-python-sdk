@@ -94,7 +94,7 @@ class TransportError(UnleashClientError):
     Example::
 
         try:
-            result = await transport.fetch_features(options=polling)
+            result = await api_client.fetch_features(options=polling)
         except TransportError as error:
             LOGGER.error("Could not reach the Unleash server: %s", error)
     """
@@ -108,10 +108,10 @@ class AlreadyClosedError(TransportError):
 
     Example::
 
-        await transport.aclose()
+        await api_client.aclose()
 
         try:
-            await transport.fetch_features(options=polling)
+            await api_client.fetch_features(options=polling)
         except AlreadyClosedError:
             ...  # build a new client instead of reusing the closed one
     """

@@ -24,7 +24,7 @@ from tests.utilities.testing_constants import (
     URL,
 )
 from UnleashClient._headers import _HeaderFactory
-from UnleashClient._transport import _Transport
+from UnleashClient._unleash_api_client import _UnleashApiClient
 from UnleashClient.config import (
     HttpOptions,
     IdentityOptions,
@@ -46,10 +46,10 @@ FULL_METRICS_URL = URL + METRICS_URL
 
 
 @pytest.fixture
-def build_transport():
+def build_api_client():
     """Factory. Keyword arguments override the defaults on the config."""
 
-    def _build_transport(events=None, **kwargs) -> _Transport:
+    def _build_api_client(events=None, **kwargs) -> _UnleashApiClient:
         defaults = {
             "url": URL,
             "app_name": APP_NAME,
@@ -63,14 +63,14 @@ def build_transport():
         }
         defaults.update(kwargs)
         config = UnleashConfig(**defaults)
-        return _Transport(config, _HeaderFactory(config), events)
+        return _UnleashApiClient(config, _HeaderFactory(config), events)
 
-    return _build_transport
+    return _build_api_client
 
 
 @pytest.fixture
-def transport(build_transport) -> _Transport:
-    return build_transport()
+def api_client(build_api_client) -> _UnleashApiClient:
+    return build_api_client()
 
 
 # fetch_features
@@ -91,7 +91,7 @@ def transport(build_transport) -> _Transport:
         param({}, 500, 4, lambda result: not result, id="failure"),
     ),
 )
-def test_fetch_features(transport, response, status, calls, expected):
+def test_fetch_features(api_client, response, status, calls, expected):
     responses.add(
         responses.GET,
         FULL_FEATURE_URL,
@@ -100,7 +100,7 @@ def test_fetch_features(transport, response, status, calls, expected):
         headers={"etag": ETAG_VALUE},
     )
 
-    result = transport.fetch_features(options=PollingOptions())
+    result = api_client.fetch_features(options=PollingOptions())
 
     # 4 calls on a 500 is 1 + REQUEST_RETRIES: the mounted HTTPAdapter/Retry
     # has to survive every move of this code.
@@ -109,7 +109,7 @@ def test_fetch_features(transport, response, status, calls, expected):
 
 
 @responses.activate
-def test_fetch_features_sends_the_project_as_a_query_parameter(build_transport):
+def test_fetch_features_sends_the_project_as_a_query_parameter(build_api_client):
     responses.add(
         responses.GET,
         PROJECT_URL,
@@ -118,7 +118,7 @@ def test_fetch_features_sends_the_project_as_a_query_parameter(build_transport):
         headers={"etag": ETAG_VALUE},
     )
 
-    result = build_transport().fetch_features(
+    result = build_api_client().fetch_features(
         options=PollingOptions(project_name=PROJECT_NAME)
     )
 
@@ -128,12 +128,12 @@ def test_fetch_features_sends_the_project_as_a_query_parameter(build_transport):
 
 
 @responses.activate
-def test_fetch_features_drops_the_etag_on_failure(build_transport):
+def test_fetch_features_drops_the_etag_on_failure(build_api_client):
     responses.add(
         responses.GET, PROJECT_URL, json={}, status=500, headers={"etag": ETAG_VALUE}
     )
 
-    result = build_transport().fetch_features(
+    result = build_api_client().fetch_features(
         options=PollingOptions(project_name=PROJECT_NAME)
     )
 
@@ -143,10 +143,10 @@ def test_fetch_features_drops_the_etag_on_failure(build_transport):
 
 
 @responses.activate
-def test_fetch_features_sends_if_none_match_when_an_etag_is_known(build_transport):
+def test_fetch_features_sends_if_none_match_when_an_etag_is_known(build_api_client):
     responses.add(responses.GET, PROJECT_URL, status=304, headers={"etag": ETAG_VALUE})
 
-    result = build_transport().fetch_features(
+    result = build_api_client().fetch_features(
         ETAG_VALUE, options=PollingOptions(project_name=PROJECT_NAME)
     )
 
@@ -159,7 +159,7 @@ def test_fetch_features_sends_if_none_match_when_an_etag_is_known(build_transpor
 
 
 @responses.activate
-def test_fetch_features_retries_and_recovers(build_transport):
+def test_fetch_features_retries_and_recovers(build_api_client):
     responses.add(responses.GET, PROJECT_URL, json={}, status=500)
     responses.add(
         responses.GET,
@@ -169,7 +169,7 @@ def test_fetch_features_retries_and_recovers(build_transport):
         headers={"etag": ETAG_VALUE},
     )
 
-    result = build_transport().fetch_features(
+    result = build_api_client().fetch_features(
         ETAG_VALUE, options=PollingOptions(project_name=PROJECT_NAME)
     )
 
@@ -179,14 +179,14 @@ def test_fetch_features_retries_and_recovers(build_transport):
 
 
 @responses.activate
-def test_fetch_features_swallows_a_bad_custom_option(build_transport):
+def test_fetch_features_swallows_a_bad_custom_option(build_api_client):
     responses.add(
         responses.GET, FULL_FEATURE_URL, json=MOCK_FEATURE_RESPONSE, status=200
     )
 
-    # `timeout` collides with the keyword the transport already passes. It is a
+    # `timeout` collides with the keyword the API client already passes. It is a
     # TypeError, not a RequestException, and fetch_features swallows everything.
-    result = build_transport(http=HttpOptions(options={"timeout": 5})).fetch_features(
+    result = build_api_client(http=HttpOptions(options={"timeout": 5})).fetch_features(
         options=PollingOptions()
     )
 
@@ -211,10 +211,10 @@ def test_fetch_features_swallows_a_bad_custom_option(build_transport):
         ),
     ),
 )
-def test_register(transport, payload, status, expected):
+def test_register(api_client, payload, status, expected):
     responses.add(responses.POST, FULL_REGISTER_URL, **payload, status=status)
 
-    result = transport.register({"appName": APP_NAME})
+    result = api_client.register({"appName": APP_NAME})
 
     # No retry adapter on this one, unlike fetch_features.
     assert len(responses.calls) == 1
@@ -222,10 +222,10 @@ def test_register(transport, payload, status, expected):
 
 
 @responses.activate
-def test_register_sends_the_payload_it_is_given(transport):
+def test_register_sends_the_payload_it_is_given(api_client):
     responses.add(responses.POST, FULL_REGISTER_URL, json={}, status=202)
 
-    transport.register({"appName": APP_NAME, "strategies": []})
+    api_client.register({"appName": APP_NAME, "strategies": []})
 
     assert json.loads(responses.calls[0].request.body) == {
         "appName": APP_NAME,
@@ -244,32 +244,32 @@ def skip_url_validation(monkeypatch):
 
 @responses.activate
 @pytest.mark.usefixtures("skip_url_validation")
-def test_register_reraises_a_missing_schema(build_transport):
-    transport = build_transport(url="thisisnotavalidurl")
+def test_register_reraises_a_missing_schema(build_api_client):
+    api_client = build_api_client(url="thisisnotavalidurl")
 
     # These four are re-raised rather than reported as False, so a url
     # requests rejects still fails initialize_client() loudly.
     with pytest.raises(MissingSchema):
-        transport.register({})
+        api_client.register({})
 
 
 @responses.activate
 @pytest.mark.usefixtures("skip_url_validation")
-def test_register_reraises_an_invalid_schema(build_transport):
-    transport = build_transport(url="localhost:4242/api")
+def test_register_reraises_an_invalid_schema(build_api_client):
+    api_client = build_api_client(url="localhost:4242/api")
 
     with pytest.raises(InvalidSchema):
-        transport.register({})
+        api_client.register({})
 
 
 @responses.activate
-def test_register_lets_a_bad_custom_option_escape(build_transport):
+def test_register_lets_a_bad_custom_option_escape(build_api_client):
     responses.add(responses.POST, FULL_REGISTER_URL, json={}, status=202)
 
     # A TypeError is not a RequestException, so unlike fetch_features this
     # propagates and fails initialize_client().
     with pytest.raises(TypeError):
-        build_transport(http=HttpOptions(options={"timeout": 5})).register({})
+        build_api_client(http=HttpOptions(options={"timeout": 5})).register({})
 
 
 # send_metrics
@@ -290,10 +290,10 @@ def test_register_lets_a_bad_custom_option_escape(build_transport):
         ),
     ),
 )
-def test_send_metrics(transport, payload, status, expected):
+def test_send_metrics(api_client, payload, status, expected):
     responses.add(responses.POST, FULL_METRICS_URL, **payload, status=status)
 
-    result = transport.send_metrics(MOCK_METRICS_REQUEST)
+    result = api_client.send_metrics(MOCK_METRICS_REQUEST)
 
     request = json.loads(responses.calls[0].request.body)
 
@@ -304,25 +304,25 @@ def test_send_metrics(transport, payload, status, expected):
 
 
 @responses.activate
-def test_send_metrics_lets_a_bad_custom_option_escape(build_transport):
+def test_send_metrics_lets_a_bad_custom_option_escape(build_api_client):
     responses.add(responses.POST, FULL_METRICS_URL, json={}, status=202)
 
     with pytest.raises(TypeError):
-        build_transport(http=HttpOptions(options={"timeout": 5})).send_metrics({})
+        build_api_client(http=HttpOptions(options={"timeout": 5})).send_metrics({})
 
 
 @responses.activate
-def test_every_endpoint_gets_its_headers_from_the_factory(build_transport):
+def test_every_endpoint_gets_its_headers_from_the_factory(build_api_client):
     responses.add(
         responses.GET, FULL_FEATURE_URL, json=MOCK_FEATURE_RESPONSE, status=200
     )
     responses.add(responses.POST, FULL_REGISTER_URL, json={}, status=202)
     responses.add(responses.POST, FULL_METRICS_URL, json={}, status=202)
-    transport = build_transport(metrics=MetricsOptions(interval=2))
+    api_client = build_api_client(metrics=MetricsOptions(interval=2))
 
-    transport.fetch_features(options=PollingOptions(interval=1))
-    transport.register({})
-    transport.send_metrics(MOCK_METRICS_REQUEST)
+    api_client.fetch_features(options=PollingOptions(interval=1))
+    api_client.register({})
+    api_client.send_metrics(MOCK_METRICS_REQUEST)
 
     fetch, register, metrics = (call.request.headers for call in responses.calls)
     # The custom header and the identification pair reach all three...
@@ -371,40 +371,40 @@ def fetch_outcomes(events: RecordingEvents):
     ),
 )
 def test_fetch_features_reports_how_the_fetch_ended(
-    build_transport, status, body, expected
+    build_api_client, status, body, expected
 ):
     responses.add(responses.GET, FULL_FEATURE_URL, json=body, status=status)
     events = RecordingEvents()
 
-    build_transport(events=events).fetch_features(options=PollingOptions())
+    build_api_client(events=events).fetch_features(options=PollingOptions())
 
     assert fetch_outcomes(events) == [expected]
 
 
 @responses.activate
-def test_fetch_features_reports_an_empty_200_as_invalid(build_transport):
+def test_fetch_features_reports_an_empty_200_as_invalid(build_api_client):
     responses.add(responses.GET, FULL_FEATURE_URL, body="", status=200)
     events = RecordingEvents()
 
-    build_transport(events=events).fetch_features(options=PollingOptions())
+    build_api_client(events=events).fetch_features(options=PollingOptions())
 
     assert fetch_outcomes(events) == [FetchStatus.INVALID_RESPONSE]
 
 
 @responses.activate
 def test_fetch_features_reports_unavailable_when_no_response_arrives(
-    build_transport,
+    build_api_client,
 ):
     responses.add(responses.GET, FULL_FEATURE_URL, body=ConnectionError("refused"))
     events = RecordingEvents()
 
-    build_transport(events=events).fetch_features(options=PollingOptions())
+    build_api_client(events=events).fetch_features(options=PollingOptions())
 
     assert fetch_outcomes(events) == [FetchStatus.UNAVAILABLE]
 
 
 @responses.activate
-def test_fetch_features_survives_a_listener_that_raises(build_transport):
+def test_fetch_features_survives_a_listener_that_raises(build_api_client):
     responses.add(
         responses.GET, FULL_FEATURE_URL, json=MOCK_FEATURE_RESPONSE, status=200
     )
@@ -413,7 +413,7 @@ def test_fetch_features_survives_a_listener_that_raises(build_transport):
         def emit_event(self, event):
             raise RuntimeError("listener is broken")
 
-    result = build_transport(events=BrokenEvents()).fetch_features(
+    result = build_api_client(events=BrokenEvents()).fetch_features(
         options=PollingOptions()
     )
 
