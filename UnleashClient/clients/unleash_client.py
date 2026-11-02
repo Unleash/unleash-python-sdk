@@ -273,8 +273,7 @@ class UnleashClient:
         usually used to cater the multi-process setups, e.g. Django, Celery,
         etc.
 
-        This raises a ``ValueError`` if the URL is not an absolute http(s) URL with a
-        host, even for a client that never talks to the server. It is done automatically if called inside a context manager as in:
+        It is done automatically if called inside a context manager as in:
 
         .. code-block:: python
 

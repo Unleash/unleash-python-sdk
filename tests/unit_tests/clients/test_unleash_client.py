@@ -839,27 +839,33 @@ def test_uc_server_error(readyable_unleash_client):
     assert unleash_client.is_enabled("testFlag")
 
 
-def test_uc_with_invalid_url(tmp_path):
-    unleash_client = UnleashClient(
-        "thisisnotavalidurl", APP_NAME, cache_directory=str(tmp_path)
-    )
-
-    with pytest.raises(ValueError):
-        unleash_client.initialize_client()
-    unleash_client.destroy()
-
-
-def test_uc_with_invalid_url_raises_when_registration_is_disabled(tmp_path):
-    unleash_client = UnleashClient(
-        "thisisnotavalidurl",
-        APP_NAME,
-        metrics=MetricsOptions(disabled=True, disable_registration=True),
-        cache_directory=str(tmp_path),
-    )
-
+@pytest.mark.parametrize(
+    "metrics",
+    [
+        MetricsOptions(),
+        MetricsOptions(disable_registration=True),
+        MetricsOptions(disabled=True, disable_registration=True),
+    ],
+)
+def test_uc_with_invalid_url_raises_on_construction(tmp_path, metrics):
     with pytest.raises(ValueError, match="must start with http:// or https://"):
-        unleash_client.initialize_client()
-    unleash_client.destroy()
+        UnleashClient(
+            "thisisnotavalidurl",
+            APP_NAME,
+            metrics=metrics,
+            cache_directory=str(tmp_path),
+        )
+
+
+def test_uc_with_invalid_url_is_not_counted_as_an_instance(tmp_path, caplog):
+    with pytest.raises(ValueError):
+        UnleashClient("thisisnotavalidurl", APP_NAME, cache_directory=str(tmp_path))
+
+    unleash_client = UnleashClient(URL, APP_NAME, cache_directory=str(tmp_path))
+    try:
+        assert "You already have" not in caplog.text
+    finally:
+        unleash_client.destroy()
 
 
 def test_uc_offline_starts_with_a_well_formed_url(tmp_path):
@@ -875,19 +881,6 @@ def test_uc_offline_starts_with_a_well_formed_url(tmp_path):
         assert isinstance(unleash_client.connector, OfflineConnector)
     finally:
         unleash_client.destroy()
-
-
-def test_uc_offline_still_validates_the_url(tmp_path):
-    unleash_client = UnleashClient(
-        "placeholder",
-        APP_NAME,
-        metrics=MetricsOptions(disabled=True, disable_registration=True),
-        cache_directory=str(tmp_path),
-    )
-
-    with pytest.raises(ValueError, match="must start with http:// or https://"):
-        unleash_client.initialize_client(fetch_toggles=False)
-    unleash_client.destroy()
 
 
 def test_uc_with_network_error(tmp_path):

@@ -83,7 +83,7 @@ An `Authorization` header in `HttpOptions.headers` raises a `ValueError`, in any
 
 ## The URL is validated
 
-`initialize_client()` raises a `ValueError` if `url` is not an absolute `http://` or `https://` URL with a host. Only the shape is checked, not whether the server can be reached.
+The client constructor raises a `ValueError` if `url` is not an absolute `http://` or `https://` URL with a host. Only the shape is checked, not whether the server can be reached.
 
 This applies to every client, including one that never talks to the server (`fetch_toggles=False` with registration and metrics disabled). In v6 such a client accepted any string as `url`; pass a well-formed one instead:
 

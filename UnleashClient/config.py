@@ -6,7 +6,11 @@ from types import MappingProxyType
 from typing import Any, Mapping, Optional, Union
 
 from UnleashClient.constants import REQUEST_RETRIES, REQUEST_TIMEOUT
-from UnleashClient.utils import LOGGER, extract_environment_from_api_key
+from UnleashClient.utils import (
+    LOGGER,
+    _validate_url,
+    extract_environment_from_api_key,
+)
 
 
 def redact_to_print_safely(value: Optional[str]) -> Optional[str]:
@@ -120,6 +124,12 @@ class UnleashConfig:
     Types are not validated or coerced beyond ``url.rstrip("/")`` and ``int()``
     on the two jitters.  Option groups left as None get their defaults.
 
+    ``url`` must be an absolute http(s) URL with a host, even for a client that
+    never talks to the server: deciding which settings make requests would need
+    updating with every new server call.
+
+    :raises ValueError: if ``url`` is not an absolute http(s) URL with a host.
+
     ``api_key`` is optional because a client that only loads from a backup never talks to the server.
     """
 
@@ -140,6 +150,7 @@ class UnleashConfig:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "url", self.url.rstrip("/"))
+        _validate_url(self.url)
         if self.identity is None:
             object.__setattr__(self, "identity", IdentityOptions())
         if self.http is None:
