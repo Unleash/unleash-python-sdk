@@ -49,6 +49,7 @@ from UnleashClient.impact_metrics import ImpactMetrics
 from UnleashClient.utils import (
     LOGGER,
     InstanceAllowType,
+    _validate_url,
 )
 
 INSTANCES = _get_instance_registry()
@@ -272,7 +273,8 @@ class UnleashClient:
         usually used to cater the multi-process setups, e.g. Django, Celery,
         etc.
 
-        This will raise an exception on registration if the URL is invalid. It is done automatically if called inside a context manager as in:
+        This raises a ``ValueError`` if the URL is not an absolute http(s) URL with a
+        host, even for a client that never talks to the server. It is done automatically if called inside a context manager as in:
 
         .. code-block:: python
 
@@ -288,6 +290,8 @@ class UnleashClient:
                 return
             try:
                 start_scheduler = False
+                
+                _validate_url(self._config.url)
 
                 if self._custom_strategies:
                     self._engine.register_custom_strategies(self._custom_strategies)
