@@ -628,6 +628,24 @@ async def test_initializing_twice_warns_and_registers_once(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "metrics",
+    [MetricsOptions(), MetricsOptions(disabled=True, disable_registration=True)],
+)
+async def test_initializing_with_an_invalid_url_raises(tmpdir, metrics):
+    client = build_async_client(
+        tmpdir, url="thisisnotavalidurl", app_name=APP_NAME, metrics=metrics
+    )
+    try:
+        with pytest.raises(ValueError, match="must start with http:// or https://"):
+            await client.initialize_client()
+
+        assert not client.is_initialized
+    finally:
+        await client.destroy()
+
+
+@pytest.mark.asyncio
 async def test_initializing_a_destroyed_client_warns_and_does_nothing(
     server, build_running_client
 ):
