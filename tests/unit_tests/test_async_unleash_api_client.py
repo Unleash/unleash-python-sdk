@@ -22,7 +22,7 @@ from tests.utilities.testing_constants import (
     REQUEST_RETRIES,
     REQUEST_TIMEOUT,
 )
-from UnleashClient._async_transport import _AsyncTransport
+from UnleashClient._async_unleash_api_client import _AsyncUnleashApiClient
 from UnleashClient._headers import _HeaderFactory
 from UnleashClient.config import (
     HttpOptions,
@@ -58,14 +58,14 @@ async def server():
 
 
 @pytest_asyncio.fixture
-async def build_transport(server: FakeUnleash):
+async def build_api_client(server: FakeUnleash):
     """
     Factory pointed at the fake server. Keyword arguments override the defaults
-    on the config. Every transport it builds is closed on teardown.
+    on the config. Every API client it builds is closed on teardown.
     """
     built = []
 
-    def _build_transport(events=None, **kwargs) -> _AsyncTransport:
+    def _build_api_client(events=None, **kwargs) -> _AsyncUnleashApiClient:
         defaults = {
             "url": server.base_url,
             "app_name": APP_NAME,
@@ -78,21 +78,23 @@ async def build_transport(server: FakeUnleash):
         }
         defaults.update(kwargs)
         config = UnleashConfig(**defaults)
-        transport = _AsyncTransport(config, _HeaderFactory(config), events)
-        built.append(transport)
-        return transport
+        api_client = _AsyncUnleashApiClient(config, _HeaderFactory(config), events)
+        built.append(api_client)
+        return api_client
 
     try:
-        yield _build_transport
+        yield _build_api_client
     finally:
-        for transport in built:
-            await transport.aclose()
+        for api_client in built:
+            await api_client.aclose()
 
 
 @pytest_asyncio.fixture
-async def transport(build_transport: Callable[..., _AsyncTransport]) -> _AsyncTransport:
-    """The transport the tests that need no config override share."""
-    return build_transport()
+async def api_client(
+    build_api_client: Callable[..., _AsyncUnleashApiClient],
+) -> _AsyncUnleashApiClient:
+    """The API client the tests that need no config override share."""
+    return build_api_client()
 
 
 @mark.asyncio
@@ -111,7 +113,7 @@ async def transport(build_transport: Callable[..., _AsyncTransport]) -> _AsyncTr
     ),
 )
 async def test_fetch_features(
-    server, transport, response, status, call_count, expected
+    server, api_client, response, status, call_count, expected
 ):
     server.on(
         "GET",
@@ -122,7 +124,7 @@ async def test_fetch_features(
         repeat=True,
     )
 
-    result = await transport.fetch_features(options=PollingOptions())
+    result = await api_client.fetch_features(options=PollingOptions())
 
     assert len(server.calls("GET", FEATURES_PATH)) == call_count
     assert expected(result.raw_state)
@@ -130,9 +132,9 @@ async def test_fetch_features(
 
 @mark.asyncio
 async def test_fetch_features_sends_the_project_as_a_query_parameter(
-    server, build_transport
+    server, build_api_client
 ):
-    transport = build_transport()
+    api_client = build_api_client()
     server.on(
         "GET",
         FEATURES_PATH,
@@ -141,7 +143,7 @@ async def test_fetch_features_sends_the_project_as_a_query_parameter(
         headers={"etag": ETAG_VALUE},
     )
 
-    result = await transport.fetch_features(
+    result = await api_client.fetch_features(
         options=PollingOptions(project_name=PROJECT_NAME)
     )
 
@@ -153,8 +155,8 @@ async def test_fetch_features_sends_the_project_as_a_query_parameter(
 
 
 @mark.asyncio
-async def test_fetch_features_drops_the_etag_on_failure(server, build_transport):
-    transport = build_transport()
+async def test_fetch_features_drops_the_etag_on_failure(server, build_api_client):
+    api_client = build_api_client()
     server.on(
         "GET",
         FEATURES_PATH,
@@ -164,7 +166,7 @@ async def test_fetch_features_drops_the_etag_on_failure(server, build_transport)
         repeat=True,
     )
 
-    result = await transport.fetch_features(
+    result = await api_client.fetch_features(
         options=PollingOptions(project_name=PROJECT_NAME)
     )
 
@@ -175,12 +177,12 @@ async def test_fetch_features_drops_the_etag_on_failure(server, build_transport)
 
 @mark.asyncio
 async def test_fetch_features_sends_if_none_match_when_an_etag_is_known(
-    server, build_transport
+    server, build_api_client
 ):
-    transport = build_transport()
+    api_client = build_api_client()
     server.on("GET", FEATURES_PATH, status=304, headers={"etag": ETAG_VALUE})
 
-    result = await transport.fetch_features(
+    result = await api_client.fetch_features(
         ETAG_VALUE, options=PollingOptions(project_name=PROJECT_NAME)
     )
 
@@ -193,8 +195,8 @@ async def test_fetch_features_sends_if_none_match_when_an_etag_is_known(
 
 
 @mark.asyncio
-async def test_fetch_features_retries_and_recovers(server, build_transport):
-    transport = build_transport()
+async def test_fetch_features_retries_and_recovers(server, build_api_client):
+    api_client = build_api_client()
     server.on("GET", FEATURES_PATH, status=500, payload={})
     server.on(
         "GET",
@@ -204,7 +206,7 @@ async def test_fetch_features_retries_and_recovers(server, build_transport):
         headers={"etag": ETAG_VALUE},
     )
 
-    result = await transport.fetch_features(
+    result = await api_client.fetch_features(
         ETAG_VALUE, options=PollingOptions(project_name=PROJECT_NAME)
     )
 
@@ -215,9 +217,9 @@ async def test_fetch_features_retries_and_recovers(server, build_transport):
 
 @mark.asyncio
 async def test_fetch_features_retries_and_recovers_from_a_connection_error(
-    server, build_transport
+    server, build_api_client
 ):
-    transport = build_transport()
+    api_client = build_api_client()
     server.on("GET", FEATURES_PATH, disconnect=True)
     server.on(
         "GET",
@@ -227,7 +229,7 @@ async def test_fetch_features_retries_and_recovers_from_a_connection_error(
         headers={"etag": ETAG_VALUE},
     )
 
-    result = await transport.fetch_features(
+    result = await api_client.fetch_features(
         ETAG_VALUE, options=PollingOptions(project_name=PROJECT_NAME)
     )
 
@@ -245,20 +247,20 @@ async def test_fetch_features_retries_and_recovers_from_a_connection_error(
         param({"disconnect": True}, False, id="connection-error"),
     ),
 )
-async def test_register(server, transport, reply, expected):
+async def test_register(server, api_client, reply, expected):
     server.on("POST", REGISTER_PATH, **reply)
 
-    result = await transport.register({"appName": APP_NAME})
+    result = await api_client.register({"appName": APP_NAME})
 
     assert len(server.calls("POST", REGISTER_PATH)) == 1
     assert result is expected
 
 
 @mark.asyncio
-async def test_register_sends_the_payload_it_is_given(server, transport):
+async def test_register_sends_the_payload_it_is_given(server, api_client):
     server.on("POST", REGISTER_PATH, status=202, payload={})
 
-    await transport.register({"appName": APP_NAME, "strategies": []})
+    await api_client.register({"appName": APP_NAME, "strategies": []})
 
     body = server.calls("POST", REGISTER_PATH)[0].body
     assert json.loads(body) == {"appName": APP_NAME, "strategies": []}
@@ -278,22 +280,22 @@ def skip_url_validation(monkeypatch):
 @mark.parametrize(
     "url", ("thisisnotavalidurl", "localhost:4242/api"), ids=("no-scheme", "bad-scheme")
 )
-async def test_register_reraises_an_unusable_url(server, build_transport, url):
-    transport = build_transport(url=url)
+async def test_register_reraises_an_unusable_url(server, build_api_client, url):
+    api_client = build_api_client(url=url)
 
     with pytest.raises(aiohttp.ClientError):
-        await transport.register({})
+        await api_client.register({})
 
     assert server.requests == []
 
 
 @mark.asyncio
 @mark.usefixtures("skip_url_validation")
-async def test_register_reraises_a_missing_scheme_as_a_value_error(build_transport):
-    transport = build_transport(url="thisisnotavalidurl")
+async def test_register_reraises_a_missing_scheme_as_a_value_error(build_api_client):
+    api_client = build_api_client(url="thisisnotavalidurl")
 
     with pytest.raises(ValueError):
-        await transport.register({})
+        await api_client.register({})
 
 
 @mark.asyncio
@@ -306,10 +308,10 @@ async def test_register_reraises_a_missing_scheme_as_a_value_error(build_transpo
         param({"disconnect": True}, False, id="connection-error"),
     ),
 )
-async def test_send_metrics(server, transport, reply, expected):
+async def test_send_metrics(server, api_client, reply, expected):
     server.on("POST", METRICS_PATH, **reply)
 
-    result = await transport.send_metrics(MOCK_METRICS_REQUEST)
+    result = await api_client.send_metrics(MOCK_METRICS_REQUEST)
 
     calls = server.calls("POST", METRICS_PATH)
     assert len(calls) == 1
@@ -321,21 +323,21 @@ async def test_send_metrics(server, transport, reply, expected):
 
 @mark.asyncio
 async def test_send_metrics_returns_false_when_the_request_times_out(
-    server, build_transport
+    server, build_api_client
 ):
-    transport = build_transport(http=HttpOptions(timeout=0.1))
+    api_client = build_api_client(http=HttpOptions(timeout=0.1))
     server.on("POST", METRICS_PATH, hang=True)
 
-    result = await transport.send_metrics(MOCK_METRICS_REQUEST)
+    result = await api_client.send_metrics(MOCK_METRICS_REQUEST)
 
     assert len(server.calls("POST", METRICS_PATH)) == 1
     assert result is False
 
 
 @mark.asyncio
-async def test_send_metrics_raises_when_cancelled(server, transport):
+async def test_send_metrics_raises_when_cancelled(server, api_client):
     server.on("POST", METRICS_PATH, hang=True)
-    send = asyncio.create_task(transport.send_metrics(MOCK_METRICS_REQUEST))
+    send = asyncio.create_task(api_client.send_metrics(MOCK_METRICS_REQUEST))
     while not server.calls("POST", METRICS_PATH):
         await asyncio.sleep(0.01)
 
@@ -347,16 +349,16 @@ async def test_send_metrics_raises_when_cancelled(server, transport):
 
 @mark.asyncio
 async def test_every_endpoint_gets_its_headers_from_the_factory(
-    server, build_transport
+    server, build_api_client
 ):
-    transport = build_transport(metrics=MetricsOptions(interval=2))
+    api_client = build_api_client(metrics=MetricsOptions(interval=2))
     server.on("GET", FEATURES_PATH, status=200, payload=MOCK_FEATURE_RESPONSE)
     server.on("POST", REGISTER_PATH, status=202, payload={})
     server.on("POST", METRICS_PATH, status=202, payload={})
 
-    await transport.fetch_features(options=PollingOptions(interval=1))
-    await transport.register({})
-    await transport.send_metrics(MOCK_METRICS_REQUEST)
+    await api_client.fetch_features(options=PollingOptions(interval=1))
+    await api_client.register({})
+    await api_client.send_metrics(MOCK_METRICS_REQUEST)
 
     fetch = server.calls("GET", FEATURES_PATH)[0].headers
     register = server.calls("POST", REGISTER_PATH)[0].headers
@@ -371,15 +373,15 @@ async def test_every_endpoint_gets_its_headers_from_the_factory(
 
 
 @mark.asyncio
-async def test_the_session_is_reused_across_requests(server, transport):
+async def test_the_session_is_reused_across_requests(server, api_client):
     server.on("POST", METRICS_PATH, status=202, payload={}, repeat=True)
 
-    await transport.send_metrics(MOCK_METRICS_REQUEST)
-    first = transport._session
-    await transport.send_metrics(MOCK_METRICS_REQUEST)
+    await api_client.send_metrics(MOCK_METRICS_REQUEST)
+    first = api_client._session
+    await api_client.send_metrics(MOCK_METRICS_REQUEST)
 
     assert first is not None
-    assert transport._session is first
+    assert api_client._session is first
 
 
 @mark.asyncio
@@ -387,29 +389,29 @@ async def test_the_session_is_reused_across_requests(server, transport):
     "call",
     (
         param(
-            lambda transport: transport.fetch_features(options=PollingOptions()),
+            lambda api_client: api_client.fetch_features(options=PollingOptions()),
             id="fetch_features",
         ),
-        param(lambda transport: transport.register({}), id="register"),
+        param(lambda api_client: api_client.register({}), id="register"),
         param(
-            lambda transport: transport.send_metrics(MOCK_METRICS_REQUEST),
+            lambda api_client: api_client.send_metrics(MOCK_METRICS_REQUEST),
             id="send_metrics",
         ),
     ),
 )
-async def test_a_closed_transport_refuses_every_request(server, transport, call):
-    await transport.aclose()
+async def test_a_closed_api_client_refuses_every_request(server, api_client, call):
+    await api_client.aclose()
 
     with pytest.raises(AlreadyClosedError):
-        await call(transport)
+        await call(api_client)
 
     assert server.requests == []
 
 
 @mark.asyncio
-async def test_closing_a_closed_transport_does_nothing(transport):
-    await transport.aclose()
-    await transport.aclose()
+async def test_closing_a_closed_api_client_does_nothing(api_client):
+    await api_client.aclose()
+    await api_client.aclose()
 
 
 class RecordingEvents:
@@ -448,31 +450,31 @@ def fetch_outcomes(events: RecordingEvents):
     ),
 )
 async def test_fetch_features_reports_how_the_fetch_ended(
-    server, build_transport, status, payload, expected
+    server, build_api_client, status, payload, expected
 ):
     server.on("GET", FEATURES_PATH, status=status, payload=payload, repeat=True)
     events = RecordingEvents()
 
-    await build_transport(events=events).fetch_features(options=PollingOptions())
+    await build_api_client(events=events).fetch_features(options=PollingOptions())
 
     assert fetch_outcomes(events) == [expected]
 
 
 @mark.asyncio
 async def test_fetch_features_reports_unavailable_when_no_response_arrives(
-    server, build_transport
+    server, build_api_client
 ):
     server.on("GET", FEATURES_PATH, disconnect=True, repeat=True)
     events = RecordingEvents()
 
-    await build_transport(events=events).fetch_features(options=PollingOptions())
+    await build_api_client(events=events).fetch_features(options=PollingOptions())
 
     assert fetch_outcomes(events) == [FetchStatus.UNAVAILABLE]
 
 
 @mark.asyncio
 async def test_fetch_features_reports_unavailable_when_the_body_times_out(
-    server, build_transport, monkeypatch
+    server, build_api_client, monkeypatch
 ):
     # A 200 status line arrives but its body never does. That is the server
     # being unreachable, not a bad response.
@@ -484,6 +486,6 @@ async def test_fetch_features_reports_unavailable_when_the_body_times_out(
     monkeypatch.setattr(aiohttp.ClientResponse, "text", body_times_out)
     events = RecordingEvents()
 
-    await build_transport(events=events).fetch_features(options=PollingOptions())
+    await build_api_client(events=events).fetch_features(options=PollingOptions())
 
     assert fetch_outcomes(events) == [FetchStatus.UNAVAILABLE]

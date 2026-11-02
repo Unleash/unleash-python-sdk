@@ -10,7 +10,7 @@ from tests.utilities.events import WAIT_TIMEOUT, EventRecorder
 from tests.utilities.fake_unleash_server import FakeUnleash
 from tests.utilities.mocks.mock_features import MOCK_FEATURE_RESPONSE
 from tests.utilities.testing_constants import APP_NAME, ETAG_VALUE
-from UnleashClient._async_transport import _AsyncTransport
+from UnleashClient._async_unleash_api_client import _AsyncUnleashApiClient
 from UnleashClient._event_dispatcher import _EventDispatcher
 from UnleashClient._feature_store import _FeatureStore
 from UnleashClient._headers import _HeaderFactory
@@ -46,21 +46,21 @@ async def build_connector(server: FakeUnleash):
         refresh_jitter: float = None,
     ) -> _AsyncPollingConnector:
         config = UnleashConfig(server.base_url, APP_NAME, http=HttpOptions(retries=0))
-        transport = _AsyncTransport(config, _HeaderFactory(config))
+        api_client = _AsyncUnleashApiClient(config, _HeaderFactory(config))
         connector = _AsyncPollingConnector(
             store=store,
-            transport=transport,
+            api_client=api_client,
             options=PollingOptions(interval=refresh_interval, jitter=refresh_jitter),
         )
-        built.append((connector, transport))
+        built.append((connector, api_client))
         return connector
 
     try:
         yield _build_connector
     finally:
-        for connector, transport in built:
+        for connector, api_client in built:
             await connector.stop()
-            await transport.aclose()
+            await api_client.aclose()
 
 
 async def until(predicate: Callable[[], bool]) -> None:

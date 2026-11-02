@@ -10,7 +10,7 @@ from yggdrasil_engine.engine import UnleashEngine
 from tests.utilities.fake_unleash_server import FakeUnleash
 from UnleashClient._async_metrics import _AsyncMetricsReporter
 from UnleashClient._async_scheduler import _AsyncJob, _AsyncJobFn, _AsyncScheduler
-from UnleashClient._async_transport import _AsyncTransport
+from UnleashClient._async_unleash_api_client import _AsyncUnleashApiClient
 from UnleashClient._headers import _HeaderFactory
 from UnleashClient.config import IdentityOptions, MetricsOptions, UnleashConfig
 from UnleashClient.constants import CLIENT_SPEC_VERSION, METRICS_URL
@@ -18,7 +18,7 @@ from UnleashClient.impact_metrics import ImpactMetrics
 
 APP_NAME = "pytest"
 
-# The fake server mounts Unleash under /api, so the async transport builds the URL
+# The fake server mounts Unleash under /api, so the async API client builds the URL
 # shape it builds against a deployment.
 API_PREFIX = "/api"
 METRICS_PATH = API_PREFIX + METRICS_URL
@@ -121,7 +121,7 @@ class TestAsyncMetricsReporter:
             engine = UnleashEngine()
             reporter = _AsyncMetricsReporter(
                 config=config,
-                transport=_AsyncTransport(config, _HeaderFactory(config)),
+                api_client=_AsyncUnleashApiClient(config, _HeaderFactory(config)),
                 scheduler=RecordingAsyncScheduler(),
                 engine=engine,
                 impact_metrics=(
@@ -138,7 +138,7 @@ class TestAsyncMetricsReporter:
         finally:
             for reporter in built:
                 await reporter._scheduler.shutdown()
-                await reporter._transport.aclose()
+                await reporter._api.aclose()
 
     @pytest_asyncio.fixture
     async def reporter(
@@ -225,11 +225,11 @@ class TestAsyncMetricsReporter:
         assert "sdkFlavorVersion" not in body
 
     @mark.asyncio
-    async def test_the_flush_goes_through_the_async_transport(self, reporter):
-        # The flush runs on the client's loop, so a blocking transport would hold it up for
+    async def test_the_flush_goes_through_the_async_api_client(self, reporter):
+        # The flush runs on the client's loop, so a blocking API client would hold it up for
         # the length of every POST.
-        assert isinstance(reporter._transport, _AsyncTransport)
-        assert asyncio.iscoroutinefunction(reporter._transport.send_metrics)
+        assert isinstance(reporter._api, _AsyncUnleashApiClient)
+        assert asyncio.iscoroutinefunction(reporter._api.send_metrics)
         assert asyncio.iscoroutinefunction(reporter.flush)
 
     # start and stop
@@ -309,7 +309,7 @@ class TestAsyncMetricsReporter:
         reporter = build_reporter()
 
         assert reporter._scheduler.registered == []
-        assert reporter._transport._session is None
+        assert reporter._api._session is None
 
     # impact metrics
 

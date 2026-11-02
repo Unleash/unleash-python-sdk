@@ -4,7 +4,7 @@ from yggdrasil_engine.engine import UnleashEngine
 
 from UnleashClient._payloads import _build_metrics_payload
 from UnleashClient._scheduler import _ScheduledJob, _Scheduler
-from UnleashClient._transport import _Transport
+from UnleashClient._unleash_api_client import _UnleashApiClient
 from UnleashClient.config import UnleashConfig
 from UnleashClient.impact_metrics import ImpactMetrics
 from UnleashClient.utils import LOGGER
@@ -19,7 +19,7 @@ class _MetricsReporter:
 
         reporter = _MetricsReporter(
             config=config,
-            transport=transport,
+            api_client=api_client,
             scheduler=scheduler,
             engine=engine,
             impact_metrics=impact_metrics,
@@ -34,13 +34,13 @@ class _MetricsReporter:
     def __init__(
         self,
         config: UnleashConfig,
-        transport: _Transport,
+        api_client: _UnleashApiClient,
         scheduler: _Scheduler,
         engine: UnleashEngine,
         impact_metrics: ImpactMetrics,
     ) -> None:
         self._config: UnleashConfig = config
-        self._transport: _Transport = transport
+        self._api: _UnleashApiClient = api_client
         self._scheduler: _Scheduler = scheduler
         self._engine: UnleashEngine = engine
         self._impact_metrics: ImpactMetrics = impact_metrics
@@ -78,7 +78,7 @@ class _MetricsReporter:
             return
 
         payload = _build_metrics_payload(self._config, bucket, impact_metrics)
-        if not self._transport.send_metrics(payload) and impact_metrics:
+        if not self._api.send_metrics(payload) and impact_metrics:
             self._impact_metrics.restore(impact_metrics)
 
     def stop(self) -> None:

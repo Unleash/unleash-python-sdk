@@ -1,4 +1,4 @@
-"""Asynchronous HTTP transport, for the async Unleash client."""
+"""Unleash API client over aiohttp, for the async Unleash client."""
 
 import asyncio
 import json
@@ -7,7 +7,7 @@ from typing import Any, Dict, Optional, Tuple
 
 from UnleashClient._event_dispatcher import _EventDispatcher
 from UnleashClient._headers import _HeaderFactory
-from UnleashClient._transport import (
+from UnleashClient._unleash_api_client import (
     FetchResult,
     _emit_fetch_completed,
     _failure_status,
@@ -42,8 +42,8 @@ async def _log_resp_info(resp: "aiohttp.ClientResponse") -> None:
     LOGGER.debug("HTTP content: %s", await resp.text())
 
 
-class _AsyncTransport:
-    """The asyncio twin of :class:`UnleashClient._transport._Transport`."""
+class _AsyncUnleashApiClient:
+    """The asyncio twin of :class:`UnleashClient._unleash_api_client._UnleashApiClient`."""
 
     def __init__(
         self,
@@ -82,10 +82,10 @@ class _AsyncTransport:
 
     async def aclose(self) -> None:
         """
-        Close the pooled session and put the transport out of service.
+        Close the pooled session and put the API client out of service.
 
-        Every later request raises :class:`AlreadyClosedError`. Closing a
-        transport that is already closed does nothing.
+        Every later request raises :class:`AlreadyClosedError`. Closing an already
+        closed API client does nothing.
         """
         with self._close_lock:
             if self._is_closed:
@@ -112,7 +112,7 @@ class _AsyncTransport:
 
         :param etag: the cached etag, or "" to fetch unconditionally.
         :param options: the polling settings
-        :raises AlreadyClosedError: if the transport has been closed.
+        :raises AlreadyClosedError: if the API client has been closed.
         """
         self._raise_if_closed()
 
@@ -202,7 +202,7 @@ class _AsyncTransport:
 
         :param payload: as built by
                         :func:`UnleashClient._payloads._build_register_payload`.
-        :raises AlreadyClosedError: if the transport has been closed.
+        :raises AlreadyClosedError: if the API client has been closed.
         """
         self._raise_if_closed()
 
@@ -249,7 +249,7 @@ class _AsyncTransport:
         timeout all return False.
 
         :param payload: the metrics request body.
-        :raises AlreadyClosedError: if the transport has been closed.
+        :raises AlreadyClosedError: if the API client has been closed.
         :raises asyncio.CancelledError: if the send is cancelled.
         """
         self._raise_if_closed()

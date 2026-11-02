@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 
 from UnleashClient._async_scheduler import _AsyncScheduler
-from UnleashClient._async_transport import _AsyncTransport
+from UnleashClient._async_unleash_api_client import _AsyncUnleashApiClient
 from UnleashClient._feature_store import _FeatureStore
 from UnleashClient.config import PollingOptions
 
@@ -32,7 +32,7 @@ class _AsyncPollingConnector(_AsyncBaseConnector):
 
         connector = _AsyncPollingConnector(
             store=store,
-            transport=transport,
+            api_client=api_client,
             options=PollingOptions(interval=15),
         )
         await connector.start()
@@ -43,21 +43,21 @@ class _AsyncPollingConnector(_AsyncBaseConnector):
     def __init__(
         self,
         store: _FeatureStore,
-        transport: _AsyncTransport,
+        api_client: _AsyncUnleashApiClient,
         options: PollingOptions,
     ) -> None:
         """
         :param store: Applies feature state to the engine and the cache.
-        :param transport: Performs the fetch against the Unleash server.
+        :param api_client: Performs the fetch against the Unleash server.
         :param options: How often to fetch, and which project to fetch.
         """
         super().__init__(store)
-        self._transport: _AsyncTransport = transport
+        self._api: _AsyncUnleashApiClient = api_client
         self._options: PollingOptions = options
         self._scheduler: _AsyncScheduler = _AsyncScheduler()
 
     async def _fetch_and_load(self) -> None:
-        result = await self._transport.fetch_features(
+        result = await self._api.fetch_features(
             etag=self._store.cached_etag, options=self._options
         )
 

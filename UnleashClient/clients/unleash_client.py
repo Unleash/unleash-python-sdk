@@ -21,7 +21,7 @@ from UnleashClient._instance_registry import (
 from UnleashClient._metrics import _MetricsReporter
 from UnleashClient._payloads import _build_register_payload
 from UnleashClient._scheduler import _ScheduledJob, _Scheduler
-from UnleashClient._transport import _Transport
+from UnleashClient._unleash_api_client import _UnleashApiClient
 from UnleashClient.cache import BaseCache, FileCache
 from UnleashClient.config import (
     HttpOptions,
@@ -199,13 +199,13 @@ class UnleashClient:
             events=self.__events,
         )
 
-        self._transport = _Transport(self._config, self._headers, self.__events)
+        self._api = _UnleashApiClient(self._config, self._headers, self.__events)
 
         self._scheduler = _Scheduler(scheduler, scheduler_executor)
 
         self._metrics = _MetricsReporter(
             config=self._config,
-            transport=self._transport,
+            api_client=self._api,
             scheduler=self._scheduler,
             engine=self._engine,
             impact_metrics=self.impact_metrics,
@@ -297,7 +297,7 @@ class UnleashClient:
 
                 # Register app
                 if not self._config.metrics.disable_registration:
-                    self._transport.register(
+                    self._api.register(
                         _build_register_payload(self._config, self._custom_strategies)
                     )
                 mode = self._config.mode
@@ -315,7 +315,7 @@ class UnleashClient:
                     self.connector = PollingConnector(
                         store=self._store,
                         scheduler=self._scheduler,
-                        transport=self._transport,
+                        api_client=self._api,
                         options=mode,
                     )
                 else:

@@ -376,7 +376,7 @@ def test_async_client_builds_a_metrics_reporter_over_its_own_collaborators(tmpdi
     client = build_async_client(tmpdir, url=URL, app_name=APP_NAME)
 
     assert client._metrics._config is client._config
-    assert client._metrics._transport is client._transport
+    assert client._metrics._api is client._api
     assert client._metrics._engine is client._engine
     assert client._metrics._impact_metrics is client.impact_metrics
 
@@ -539,14 +539,14 @@ async def test_initializing_awaits_the_first_fetch_while_yielding_to_the_event_l
     client = build_running_client(mode=PollingOptions(interval=3600))
     started = asyncio.Event()
     release = asyncio.Event()
-    fetch_features = client._transport.fetch_features
+    fetch_features = client._api.fetch_features
 
     async def delayed_fetch(**kwargs):
         started.set()
         await release.wait()
         return await fetch_features(**kwargs)
 
-    monkeypatch.setattr(client._transport, "fetch_features", delayed_fetch)
+    monkeypatch.setattr(client._api, "fetch_features", delayed_fetch)
     initializing = asyncio.create_task(client.initialize_client())
     try:
         await asyncio.wait_for(started.wait(), WAIT_TIMEOUT)
@@ -706,7 +706,7 @@ async def test_destroy_during_registration_leaves_nothing_polling(
 ):
     server.on("GET", FEATURES_PATH, payload=MOCK_FEATURE_RESPONSE, repeat=True)
     client = build_running_client(mode=PollingOptions(interval=0.01))
-    client._transport.register = lambda payload: asyncio.sleep(0.05)
+    client._api.register = lambda payload: asyncio.sleep(0.05)
 
     initializing = asyncio.ensure_future(client.initialize_client())
     await asyncio.sleep(0)
