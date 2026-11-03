@@ -21,9 +21,11 @@ from tests.utilities.testing_constants import (
     PROJECT_NAME,
     REQUEST_RETRIES,
     REQUEST_TIMEOUT,
+    URL,
 )
 from UnleashClient._async_unleash_api_client import _AsyncUnleashApiClient
 from UnleashClient._headers import _HeaderFactory
+from UnleashClient._transport import Request, Response
 from UnleashClient.config import (
     HttpOptions,
     IdentityOptions,
@@ -377,11 +379,11 @@ async def test_the_session_is_reused_across_requests(server, api_client):
     server.on("POST", METRICS_PATH, status=202, payload={}, repeat=True)
 
     await api_client.send_metrics(MOCK_METRICS_REQUEST)
-    first = api_client._session
+    first = api_client._transport._session
     await api_client.send_metrics(MOCK_METRICS_REQUEST)
 
     assert first is not None
-    assert api_client._session is first
+    assert api_client._transport._session is first
 
 
 @mark.asyncio
@@ -483,9 +485,96 @@ async def test_fetch_features_reports_unavailable_when_the_body_times_out(
     async def body_times_out(_response):
         raise asyncio.TimeoutError()
 
-    monkeypatch.setattr(aiohttp.ClientResponse, "text", body_times_out)
+    monkeypatch.setattr(aiohttp.ClientResponse, "read", body_times_out)
     events = RecordingEvents()
 
     await build_api_client(events=events).fetch_features(options=PollingOptions())
 
     assert fetch_outcomes(events) == [FetchStatus.UNAVAILABLE]
+
+
+class RecordingTransport:
+    """Records every request and answers each with the same response."""
+
+    def __init__(self, response: Response):
+        self.response = response
+        self.requests = []
+        self.closed = False
+
+    async def execute(self, request: Request) -> Response:
+        self.requests.append(request)
+        return self.response
+
+    async def aclose(self) -> None:
+        self.closed = True
+
+
+def api_client_over(transport: RecordingTransport) -> _AsyncUnleashApiClient:
+    config = UnleashConfig(
+        url=URL,
+        app_name=APP_NAME,
+        identity=IdentityOptions(instance_id=INSTANCE_ID),
+    )
+    return _AsyncUnleashApiClient(config, _HeaderFactory(config), transport=transport)
+
+
+@mark.asyncio
+async def test_fetch_features_sends_its_request_through_the_transport():
+    transport = RecordingTransport(
+        Response(status=200, headers={"etag": ETAG_VALUE}, body=b'{"version": 1}')
+    )
+
+    result = await api_client_over(transport).fetch_features(
+        ETAG_VALUE, options=PollingOptions(project_name=PROJECT_NAME)
+    )
+
+    assert result == ('{"version": 1}', ETAG_VALUE, False)
+    (request,) = transport.requests
+    assert request.method == "GET"
+    assert request.url == URL + FEATURES_URL
+    assert request.params == {"project": PROJECT_NAME}
+    assert request.headers["If-None-Match"] == ETAG_VALUE
+
+
+@mark.asyncio
+async def test_register_posts_its_payload_through_the_transport():
+    transport = RecordingTransport(Response(status=202, headers={}, body=b""))
+
+    assert await api_client_over(transport).register({"appName": APP_NAME})
+
+    (request,) = transport.requests
+    assert request.method == "POST"
+    assert request.url == URL + REGISTER_URL
+    assert json.loads(request.body) == {"appName": APP_NAME}
+
+
+@mark.asyncio
+async def test_send_metrics_posts_its_payload_through_the_transport():
+    transport = RecordingTransport(Response(status=202, headers={}, body=b""))
+
+    assert await api_client_over(transport).send_metrics(MOCK_METRICS_REQUEST)
+
+    (request,) = transport.requests
+    assert request.method == "POST"
+    assert request.url == URL + METRICS_URL
+    assert json.loads(request.body) == MOCK_METRICS_REQUEST
+
+
+@mark.asyncio
+async def test_aclose_leaves_a_transport_it_was_given_open():
+    transport = RecordingTransport(Response(status=202, headers={}, body=b""))
+
+    await api_client_over(transport).aclose()
+
+    assert not transport.closed
+
+
+@mark.asyncio
+async def test_aclose_closes_the_default_transport(server, api_client):
+    server.on("POST", METRICS_PATH, status=202, payload={})
+    await api_client.send_metrics(MOCK_METRICS_REQUEST)
+    session = api_client._transport._session
+
+    await api_client.aclose()
+
+    assert session.closed
