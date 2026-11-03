@@ -309,7 +309,7 @@ class TestAsyncMetricsReporter:
         reporter = build_reporter()
 
         assert reporter._scheduler.registered == []
-        assert reporter._api._session is None
+        assert reporter._api._transport._session is None
 
     # impact metrics
 
