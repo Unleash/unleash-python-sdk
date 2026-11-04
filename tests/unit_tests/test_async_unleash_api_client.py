@@ -23,6 +23,7 @@ from tests.utilities.testing_constants import (
     REQUEST_TIMEOUT,
     URL,
 )
+from UnleashClient._aiohttp_transport import AiohttpTransport
 from UnleashClient._async_unleash_api_client import _AsyncUnleashApiClient
 from UnleashClient._headers import _HeaderFactory
 from UnleashClient._transport import Method, Request, Response
@@ -272,7 +273,7 @@ async def test_register_sends_the_payload_it_is_given(server, api_client):
 def skip_url_validation(monkeypatch):
     """
     UnleashConfig rejects these urls on construction, so register() only sees
-    one that slipped past that check. Skip it to reach the re-raise.
+    one that slipped past that check. Skip it to reach aiohttp's own error.
     """
     monkeypatch.setattr("UnleashClient.config._validate_url", lambda url: None)
 
@@ -282,22 +283,12 @@ def skip_url_validation(monkeypatch):
 @mark.parametrize(
     "url", ("thisisnotavalidurl", "localhost:4242/api"), ids=("no-scheme", "bad-scheme")
 )
-async def test_register_reraises_an_unusable_url(server, build_api_client, url):
-    api_client = build_api_client(url=url)
-
-    with pytest.raises(aiohttp.ClientError):
-        await api_client.register({})
+async def test_register_reports_a_url_aiohttp_rejects_as_a_failure(
+    server, build_api_client, url
+):
+    assert await build_api_client(url=url).register({}) is False
 
     assert server.requests == []
-
-
-@mark.asyncio
-@mark.usefixtures("skip_url_validation")
-async def test_register_reraises_a_missing_scheme_as_a_value_error(build_api_client):
-    api_client = build_api_client(url="thisisnotavalidurl")
-
-    with pytest.raises(ValueError):
-        await api_client.register({})
 
 
 @mark.asyncio
@@ -509,13 +500,15 @@ class RecordingTransport:
         self.closed = True
 
 
-def api_client_over(transport: RecordingTransport) -> _AsyncUnleashApiClient:
+def api_client_over(transport, events=None) -> _AsyncUnleashApiClient:
     config = UnleashConfig(
         url=URL,
         app_name=APP_NAME,
         identity=IdentityOptions(instance_id=INSTANCE_ID),
     )
-    return _AsyncUnleashApiClient(config, _HeaderFactory(config), transport=transport)
+    return _AsyncUnleashApiClient(
+        config, _HeaderFactory(config), events, transport=transport
+    )
 
 
 @mark.asyncio
@@ -578,3 +571,68 @@ async def test_aclose_closes_the_default_transport(server, api_client):
     await api_client.aclose()
 
     assert session.closed
+
+
+class RaisingTransport:
+    """Raises the same exception for every request."""
+
+    def __init__(self, exc: Exception) -> None:
+        self.exc = exc
+
+    async def execute(self, request: Request) -> Response:
+        raise self.exc
+
+
+class CustomTransportError(Exception):
+    pass
+
+
+@mark.asyncio
+@mark.parametrize(
+    "exc",
+    (CustomTransportError("boom"), OSError("refused"), ValueError("bad")),
+    ids=("foreign", "os-error", "value-error"),
+)
+async def test_any_transport_exception_is_a_failed_request(exc):
+    events = RecordingEvents()
+    api_client = api_client_over(RaisingTransport(exc), events)
+
+    result = await api_client.fetch_features(options=PollingOptions())
+
+    assert result == (None, "", False)
+    assert fetch_outcomes(events) == [FetchStatus.UNAVAILABLE]
+    assert await api_client.register({}) is False
+    assert await api_client.send_metrics(MOCK_METRICS_REQUEST) is False
+
+
+@mark.asyncio
+async def test_a_transport_closed_by_its_creator_gives_failed_requests():
+    transport = AiohttpTransport()
+    await transport.aclose()
+    events = RecordingEvents()
+    api_client = api_client_over(transport, events)
+
+    result = await api_client.fetch_features(options=PollingOptions())
+
+    assert result == (None, "", False)
+    assert fetch_outcomes(events) == [FetchStatus.UNAVAILABLE]
+    assert await api_client.register({}) is False
+    assert await api_client.send_metrics(MOCK_METRICS_REQUEST) is False
+
+
+@mark.asyncio
+@mark.parametrize(
+    "call",
+    (
+        param(lambda api_client: api_client.register, id="register"),
+        param(lambda api_client: api_client.send_metrics, id="send_metrics"),
+    ),
+)
+async def test_a_payload_that_cannot_be_serialised_still_raises(call):
+    # Only the transport's exceptions are failed requests: this is an SDK bug.
+    transport = RecordingTransport(Response(status=202, headers={}, body=b""))
+
+    with pytest.raises(TypeError):
+        await call(api_client_over(transport))({"not-json": object()})
+
+    assert transport.requests == []

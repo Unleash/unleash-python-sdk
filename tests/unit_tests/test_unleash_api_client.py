@@ -4,7 +4,6 @@ import pytest
 import responses
 from pytest import mark, param
 from requests import ConnectionError
-from requests.exceptions import InvalidSchema, MissingSchema
 
 from tests.utilities.mocks.mock_features import (
     MOCK_FEATURE_RESPONSE,
@@ -238,39 +237,28 @@ def test_register_sends_the_payload_it_is_given(api_client):
 def skip_url_validation(monkeypatch):
     """
     UnleashConfig rejects these urls on construction, so register() only sees
-    one that slipped past that check. Skip it to reach the re-raise.
+    one that slipped past that check. Skip it to reach requests' own error.
     """
     monkeypatch.setattr("UnleashClient.config._validate_url", lambda url: None)
 
 
 @responses.activate
 @pytest.mark.usefixtures("skip_url_validation")
-def test_register_reraises_a_missing_schema(build_api_client):
-    api_client = build_api_client(url="thisisnotavalidurl")
-
-    # These four are re-raised rather than reported as False, so a url
-    # requests rejects still fails initialize_client() loudly.
-    with pytest.raises(MissingSchema):
-        api_client.register({})
+@mark.parametrize(
+    "url", ("thisisnotavalidurl", "localhost:4242/api"), ids=("no-scheme", "bad-scheme")
+)
+def test_register_reports_a_url_requests_rejects_as_a_failure(build_api_client, url):
+    assert build_api_client(url=url).register({}) is False
 
 
 @responses.activate
-@pytest.mark.usefixtures("skip_url_validation")
-def test_register_reraises_an_invalid_schema(build_api_client):
-    api_client = build_api_client(url="localhost:4242/api")
-
-    with pytest.raises(InvalidSchema):
-        api_client.register({})
-
-
-@responses.activate
-def test_register_lets_a_bad_custom_option_escape(build_api_client):
+def test_register_reports_a_bad_custom_option_as_a_failure(build_api_client):
     responses.add(responses.POST, FULL_REGISTER_URL, json={}, status=202)
 
-    # A TypeError is not a RequestException, so unlike fetch_features this
-    # propagates and fails initialize_client().
-    with pytest.raises(TypeError):
-        build_api_client(http=HttpOptions(options={"timeout": 5})).register({})
+    api_client = build_api_client(http=HttpOptions(options={"timeout": 5}))
+
+    assert api_client.register({}) is False
+    assert len(responses.calls) == 0
 
 
 # send_metrics
@@ -305,11 +293,13 @@ def test_send_metrics(api_client, payload, status, expected):
 
 
 @responses.activate
-def test_send_metrics_lets_a_bad_custom_option_escape(build_api_client):
+def test_send_metrics_reports_a_bad_custom_option_as_a_failure(build_api_client):
     responses.add(responses.POST, FULL_METRICS_URL, json={}, status=202)
 
-    with pytest.raises(TypeError):
-        build_api_client(http=HttpOptions(options={"timeout": 5})).send_metrics({})
+    api_client = build_api_client(http=HttpOptions(options={"timeout": 5}))
+
+    assert api_client.send_metrics({}) is False
+    assert len(responses.calls) == 0
 
 
 @responses.activate
@@ -479,3 +469,55 @@ def test_send_metrics_posts_its_payload_through_the_transport():
     assert request.method == Method.POST
     assert request.url == FULL_METRICS_URL
     assert json.loads(request.body) == {"appName": APP_NAME}
+
+
+class RaisingTransport:
+    """Raises the same exception for every request."""
+
+    def __init__(self, exc: Exception) -> None:
+        self.exc = exc
+
+    def execute(self, request: Request) -> Response:
+        raise self.exc
+
+
+def api_client_over(transport, events=None) -> _UnleashApiClient:
+    config = UnleashConfig(URL, APP_NAME)
+    return _UnleashApiClient(
+        config, _HeaderFactory(config), events, transport=transport
+    )
+
+
+class CustomTransportError(Exception):
+    pass
+
+
+@mark.parametrize(
+    "exc",
+    (CustomTransportError("boom"), OSError("refused"), ValueError("bad")),
+    ids=("foreign", "os-error", "value-error"),
+)
+def test_any_transport_exception_is_a_failed_request(exc):
+    events = RecordingEvents()
+    api_client = api_client_over(RaisingTransport(exc), events)
+
+    assert api_client.fetch_features(options=PollingOptions()) == (None, "", False)
+    assert fetch_outcomes(events) == [FetchStatus.UNAVAILABLE]
+    assert api_client.register({}) is False
+    assert api_client.send_metrics({}) is False
+
+
+@mark.parametrize(
+    "call",
+    (
+        param(lambda api_client: api_client.register, id="register"),
+        param(lambda api_client: api_client.send_metrics, id="send_metrics"),
+    ),
+)
+def test_a_payload_that_cannot_be_serialised_still_raises(call):
+    transport = RecordingTransport(Response(status=202, headers={}, body=b""))
+
+    with pytest.raises(TypeError):
+        call(api_client_over(transport))({"not-json": object()})
+
+    assert transport.requests == []
