@@ -2,9 +2,6 @@ import json
 import uuid
 from typing import Any, Dict, NamedTuple, Optional, Tuple
 
-import requests
-from requests.exceptions import InvalidHeader, InvalidSchema, InvalidURL, MissingSchema
-
 from UnleashClient._event_dispatcher import _EventDispatcher
 from UnleashClient._headers import _HeaderFactory
 from UnleashClient._transport import Request, RequestsTransport, Response, Transport
@@ -206,87 +203,79 @@ class _UnleashApiClient:
         """
         Register this client with the Unleash server.
 
-        Malformed-URL errors (``MissingSchema``, ``InvalidSchema``,
-        ``InvalidHeader``, ``InvalidURL``) propagate, so ``initialize_client()``
-        fails loudly instead of starting a client that can never reach the
-        server.
+        Any exception from the transport is a failed request: it is logged and
+        False is returned.
 
         :param payload: Registration request body.
         :return: True on 200 or 202; False on any other status and on a request
                  error.
         """
         config = self._config
+        LOGGER.info("Registering unleash client with unleash @ %s", config.url)
+        LOGGER.info("Registration request information: %s", payload)
+
+        request = Request(
+            method="POST",
+            url=_normalized_url(config.url, REGISTER_URL),
+            headers=self._headers.base(),
+            body=json.dumps(payload).encode("utf-8"),
+        )
         try:
-            LOGGER.info("Registering unleash client with unleash @ %s", config.url)
-            LOGGER.info("Registration request information: %s", payload)
-
-            resp = self._transport.execute(
-                Request(
-                    method="POST",
-                    url=_normalized_url(config.url, REGISTER_URL),
-                    headers=self._headers.base(),
-                    body=json.dumps(payload).encode("utf-8"),
-                )
-            )
-
-            if resp.status not in {200, 202}:
-                _log_resp_info(resp)
-                LOGGER.warning(
-                    "Unleash Client registration failed due to unexpected HTTP status code: %s",
-                    resp.status,
-                )
-                return False
-
-            LOGGER.info("Unleash Client successfully registered!")
-
-            return True
-        except (MissingSchema, InvalidSchema, InvalidHeader, InvalidURL) as exc:
-            LOGGER.exception(
-                "Unleash Client registration failed fatally due to exception: %s", exc
-            )
-            raise exc
-        except requests.RequestException as exc:
+            resp = self._transport.execute(request)
+        except Exception as exc:  # pylint: disable=broad-except
             LOGGER.exception(
                 "Unleash Client registration failed due to exception: %s", exc
             )
+            return False
 
-        return False
+        if resp.status not in {200, 202}:
+            _log_resp_info(resp)
+            LOGGER.warning(
+                "Unleash Client registration failed due to unexpected HTTP status code: %s",
+                resp.status,
+            )
+            return False
+
+        LOGGER.info("Unleash Client successfully registered!")
+
+        return True
 
     def send_metrics(self, payload: Dict[str, Any]) -> bool:
         """
         Send one metrics bucket to the Unleash server.
 
+        Any exception from the transport is a failed request: it is logged and
+        False is returned.
+
         :param payload: Metrics request body.
         :return: True on 202; False on any other status and on a request error.
         """
         config = self._config
+        LOGGER.info("Sending messages to with unleash @ %s", config.url)
+        LOGGER.info("unleash metrics information: %s", payload)
+
+        request = Request(
+            method="POST",
+            url=_normalized_url(config.url, METRICS_URL),
+            headers=self._headers.metrics(),
+            body=json.dumps(payload).encode("utf-8"),
+        )
         try:
-            LOGGER.info("Sending messages to with unleash @ %s", config.url)
-            LOGGER.info("unleash metrics information: %s", payload)
-
-            resp = self._transport.execute(
-                Request(
-                    method="POST",
-                    url=_normalized_url(config.url, METRICS_URL),
-                    headers=self._headers.metrics(),
-                    body=json.dumps(payload).encode("utf-8"),
-                )
-            )
-
-            if resp.status != 202:
-                _log_resp_info(resp)
-                LOGGER.warning(
-                    "Unleash Client metrics submission due to unexpected HTTP status code: %s",
-                    resp.status,
-                )
-                return False
-
-            LOGGER.info("Unleash Client metrics successfully sent!")
-
-            return True
-        except requests.RequestException as exc:
+            resp = self._transport.execute(request)
+        except Exception as exc:  # pylint: disable=broad-except
             LOGGER.warning(
                 "Unleash Client metrics submission failed due to exception: %s", exc
             )
+            return False
 
-        return False
+        if resp.status != 202:
+            _log_resp_info(resp)
+            LOGGER.warning(
+                "Unleash Client metrics submission due to unexpected HTTP status code: %s",
+                resp.status,
+            )
+            return False
+
+        LOGGER.info("Unleash Client metrics successfully sent!")
+
+        return True

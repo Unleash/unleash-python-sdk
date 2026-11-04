@@ -8,6 +8,7 @@ from typing import Any, Mapping, Optional, Union
 from UnleashClient.constants import REQUEST_RETRIES, REQUEST_TIMEOUT
 from UnleashClient.utils import (
     LOGGER,
+    _validate_header_value,
     _validate_url,
     extract_environment_from_api_key,
 )
@@ -128,7 +129,12 @@ class UnleashConfig:
     never talks to the server: deciding which settings make requests would need
     updating with every new server call.
 
-    :raises ValueError: if ``url`` is not an absolute http(s) URL with a host.
+    ``api_key``, ``app_name``, ``identity.instance_id`` and ``connection_id``
+    are sent as headers, so they must be str without a line break.
+
+    :raises ValueError: if ``url`` is not an absolute http(s) URL with a host,
+                        or a value sent as a header contains a line break.
+    :raises TypeError: if a value sent as a header is not a str.
 
     ``api_key`` is optional because a client that only loads from a backup never talks to the server.
     """
@@ -153,6 +159,14 @@ class UnleashConfig:
         _validate_url(self.url)
         if self.identity is None:
             object.__setattr__(self, "identity", IdentityOptions())
+        for name, value in (
+            ("Authorization", self.api_key),
+            ("unleash-appname", self.app_name),
+            ("unleash-instanceid", self.identity.instance_id),
+            ("unleash-connection-id", self.connection_id),
+        ):
+            if value is not None:
+                _validate_header_value(name, value)
         if self.http is None:
             object.__setattr__(self, "http", HttpOptions())
         if self.mode is None:

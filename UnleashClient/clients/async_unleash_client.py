@@ -37,7 +37,7 @@ from UnleashClient.connectors._async_connector import _AsyncPollingConnector
 from UnleashClient.constants import ETAG, METRIC_LAST_SENT_TIME
 from UnleashClient.events import BaseEvent
 from UnleashClient.impact_metrics import ImpactMetrics
-from UnleashClient.utils import LOGGER, InstanceAllowType, _validate_url
+from UnleashClient.utils import LOGGER, InstanceAllowType
 
 
 class AsyncUnleashClient:
@@ -308,9 +308,6 @@ class AsyncUnleashClient:
         :param fetch_toggles: Accepted for parity with :class:`UnleashClient`. It
                               has no effect: the client always polls.
         :raises ValueError: If a custom strategy is invalid.
-        :raises aiohttp.InvalidURL: If registration is enabled and aiohttp
-                                    rejects a URL that passed the constructor's
-                                    check.
         """
         if self._closed or self._starting or self._run_state > _RunState.UNINITIALIZED:
             warnings.warn(
@@ -320,8 +317,6 @@ class AsyncUnleashClient:
 
         self._starting = True
         try:
-            _validate_url(self._config.url)
-
             self._cache.mset(
                 {METRIC_LAST_SENT_TIME: datetime.now(timezone.utc), ETAG: ""}
             )
