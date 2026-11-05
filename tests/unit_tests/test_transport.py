@@ -149,7 +149,6 @@ def test_execute_uses_a_fresh_session_for_every_request():
     assert "Cookie" not in responses.calls[1].request.headers
 
 
-
 @responses.activate
 def test_execute_sends_on_the_session_passed_in():
     responses.add(responses.GET, ENDPOINT, status=200, headers={"Set-Cookie": "a=1"})
@@ -189,8 +188,6 @@ def test_a_plain_session_logs_no_warning(caplog):
     RequestsTransport(requests.Session())
 
     assert "retries requests itself" not in caplog.text
-
-
 
 
 @responses.activate
