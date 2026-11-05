@@ -79,3 +79,8 @@ def cache_segments(tmp_path):
     )
     yield temporary_cache
     temporary_cache.destroy()
+
+
+@pytest.fixture(autouse=True)
+def no_retry_backoff(monkeypatch):
+    monkeypatch.setattr("UnleashClient._retry._backoff_delay", lambda retry: 0)
