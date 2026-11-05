@@ -7,7 +7,7 @@ from yggdrasil_engine.engine import UnleashEngine
 from UnleashClient._headers import _HeaderFactory
 from UnleashClient._metrics import _MetricsReporter
 from UnleashClient._scheduler import _Scheduler
-from UnleashClient._transport import _Transport
+from UnleashClient._unleash_api_client import _UnleashApiClient
 from UnleashClient.config import IdentityOptions, MetricsOptions, UnleashConfig
 from UnleashClient.constants import CLIENT_SPEC_VERSION, METRICS_URL
 from UnleashClient.impact_metrics import ImpactMetrics
@@ -72,7 +72,7 @@ def build_sync_reporter(
     engine = UnleashEngine()
     return _MetricsReporter(
         config=config,
-        transport=_Transport(config, _HeaderFactory(config)),
+        api_client=_UnleashApiClient(config, _HeaderFactory(config)),
         scheduler=scheduler if scheduler is not None else _Scheduler(),
         engine=engine,
         impact_metrics=(

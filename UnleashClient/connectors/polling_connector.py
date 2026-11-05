@@ -1,6 +1,6 @@
 from UnleashClient._feature_store import _FeatureStore
 from UnleashClient._scheduler import _ScheduledJob, _Scheduler
-from UnleashClient._transport import _Transport
+from UnleashClient._unleash_api_client import _UnleashApiClient
 from UnleashClient.config import PollingOptions
 
 from .base_connector import BaseConnector
@@ -13,21 +13,21 @@ class PollingConnector(BaseConnector):
         self,
         store: _FeatureStore,
         scheduler: _Scheduler,
-        transport: _Transport,
+        api_client: _UnleashApiClient,
         options: PollingOptions,
     ):
         """
-        :param transport: Performs the fetch against the Unleash server.
+        :param api_client: Performs the fetch against the Unleash server.
         :param options: How often to fetch, and which project to fetch.
         """
         super().__init__(store)
         self.scheduler: _Scheduler = scheduler
-        self.transport: _Transport = transport
+        self.api_client: _UnleashApiClient = api_client
         self.options: PollingOptions = options
         self.job: _ScheduledJob = None
 
     def _fetch_and_load(self) -> None:
-        result = self.transport.fetch_features(
+        result = self.api_client.fetch_features(
             self._store.cached_etag, options=self.options
         )
 
