@@ -14,6 +14,7 @@ from UnleashClient._unleash_api_client import (
     _emit_fetch_completed,
     _failure_status,
     _fetched_status,
+    _header,
     _log_resp_info,
     _normalized_url,
     _text,
@@ -141,7 +142,7 @@ class _AsyncUnleashApiClient:
                     "Unleash Client feature fetch failed!"
                 )
 
-            fetched_etag = resp.headers.get("etag", "")
+            fetched_etag = _header(resp, "etag")
 
             if resp.status == 304:
                 return (

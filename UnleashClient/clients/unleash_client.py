@@ -1,5 +1,4 @@
 # pylint: disable=invalid-name
-import inspect
 import threading
 import uuid
 import warnings
@@ -48,37 +47,10 @@ from UnleashClient.events import (
     UnleashReadyEvent,
 )
 from UnleashClient.impact_metrics import ImpactMetrics
-from UnleashClient.transport import Transport
+from UnleashClient.transport import Transport, _check_transport
 from UnleashClient.utils import LOGGER, InstanceAllowType
 
 INSTANCES = _get_instance_registry()
-
-
-# temp check until http optiins is gone
-def _check_transport(
-    transport: Optional[Transport], http: Optional[HttpOptions]
-) -> None:
-    if transport is None:
-        return
-    if http is not None:
-        raise ValueError(
-            "Pass either http or transport, not both. Set headers and the "
-            "timeout on the transport: RequestsTransport(headers=..., timeout=...)."
-        )
-    if isinstance(transport, requests.Session):
-        raise TypeError(
-            "Wrap the session in a transport: transport=RequestsTransport(session)."
-        )
-    execute = getattr(transport, "execute", None)
-    if not callable(execute):
-        raise TypeError(
-            "transport must have an execute(request) method, see "
-            "UnleashClient.transport.Transport."
-        )
-    if inspect.iscoroutinefunction(execute):
-        raise TypeError(
-            "transport.execute is async: UnleashClient needs a sync transport."
-        )
 
 
 class _RunState(IntEnum):
@@ -175,7 +147,14 @@ class UnleashClient:
         event_callback: Optional[Callable[[BaseEvent], None]] = None,
         transport: Optional[Transport] = None,
     ) -> None:
-        _check_transport(transport, http)
+        if transport is not None:
+            _check_transport(
+                transport,
+                http_given=http is not None,
+                is_async=False,
+                session_type=requests.Session,
+                wrapper_name="RequestsTransport",
+            )
         self._config = UnleashConfig(
             url=url,
             app_name=app_name,
