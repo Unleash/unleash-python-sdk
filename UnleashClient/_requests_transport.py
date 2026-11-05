@@ -3,7 +3,7 @@ HTTP transport for the sync client, on ``requests``: sends one request and
 returns the response.
 """
 
-from typing import Any, Mapping, Optional
+from typing import Mapping, Optional
 
 import requests
 from requests.structures import CaseInsensitiveDict
@@ -53,13 +53,10 @@ class RequestsTransport:
         *,
         headers: Optional[Mapping[str, str]] = None,
         timeout: float = REQUEST_TIMEOUT,
-        # going away with HttpOptions
-        _request_kwargs: Optional[Mapping[str, Any]] = None,
     ) -> None:
         self._session = session
         self._headers = dict(headers or {})
         self._timeout = timeout
-        self._request_kwargs = dict(_request_kwargs or {})
 
         _reject_authorization(self._headers, "RequestsTransport")
         if session is not None and _session_retries(session):
@@ -86,9 +83,7 @@ class RequestsTransport:
     def _send(
         self, session: requests.Session, request: Request, kwargs: dict
     ) -> Response:
-        resp = session.request(
-            request.method, request.url, **kwargs, **self._request_kwargs
-        )
+        resp = session.request(request.method, request.url, **kwargs)
         return Response(
             status=resp.status_code, headers=resp.headers, body=resp.content
         )

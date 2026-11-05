@@ -14,7 +14,7 @@ from UnleashClient._async_unleash_api_client import _AsyncUnleashApiClient
 from UnleashClient._event_dispatcher import _EventDispatcher
 from UnleashClient._feature_store import _FeatureStore
 from UnleashClient._headers import _HeaderFactory
-from UnleashClient.config import HttpOptions, PollingOptions, UnleashConfig
+from UnleashClient.config import PollingOptions, UnleashConfig
 from UnleashClient.connectors._async_connector import _AsyncPollingConnector
 from UnleashClient.constants import ETAG, FEATURES_URL
 from UnleashClient.events import UnleashEventType
@@ -37,7 +37,7 @@ async def server():
 
 
 @pytest_asyncio.fixture
-async def build_connector(server: FakeUnleash):
+async def build_connector(server: FakeUnleash, no_fetch_retries):
     built = []
 
     def _build_connector(
@@ -45,7 +45,7 @@ async def build_connector(server: FakeUnleash):
         refresh_interval: float = INTERVAL,
         refresh_jitter: float = None,
     ) -> _AsyncPollingConnector:
-        config = UnleashConfig(server.base_url, APP_NAME, http=HttpOptions(retries=0))
+        config = UnleashConfig(server.base_url, APP_NAME)
         api_client = _AsyncUnleashApiClient(config, _HeaderFactory(config))
         connector = _AsyncPollingConnector(
             store=store,

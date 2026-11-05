@@ -27,7 +27,6 @@ from UnleashClient._payloads import _build_register_payload
 from UnleashClient.cache import BaseCache, FileCache
 from UnleashClient.clients.unleash_client import _RunState
 from UnleashClient.config import (
-    HttpOptions,
     IdentityOptions,
     MetricsOptions,
     PollingOptions,
@@ -42,17 +41,9 @@ from UnleashClient.transport import AsyncTransport
 from UnleashClient.utils import LOGGER, InstanceAllowType
 
 
-# temp check until http options is gone
-def _check_transport(
-    transport: Optional[AsyncTransport], http: Optional[HttpOptions]
-) -> None:
+def _check_transport(transport: Optional[AsyncTransport]) -> None:
     if transport is None:
         return
-    if http is not None:
-        raise ValueError(
-            "Pass either http or transport, not both. Set headers and the "
-            "timeout on the transport: AiohttpTransport(headers=..., timeout=...)."
-        )
     execute = getattr(transport, "execute", None)
     if not callable(execute):
         raise TypeError(
@@ -99,7 +90,6 @@ class AsyncUnleashClient:
     :param app_name: Name of the application using the client, required.
     :param api_key: Client API token.  Optional, because a client that only loads from a backup never talks to the server.
     :param identity: How the client identifies itself.
-    :param http: How the client talks to the server.
     :param mode: How often the client polls for flag updates.  Streaming is not supported yet.
     :param metrics: How the client reports to the server.
     :param verbose_log_level: Numerical log level (https://docs.python.org/3/library/logging.html#logging-levels) for cases where checking a feature flag fails.
@@ -108,7 +98,7 @@ class AsyncUnleashClient:
     :param cache_directory: Location of the cache directory.
     :param multiple_instance_mode: Determines how multiple instances being instantiated is handled by the SDK.  Defaults to InstanceAllowType.WARN.
     :param event_callback: Function to call if impression events are enabled.  Called on a dedicated background thread.
-    :param transport: Sends the requests to the server, see :class:`~UnleashClient.transport.AsyncTransport`.  Pass an :class:`AiohttpTransport` with your own ``aiohttp.ClientSession`` for a proxy, TLS settings or tracing.  The client never closes it.  Can't be combined with ``http``.
+    :param transport: Sends the requests to the server, see :class:`~UnleashClient.transport.AsyncTransport`.  Pass an :class:`AiohttpTransport` with your own ``aiohttp.ClientSession`` for a proxy, TLS settings or tracing.  The client never closes it.
     """
 
     def __init__(
@@ -118,7 +108,6 @@ class AsyncUnleashClient:
         *,
         api_key: Optional[str] = None,
         identity: Optional[IdentityOptions] = None,
-        http: Optional[HttpOptions] = None,
         mode: Optional[PollingOptions] = None,
         metrics: Optional[MetricsOptions] = None,
         verbose_log_level: int = 30,
@@ -129,7 +118,7 @@ class AsyncUnleashClient:
         event_callback: Optional[Callable[[BaseEvent], None]] = None,
         transport: Optional[AsyncTransport] = None,
     ) -> None:
-        _check_transport(transport, http)
+        _check_transport(transport)
         if isinstance(mode, StreamingOptions):
             raise ValueError(
                 "AsyncUnleashClient does not support streaming yet. "
@@ -140,7 +129,6 @@ class AsyncUnleashClient:
             app_name=app_name,
             api_key=api_key,
             identity=identity,
-            http=http,
             mode=mode,
             metrics=metrics,
             verbose_log_level=verbose_log_level,

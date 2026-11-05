@@ -102,8 +102,7 @@ class _UnleashApiClient:
     :param config: Client configuration.
     :param headers: Builds the header set each endpoint needs.
     :param events: Receives ``FETCH_COMPLETED`` after every feature fetch.
-    :param transport: Sends the requests. Defaults to a :class:`RequestsTransport`
-                      built from ``config.http``. A transport passed in is never
+    :param transport: Sends the requests. Defaults to a :class:`RequestsTransport`. A transport passed in is never
                       closed: whoever created it closes it.
     """
 
@@ -119,11 +118,7 @@ class _UnleashApiClient:
         self._events: Optional[_EventDispatcher] = events
 
         if transport is None:
-            transport = RequestsTransport(
-                timeout=config.http.timeout,
-                # this is going to go away soon, just like the whole httpOptions in the client constructor
-                _request_kwargs=config.http.options,
-            )
+            transport = RequestsTransport()
         self._transport: Transport = transport
 
     # pylint: disable=broad-except
@@ -180,7 +175,6 @@ class _UnleashApiClient:
                     },
                     params=base_params,
                 ),
-                config.http.retries,
             )
 
             http_status_code = resp.status

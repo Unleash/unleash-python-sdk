@@ -38,13 +38,13 @@ class _AsyncUnleashApiClient:
         transport: Optional[AsyncTransport] = None,
     ) -> None:
         """
-        :param config: read for the url, timeouts, retries and project.
+        :param config: read for the url and the identity.
         :param headers: builds the header set each request needs.
         :param events: receives ``FETCH_COMPLETED`` after every feature fetch.
         :param transport: sends the requests. Defaults to an
-                          :class:`AiohttpTransport` built from ``config.http``,
-                          which :meth:`aclose` closes. A transport passed in is
-                          left open: whoever created it closes it.
+                          :class:`AiohttpTransport`, which :meth:`aclose`
+                          closes. A transport passed in is left open: whoever
+                          created it closes it.
         """
         self._config: UnleashConfig = config
         self._headers: _HeaderFactory = headers
@@ -52,9 +52,7 @@ class _AsyncUnleashApiClient:
         # set only when this API client built the transport, and so it closes it.
         self._default_transport: Optional[AiohttpTransport] = None
         if transport is None:
-            transport = self._default_transport = AiohttpTransport(
-                timeout=config.http.timeout
-            )
+            transport = self._default_transport = AiohttpTransport()
         self._transport: AsyncTransport = transport
         self._is_closed: bool = False
         self._close_lock = threading.Lock()
@@ -128,7 +126,6 @@ class _AsyncUnleashApiClient:
                 Request(
                     method=Method.GET, url=base_url, headers=headers, params=base_params
                 ),
-                config.http.retries,
             )
 
             http_status_code = resp.status
