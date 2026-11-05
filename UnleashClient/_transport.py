@@ -61,6 +61,19 @@ class Transport(Protocol):
         """
 
 
+@runtime_checkable
+class AsyncTransport(Protocol):
+    """Sends requests for the async client."""
+
+    async def execute(self, request: Request) -> Response:
+        """
+        Send ``request`` once and return the response, whatever its status.
+
+        :raises Exception: only when no response arrived, e.g. a connection
+                           error or a timeout.
+        """
+
+
 class RequestsTransport:
     """
     Sends requests with ``requests``, on a fresh session for every request.
