@@ -24,6 +24,7 @@ from tests.utilities.testing_constants import (
     URL,
 )
 from UnleashClient._headers import _HeaderFactory
+from UnleashClient._transport import Request, Response
 from UnleashClient._unleash_api_client import _UnleashApiClient
 from UnleashClient.config import (
     HttpOptions,
@@ -418,3 +419,63 @@ def test_fetch_features_survives_a_listener_that_raises(build_api_client):
     )
 
     assert json.loads(result.raw_state)["version"] == 1
+
+
+# transport
+
+
+class RecordingTransport:
+    """Answers every request with one canned response, keeping the requests."""
+
+    def __init__(self, response: Response) -> None:
+        self.response = response
+        self.requests: list = []
+
+    def execute(self, request: Request) -> Response:
+        self.requests.append(request)
+        return self.response
+
+
+def test_fetch_features_sends_its_request_through_the_transport():
+    transport = RecordingTransport(
+        Response(status=200, headers={"etag": ETAG_VALUE}, body=b'{"version": 1}')
+    )
+    config = UnleashConfig(URL, APP_NAME)
+    api_client = _UnleashApiClient(config, _HeaderFactory(config), transport=transport)
+
+    result = api_client.fetch_features(
+        "previous-etag", options=PollingOptions(project_name=PROJECT_NAME)
+    )
+
+    (request,) = transport.requests
+    assert request.method == "GET"
+    assert request.url == FULL_FEATURE_URL
+    assert request.params == {"project": PROJECT_NAME}
+    assert request.headers["If-None-Match"] == "previous-etag"
+    assert result == ('{"version": 1}', ETAG_VALUE, False)
+
+
+def test_register_posts_its_payload_through_the_transport():
+    transport = RecordingTransport(Response(status=202, headers={}, body=b""))
+    config = UnleashConfig(URL, APP_NAME)
+    api_client = _UnleashApiClient(config, _HeaderFactory(config), transport=transport)
+
+    assert api_client.register({"appName": APP_NAME})
+
+    (request,) = transport.requests
+    assert request.method == "POST"
+    assert request.url == FULL_REGISTER_URL
+    assert json.loads(request.body) == {"appName": APP_NAME}
+
+
+def test_send_metrics_posts_its_payload_through_the_transport():
+    transport = RecordingTransport(Response(status=202, headers={}, body=b""))
+    config = UnleashConfig(URL, APP_NAME)
+    api_client = _UnleashApiClient(config, _HeaderFactory(config), transport=transport)
+
+    assert api_client.send_metrics({"appName": APP_NAME})
+
+    (request,) = transport.requests
+    assert request.method == "POST"
+    assert request.url == FULL_METRICS_URL
+    assert json.loads(request.body) == {"appName": APP_NAME}
