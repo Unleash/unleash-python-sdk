@@ -149,6 +149,7 @@ Settings can't be changed after the client is created.
 | scheduler_executor     | Name of the executor to use on your custom `scheduler`. Required with `scheduler`. Sync client only.                                      | None                |
 | multiple_instance_mode | How to handle multiple client instances (`BLOCK`, `WARN`, `SILENTLY_ALLOW`).                                                              | `WARN`              |
 | event_callback         | Function that receives impression and lifecycle events. See [events and impression data](#events-and-impression-data).                    | None                |
+| transport              | How requests are sent. Can't be combined with `http` (which will be removed). Sync client only yet. See [custom HTTP transport](#custom-http-transport).    | `RequestsTransport` |
 
 #### `IdentityOptions`
 
@@ -467,6 +468,127 @@ client = UnleashClient(
     cache=CustomCache("my-cache")
 )
 ```
+
+### Custom HTTP transport
+
+By default, `UnleashClient` sends its requests with `requests`, on a new session for every request. Pass `transport=` to choose how requests are sent:
+
+- `RequestsTransport(session)` to keep `requests` but configure the session yourself;
+- any object with an `execute(request) -> Response` method, to use another HTTP libraryl.
+
+#### Your own `requests` session
+
+The session is used for every request and never closed by the client: close it yourself after `client.destroy()`.
+
+```python
+import requests
+from UnleashClient import RequestsTransport, UnleashClient
+
+session = requests.Session()
+
+# examples
+# proxy
+session.proxies = {"https": "http://proxy.internal:3128"}
+
+# A private CA, or a client certificate for mutual TLS
+session.verify = "/etc/ssl/certs/internal-ca.pem"
+session.cert = ("/etc/unleash/client.crt", "/etc/unleash/client.key")
+
+# hooks
+session.hooks["response"].append(
+    lambda resp, *args, **kwargs: metrics.observe(resp.elapsed.total_seconds())
+)
+
+client = UnleashClient(
+    url="https://YOUR-API-URL",
+    app_name="my-python-app",
+    api_key="<API token>",
+    transport=RequestsTransport(
+        session,
+        headers={"X-Team": "checkout"},  # sent with every request
+        timeout=10,                      # seconds, for the connection and each read
+    ),
+)
+```
+
+A session also keeps connections open between polls, instead of opening a new one each time.
+
+`RequestsTransport` takes `headers` and `timeout` with or without a session. The SDK's own headers take precedence over custom ones, and an `Authorization` header raises `ValueError`: pass the API token as `api_key`.
+
+#### Another HTTP library
+
+A transport receives a `Request` (`method`, `url`, `headers`, `params`, `body`) and returns a `Response` (`status`, `headers`, `body` as bytes). Every status is a response: raise only when no response arrived, such as on a connection error or a timeout. The client logs the error and reports a failed request. For example, with [httpx](https://www.python-httpx.org/):
+
+```python
+import httpx
+from UnleashClient import Request, Response, UnleashClient
+
+class HttpxTransport:
+    def __init__(self, client: httpx.Client) -> None:
+        self._client = client
+
+    def execute(self, request: Request) -> Response:
+        resp = self._client.request(
+            request.method,
+            request.url,
+            headers=dict(request.headers),
+            params=dict(request.params),
+            content=request.body,
+        )
+        return Response(status=resp.status_code, headers=resp.headers, body=resp.content)
+
+with httpx.Client(timeout=30) as http_client:
+    client = UnleashClient(
+        url="https://YOUR-API-URL",
+        app_name="my-python-app",
+        api_key="<API token>",
+        transport=HttpxTransport(http_client),
+    )
+```
+
+The response headers can be a plain `dict`: the client looks them up case-insensitively.
+
+#### Tests without a server
+
+A fake transport lets your tests choose the flags without a server or HTTP mocking:
+
+```python
+import json
+from UnleashClient import Request, Response, UnleashClient
+
+class FakeTransport:
+    def __init__(self, *flags):
+        self._features = json.dumps({"version": 1, "features": list(flags)}).encode()
+        self.requests = []  # what the SDK sent
+
+    def execute(self, request: Request) -> Response:
+        self.requests.append(request)
+        if request.method == "GET":
+            return Response(status=200, headers={}, body=self._features)
+        return Response(status=202, headers={}, body=b"")  # registration and metrics
+
+def flag(name, enabled):
+    return {"name": name, "enabled": enabled, "strategies": [{"name": "default", "parameters": {}}]}
+
+def test_new_checkout_is_on(tmp_path):
+    transport = FakeTransport(flag("new-checkout", True))
+
+    with UnleashClient(
+        "http://unleash.test/api", "my-app-tests",
+        transport=transport, cache_directory=str(tmp_path),
+    ) as client:
+        assert client.is_enabled("new-checkout")
+```
+
+Both examples are in [`examples/`](examples/) and run as part of the SDK's tests.
+
+#### Things to know
+
+- **Don't retry in your transport.** The client already retries failed feature fetches, with a backoff. A session with a retrying adapter mounted logs a warning, because failed fetches would be retried twice over.
+- **Don't log request headers.** They include your API token.
+- **Don't add an HTTP cache.** The client already sends `If-None-Match` and handles `304 Not Modified`. A caching session (such as CacheControl or requests-cache) turns each 304 into its cached 200, so the client reloads unchanged flags on every poll. The flags stay correct.
+- **Create the session in the process that uses it.** With a forking server, such as gunicorn with `--preload` or uWSGI without `lazy-apps`, build the session together with the client in each worker. Forked processes must not share open connections. See [running in multi-process setups](#running-in-multi-process-setups).
+- **Streaming mode doesn't use the transport.** With `mode=StreamingOptions()`, the stream connects with the client's default HTTP settings.
 
 ## Running in multi-process setups
 
