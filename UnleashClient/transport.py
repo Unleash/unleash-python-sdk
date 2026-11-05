@@ -3,10 +3,12 @@ HTTP layer under the Unleash client: sends one request and returns the
 response.
 
 Pass a transport to the client to choose how requests are sent:
-:class:`RequestsTransport` with your own ``requests.Session``, or any object
-with an ``execute(Request) -> Response`` method.
+:class:`RequestsTransport` with your own ``requests.Session``,
+``AiohttpTransport`` with your own ``aiohttp.ClientSession`` for the async
+client, or any object with an ``execute(Request) -> Response`` method.
 """
 
+import inspect
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Mapping, Optional, Protocol, runtime_checkable
@@ -83,17 +85,64 @@ class Transport(Protocol):
 
 @runtime_checkable
 class AsyncTransport(Protocol):
-    """Sends requests for the async client."""
+    """
+    Sends requests for the async client.
+
+    ``request.headers`` include the API key: don't log them.
+    """
 
     async def execute(self, request: Request) -> Response:
         """
         Implementations must send ``request`` once and return the response,
-        regardless of its status code.
+        regardless of its status code. They must not retry: the SDK retries
+        feature fetches itself.
 
         Implementations must not raise when a response was received, even for
         an error status. They raise only if no response was received, for
         example due to a connection error or timeout.
         """
+
+
+def _reject_authorization(headers: Mapping[str, str], transport_name: str) -> None:
+    if any(name.lower() == "authorization" for name in headers):
+        raise ValueError(
+            "Pass the API key as api_key to the client, "
+            f"not as an Authorization header to {transport_name}."
+        )
+
+
+def _check_transport(
+    transport: object,
+    *,
+    http_given: bool,
+    is_async: bool,
+    session_name: str,
+    wrapper_name: str,
+) -> None:
+    """
+    Raises for a transport the client can't use, so the mistake shows up in the
+    constructor instead of as a failed request on every poll.
+    """
+    # temp check until HttpOptions is gone
+    if http_given:
+        raise ValueError(
+            "Pass either http or transport, not both. Set headers and the "
+            f"timeout on the transport: {wrapper_name}(headers=..., timeout=...)."
+        )
+    execute = getattr(transport, "execute", None)
+    if not callable(execute):
+        raise TypeError(
+            "transport must have an execute(request) method, see "
+            f"UnleashClient.transport. To use your own {session_name}, pass "
+            f"transport={wrapper_name}(session)."
+        )
+    if inspect.iscoroutinefunction(execute) != is_async:
+        raise TypeError(
+            "transport.execute is not async: AsyncUnleashClient needs an async "
+            "transport."
+            if is_async
+            else "transport.execute is async: UnleashClient needs a sync transport."
+        )
 
 
 def _session_retries(session: requests.Session) -> bool:
@@ -144,11 +193,7 @@ class RequestsTransport:
         self._timeout = timeout
         self._request_kwargs = dict(_request_kwargs or {})
 
-        if any(name.lower() == "authorization" for name in self._headers):
-            raise ValueError(
-                "Pass the API key as api_key to the client, "
-                "not as an Authorization header to RequestsTransport."
-            )
+        _reject_authorization(self._headers, "RequestsTransport")
         if session is not None and _session_retries(session):
             LOGGER.warning(
                 "The session passed to RequestsTransport retries requests itself. "

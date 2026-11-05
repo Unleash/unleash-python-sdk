@@ -177,3 +177,114 @@ async def test_execute_after_aclose_raises_without_an_earlier_request(server):
 async def test_closing_a_closed_transport_does_nothing(transport):
     await transport.aclose()
     await transport.aclose()
+
+
+@mark.asyncio
+async def test_execute_sends_on_the_session_passed_in(server):
+    server.on("GET", PATH, headers={"Set-Cookie": "a=1"})
+    server.on("GET", PATH)
+    # unsafe: the fake server is on an IP address, whose cookies aiohttp
+    # otherwise ignores
+    async with aiohttp.ClientSession(
+        headers={"X-From-Session": "yes"},
+        cookie_jar=aiohttp.CookieJar(unsafe=True),
+    ) as session:
+        transport = AiohttpTransport(session)
+
+        await transport.execute(
+            Request(method=Method.GET, url=server.base_url + PATH, headers={})
+        )
+        await transport.execute(
+            Request(method=Method.GET, url=server.base_url + PATH, headers={})
+        )
+
+    first, second = server.calls("GET", PATH)
+    assert first.headers["X-From-Session"] == "yes"
+    # the same session both times: it sends the cookie back
+    assert second.headers["Cookie"] == "a=1"
+
+
+@mark.asyncio
+async def test_aclose_leaves_the_session_passed_in_open(server):
+    async with aiohttp.ClientSession() as session:
+        transport = AiohttpTransport(session)
+
+        await transport.aclose()
+
+        assert not session.closed
+
+
+@mark.asyncio
+async def test_a_closed_transport_raises_even_with_a_session_passed_in(server):
+    async with aiohttp.ClientSession() as session:
+        transport = AiohttpTransport(session)
+        await transport.aclose()
+
+        with pytest.raises(AlreadyClosedError):
+            await transport.execute(
+                Request(method=Method.GET, url=server.base_url + PATH, headers={})
+            )
+
+    assert server.requests == []
+
+
+@mark.asyncio
+async def test_a_session_that_raises_for_status_still_returns_the_response(server):
+    server.on("GET", PATH, status=500)
+    async with aiohttp.ClientSession(raise_for_status=True) as session:
+        response = await AiohttpTransport(session).execute(
+            Request(method=Method.GET, url=server.base_url + PATH, headers={})
+        )
+
+    assert response.status == 500
+
+
+# headers
+
+
+@mark.asyncio
+async def test_execute_sends_the_transport_headers(server):
+    server.on("GET", PATH)
+    transport = AiohttpTransport(headers={"X-Team": "checkout"})
+
+    try:
+        await transport.execute(
+            Request(
+                method=Method.GET,
+                url=server.base_url + PATH,
+                headers={"X-Test": "value"},
+            )
+        )
+    finally:
+        await transport.aclose()
+
+    sent = server.calls("GET", PATH)[0]
+    assert sent.headers["X-Team"] == "checkout"
+    assert sent.headers["X-Test"] == "value"
+
+
+@mark.asyncio
+async def test_the_request_headers_win_over_the_transport_headers_whatever_their_case(
+    server,
+):
+    server.on("GET", PATH)
+    transport = AiohttpTransport(headers={"UNLEASH-APPNAME": "spoofed"})
+
+    try:
+        await transport.execute(
+            Request(
+                method=Method.GET,
+                url=server.base_url + PATH,
+                headers={"unleash-appname": "my-app"},
+            )
+        )
+    finally:
+        await transport.aclose()
+
+    assert server.calls("GET", PATH)[0].headers.getall("unleash-appname") == ["my-app"]
+
+
+@pytest.mark.parametrize("name", ["Authorization", "authorization"])
+def test_an_authorization_header_raises(name):
+    with pytest.raises(ValueError, match="api_key"):
+        AiohttpTransport(headers={name: "token"})

@@ -37,6 +37,7 @@ from UnleashClient.connectors._async_connector import _AsyncPollingConnector
 from UnleashClient.constants import ETAG, METRIC_LAST_SENT_TIME
 from UnleashClient.events import BaseEvent
 from UnleashClient.impact_metrics import ImpactMetrics
+from UnleashClient.transport import AsyncTransport, _check_transport
 from UnleashClient.utils import LOGGER, InstanceAllowType
 
 
@@ -78,6 +79,7 @@ class AsyncUnleashClient:
     :param cache_directory: Location of the cache directory.
     :param multiple_instance_mode: Determines how multiple instances being instantiated is handled by the SDK.  Defaults to InstanceAllowType.WARN.
     :param event_callback: Function to call if impression events are enabled.  Called on a dedicated background thread.
+    :param transport: Sends the requests to the server, see :class:`~UnleashClient.transport.AsyncTransport`.  Pass an :class:`AiohttpTransport` with your own ``aiohttp.ClientSession`` for a proxy, TLS settings or tracing.  The client never closes it.  Can't be combined with ``http``.
     """
 
     def __init__(
@@ -96,7 +98,16 @@ class AsyncUnleashClient:
         cache_directory: Optional[str] = None,
         multiple_instance_mode: InstanceAllowType = InstanceAllowType.WARN,
         event_callback: Optional[Callable[[BaseEvent], None]] = None,
+        transport: Optional[AsyncTransport] = None,
     ) -> None:
+        if transport is not None:
+            _check_transport(
+                transport,
+                http_given=http is not None,
+                is_async=True,
+                session_name="aiohttp.ClientSession",
+                wrapper_name="AiohttpTransport",
+            )
         if isinstance(mode, StreamingOptions):
             raise ValueError(
                 "AsyncUnleashClient does not support streaming yet. "
@@ -143,7 +154,7 @@ class AsyncUnleashClient:
             events=self._event_dispatcher,
         )
         self._api: _AsyncUnleashApiClient = _AsyncUnleashApiClient(
-            self._config, self._headers, self._event_dispatcher
+            self._config, self._headers, self._event_dispatcher, transport=transport
         )
         self._metrics_scheduler: _AsyncScheduler = _AsyncScheduler()
         self._metrics: _AsyncMetricsReporter = _AsyncMetricsReporter(
