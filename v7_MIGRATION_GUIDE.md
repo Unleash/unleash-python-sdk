@@ -81,6 +81,23 @@ client = UnleashClient(url, app_name, api_key="<API token>")
 
 An `Authorization` header in `HttpOptions.headers` raises a `ValueError`, in any letter case. It is not silently ignored, because a client without a key still starts: its requests fail with 401 and it keeps serving the flags in its cache, so the mistake could go unnoticed. All other custom headers work as before.
 
+## The URL is validated
+
+The client constructor raises a `ValueError` if `url` is not an absolute `http://` or `https://` URL with a host. Only the shape is checked, not whether the server can be reached.
+
+This applies to every client, including one that never talks to the server (`fetch_toggles=False` with registration and metrics disabled). In v6 such a client accepted any string as `url`; pass a well-formed one instead:
+
+``` python
+client = UnleashClient(
+    "http://localhost",
+    app_name,
+    metrics=MetricsOptions(disabled=True, disable_registration=True),
+)
+client.initialize_client(fetch_toggles=False)
+```
+
+In v6 a malformed URL only raised when the client registered. With registration disabled, every fetch and metrics send failed and was only logged.
+
 ## `environment` has been removed
 
 The `environment` argument has been removed, with no replacement. Your API token decides which environment the client gets flags for.

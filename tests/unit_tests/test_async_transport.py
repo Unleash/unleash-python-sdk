@@ -264,7 +264,17 @@ async def test_register_sends_the_payload_it_is_given(server, transport):
     assert json.loads(body) == {"appName": APP_NAME, "strategies": []}
 
 
+@pytest.fixture
+def skip_url_validation(monkeypatch):
+    """
+    UnleashConfig rejects these urls on construction, so register() only sees
+    one that slipped past that check. Skip it to reach the re-raise.
+    """
+    monkeypatch.setattr("UnleashClient.config._validate_url", lambda url: None)
+
+
 @mark.asyncio
+@mark.usefixtures("skip_url_validation")
 @mark.parametrize(
     "url", ("thisisnotavalidurl", "localhost:4242/api"), ids=("no-scheme", "bad-scheme")
 )
@@ -278,6 +288,7 @@ async def test_register_reraises_an_unusable_url(server, build_transport, url):
 
 
 @mark.asyncio
+@mark.usefixtures("skip_url_validation")
 async def test_register_reraises_a_missing_scheme_as_a_value_error(build_transport):
     transport = build_transport(url="thisisnotavalidurl")
 

@@ -78,6 +78,16 @@ def test_url_is_rstripped():
     assert UnleashConfig(URL, APP_NAME).url == URL
 
 
+def test_url_is_validated():
+    with pytest.raises(ValueError, match="must start with http:// or https://"):
+        UnleashConfig("thisisnotavalidurl", APP_NAME)
+
+
+def test_url_is_validated_after_rstripping():
+    with pytest.raises(ValueError, match="has no host"):
+        UnleashConfig("https://", APP_NAME)
+
+
 def test_jitters_are_int_coerced():
     config = UnleashConfig(
         URL,

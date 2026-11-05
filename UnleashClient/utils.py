@@ -1,8 +1,7 @@
 import logging
 from enum import Enum
 from typing import Any, Optional
-
-import mmh3  # pylint: disable=import-error
+from urllib.parse import urlsplit
 
 LOGGER = logging.getLogger("UnleashClient")
 
@@ -11,16 +10,6 @@ class InstanceAllowType(Enum):
     BLOCK = 1
     WARN = 2
     SILENTLY_ALLOW = 3
-
-
-def normalized_hash(
-    identifier: str, activation_group: str, normalizer: int = 100, seed: int = 0
-) -> int:
-    return (
-        mmh3.hash(f"{activation_group}:{identifier}", signed=False, seed=seed)
-        % normalizer
-        + 1
-    )
 
 
 def get_identifier(context_key_name: str, context: dict) -> Any:
@@ -47,3 +36,29 @@ def extract_environment_from_api_key(api_key: Optional[str]) -> Optional[str]:
 
     environment, _, _ = after_colon.partition(".")
     return environment or None
+
+
+def _validate_url(url: str) -> None:
+    """
+    Checks that ``url`` has the shape of an Unleash API url.
+
+    Only the shape is checked, not whether the host exists or answers: that is a
+    network failure, which the client reports.
+
+    :raises ValueError: if ``url`` is not an absolute http(s) url with a host.
+    """
+    if any(c.isspace() for c in url):
+        raise ValueError(f"Unleash URL contains whitespace: {url!r}")
+
+    try:
+        parts = urlsplit(url)
+        _ = parts.port
+    except ValueError as exc:
+        raise ValueError(f"Invalid Unleash URL {url!r}: {exc}") from exc
+
+    if parts.scheme not in ("http", "https"):
+        raise ValueError(
+            f"Unleash URL must start with http:// or https://, got {url!r}"
+        )
+    if not parts.hostname:
+        raise ValueError(f"Unleash URL has no host: {url!r}")
