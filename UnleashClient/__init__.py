@@ -13,6 +13,7 @@ from .config import (
     PollingOptions,
     StreamingOptions,
 )
+from .transport import Method, Request, RequestsTransport, Response, Transport
 
 if TYPE_CHECKING:
     from .clients.async_unleash_client import AsyncUnleashClient

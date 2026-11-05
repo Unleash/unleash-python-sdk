@@ -1,4 +1,5 @@
 # pylint: disable=invalid-name
+import inspect
 import threading
 import uuid
 import warnings
@@ -6,6 +7,7 @@ from datetime import datetime, timezone
 from enum import IntEnum
 from typing import Callable, Optional, Union
 
+import requests
 from apscheduler.schedulers.base import BaseScheduler
 from yggdrasil_engine.engine import UnleashEngine
 
@@ -46,9 +48,37 @@ from UnleashClient.events import (
     UnleashReadyEvent,
 )
 from UnleashClient.impact_metrics import ImpactMetrics
+from UnleashClient.transport import Transport
 from UnleashClient.utils import LOGGER, InstanceAllowType
 
 INSTANCES = _get_instance_registry()
+
+
+# temp check until http optiins is gone
+def _check_transport(
+    transport: Optional[Transport], http: Optional[HttpOptions]
+) -> None:
+    if transport is None:
+        return
+    if http is not None:
+        raise ValueError(
+            "Pass either http or transport, not both. Set headers and the "
+            "timeout on the transport: RequestsTransport(headers=..., timeout=...)."
+        )
+    if isinstance(transport, requests.Session):
+        raise TypeError(
+            "Wrap the session in a transport: transport=RequestsTransport(session)."
+        )
+    execute = getattr(transport, "execute", None)
+    if not callable(execute):
+        raise TypeError(
+            "transport must have an execute(request) method, see "
+            "UnleashClient.transport.Transport."
+        )
+    if inspect.iscoroutinefunction(execute):
+        raise TypeError(
+            "transport.execute is async: UnleashClient needs a sync transport."
+        )
 
 
 class _RunState(IntEnum):
@@ -122,6 +152,7 @@ class UnleashClient:
     :param scheduler_executor: Name of APSCheduler executor to use if using a custom scheduler.
     :param multiple_instance_mode: Determines how multiple instances being instantiated is handled by the SDK, when set to InstanceAllowType.BLOCK, the client constructor will fail when more than one instance is detected, when set to InstanceAllowType.WARN, multiple instances will be allowed but log a warning, when set to InstanceAllowType.SILENTLY_ALLOW, no warning or failure will be raised when instantiating multiple instances of the client. Defaults to InstanceAllowType.WARN
     :param event_callback: Function to call if impression events are enabled.  Called on a dedicated background thread, so it must not rely on thread local state from the caller.
+    :param transport: Sends the requests to the server, see :class:`~UnleashClient.transport.Transport`.
     """
 
     def __init__(
@@ -142,7 +173,9 @@ class UnleashClient:
         scheduler_executor: Optional[str] = None,
         multiple_instance_mode: InstanceAllowType = InstanceAllowType.WARN,
         event_callback: Optional[Callable[[BaseEvent], None]] = None,
+        transport: Optional[Transport] = None,
     ) -> None:
+        _check_transport(transport, http)
         self._config = UnleashConfig(
             url=url,
             app_name=app_name,
@@ -195,7 +228,9 @@ class UnleashClient:
             events=self.__events,
         )
 
-        self._api = _UnleashApiClient(self._config, self._headers, self.__events)
+        self._api = _UnleashApiClient(
+            self._config, self._headers, self.__events, transport=transport
+        )
 
         self._scheduler = _Scheduler(scheduler, scheduler_executor)
 

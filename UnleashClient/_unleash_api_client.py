@@ -5,19 +5,19 @@ from typing import Any, Dict, NamedTuple, Optional, Tuple
 from UnleashClient._event_dispatcher import _EventDispatcher
 from UnleashClient._headers import _HeaderFactory
 from UnleashClient._retry import _send_with_retries
-from UnleashClient._transport import (
-    Method,
-    Request,
-    RequestsTransport,
-    Response,
-    Transport,
-)
 from UnleashClient.config import PollingOptions, UnleashConfig
 from UnleashClient.constants import FEATURES_URL, METRICS_URL, REGISTER_URL
 from UnleashClient.events import (
     FetchStatus,
     UnleashEventType,
     UnleashFetchCompletedEvent,
+)
+from UnleashClient.transport import (
+    Method,
+    Request,
+    RequestsTransport,
+    Response,
+    Transport,
 )
 from UnleashClient.utils import LOGGER
 
@@ -80,6 +80,14 @@ def _normalized_url(url: str, path: str) -> str:
     return f"{url}{path}"
 
 
+def _header(resp: Response, name: str) -> str:
+    name = name.lower()
+    for key, value in resp.headers.items():
+        if key.lower() == name:
+            return value
+    return ""
+
+
 def _text(resp: Response) -> str:
     return resp.body.decode("utf-8", errors="replace")
 
@@ -100,7 +108,8 @@ class _UnleashApiClient:
     :param headers: Builds the header set each endpoint needs.
     :param events: Receives ``FETCH_COMPLETED`` after every feature fetch.
     :param transport: Sends the requests. Defaults to a :class:`RequestsTransport`
-                      built from ``config.http``.
+                      built from ``config.http``. A transport passed in is never
+                      closed: whoever created it closes it.
     """
 
     def __init__(
@@ -188,9 +197,7 @@ class _UnleashApiClient:
                     "Unleash Client feature fetch failed!"
                 )  # pylint: disable=broad-exception-raised
 
-            fetched_etag = ""
-            if "etag" in resp.headers.keys():
-                fetched_etag = resp.headers["etag"]
+            fetched_etag = _header(resp, "etag")
 
             if resp.status == 304:
                 return (
