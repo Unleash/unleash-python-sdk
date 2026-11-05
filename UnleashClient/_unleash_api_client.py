@@ -109,11 +109,11 @@ class _UnleashApiClient:
         self._config: UnleashConfig = config
         self._headers: _HeaderFactory = headers
         self._events: Optional[_EventDispatcher] = events
-       
+
         self._transport: Transport = transport or RequestsTransport(
             timeout=config.http.timeout,
             _retries=config.http.retries,
-             # this is going to go away soon, just like the whole httpOptions in the client constructor
+            # this is going to go away soon, just like the whole httpOptions in the client constructor
             _request_kwargs=config.http.options,
         )
 
