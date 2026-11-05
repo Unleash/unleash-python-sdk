@@ -89,24 +89,13 @@ def test_execute_raises_when_no_response_arrives():
 
 
 @responses.activate
-def test_execute_retries_a_get_when_retries_are_set():
-    responses.add(responses.GET, ENDPOINT, status=500)
-    responses.add(responses.GET, ENDPOINT, body=b"{}", status=200)
-
-    response = RequestsTransport(_retries=1).execute(
-        Request(method="GET", url=ENDPOINT, headers={})
-    )
-
-    assert len(responses.calls) == 2
-    assert response.status == 200
-
-
-@responses.activate
-def test_execute_does_not_retry_without_retries():
-    responses.add(responses.GET, ENDPOINT, status=500)
+@pytest.mark.parametrize("method", ["GET", "POST"])
+def test_execute_sends_once_even_on_a_retry_status(method):
+    responses.add(method, ENDPOINT, status=500)
+    responses.add(method, ENDPOINT, status=200)
 
     response = RequestsTransport().execute(
-        Request(method="GET", url=ENDPOINT, headers={})
+        Request(method=method, url=ENDPOINT, headers={})
     )
 
     assert len(responses.calls) == 1
@@ -114,15 +103,14 @@ def test_execute_does_not_retry_without_retries():
 
 
 @responses.activate
-def test_execute_never_retries_a_post():
-    responses.add(responses.POST, ENDPOINT, status=500)
+def test_execute_sends_once_on_a_connection_error():
+    responses.add(responses.GET, ENDPOINT, body=ConnectionError("refused"))
+    responses.add(responses.GET, ENDPOINT, status=200)
 
-    response = RequestsTransport(_retries=3).execute(
-        Request(method="POST", url=ENDPOINT, headers={}, body=b"{}")
-    )
+    with pytest.raises(ConnectionError):
+        RequestsTransport().execute(Request(method="GET", url=ENDPOINT, headers={}))
 
     assert len(responses.calls) == 1
-    assert response.status == 500
 
 
 @responses.activate

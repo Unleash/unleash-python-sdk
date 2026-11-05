@@ -7,8 +7,6 @@ from dataclasses import dataclass, field
 from typing import Any, Mapping, Optional, Protocol, runtime_checkable
 
 import requests
-from requests.adapters import HTTPAdapter
-from urllib3 import Retry
 
 from UnleashClient.constants import REQUEST_TIMEOUT
 
@@ -78,9 +76,9 @@ class RequestsTransport:
     """
     Sends requests with ``requests``, on a fresh session for every request.
 
+    Sends each request once: retrying is the API client's job.
+
     :param timeout: Seconds to wait for the connection and for each read.
-    :param _retries: GET requests are retried this many times on a connection
-                     error or a 500, 502 or 504, by urllib3.
     :param _request_kwargs: extra keyword arguments for every ``requests`` call.
     """
 
@@ -88,12 +86,10 @@ class RequestsTransport:
         self,
         *,
         timeout: float = REQUEST_TIMEOUT,
-        # these two are are going away too
-        _retries: Optional[int] = None,
+        # going away with HttpOptions
         _request_kwargs: Optional[Mapping[str, Any]] = None,
     ) -> None:
         self._timeout = timeout
-        self._retries = _retries
         self._request_kwargs = dict(_request_kwargs or {})
 
     def execute(self, request: Request) -> Response:
@@ -104,15 +100,6 @@ class RequestsTransport:
             kwargs["data"] = request.body
 
         with requests.Session() as session:
-            if request.method == "GET" and self._retries is not None:
-                adapter = HTTPAdapter(
-                    max_retries=Retry(
-                        total=self._retries, status_forcelist=[500, 502, 504]
-                    )
-                )
-                session.mount("https://", adapter)
-                session.mount("http://", adapter)
-
             resp = session.request(
                 request.method, request.url, **kwargs, **self._request_kwargs
             )

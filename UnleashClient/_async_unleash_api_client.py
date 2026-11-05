@@ -8,6 +8,7 @@ from typing import Any, Dict, Optional, Tuple
 from UnleashClient._aiohttp_transport import AiohttpTransport
 from UnleashClient._event_dispatcher import _EventDispatcher
 from UnleashClient._headers import _HeaderFactory
+from UnleashClient._retry import _send_with_retries_async
 from UnleashClient._transport import AsyncTransport, Request
 from UnleashClient._unleash_api_client import (
     FetchResult,
@@ -23,18 +24,6 @@ from UnleashClient.constants import FEATURES_URL, METRICS_URL, REGISTER_URL
 from UnleashClient.errors import AlreadyClosedError
 from UnleashClient.events import FetchStatus
 from UnleashClient.utils import LOGGER
-
-try:
-    import aiohttp
-except ImportError as exc:  # pragma: no cover
-    raise ImportError(
-        "AsyncUnleashClient requires aiohttp, which is not installed. "
-        "Install it with: pip install UnleashClient[async]"
-    ) from exc
-
-RETRY_STATUSES = frozenset({500, 502, 504})
-
-RETRYABLE_ERRORS = (aiohttp.ClientConnectionError, asyncio.TimeoutError)
 
 
 class _AsyncUnleashApiClient:
@@ -133,47 +122,38 @@ class _AsyncUnleashApiClient:
             if options.project_name:
                 base_params = {"project": options.project_name}
 
-            request = Request(
-                method="GET", url=base_url, headers=headers, params=base_params
+            resp = await _send_with_retries_async(
+                self._transport,
+                Request(
+                    method="GET", url=base_url, headers=headers, params=base_params
+                ),
+                config.http.retries,
             )
-            attempts = 1 + max(config.http.retries, 0)
 
-            for attempt in range(attempts):
-                last_attempt = attempt == attempts - 1
-                try:
-                    resp = await self._transport.execute(request)
-                except RETRYABLE_ERRORS:
-                    if last_attempt:
-                        raise
-                    continue
-
-                if resp.status in RETRY_STATUSES and not last_attempt:
-                    continue
-
-                http_status_code = resp.status
-                if resp.status not in [200, 304]:
-                    _log_resp_info(resp)
-                    LOGGER.warning(
-                        "Unleash Client feature fetch failed due to unexpected HTTP status code: %s",
-                        resp.status,
-                    )
-                    raise Exception(  # pylint: disable=broad-exception-raised
-                        "Unleash Client feature fetch failed!"
-                    )
-
-                fetched_etag = resp.headers.get("etag", "")
-
-                if resp.status == 304:
-                    return (
-                        FetchResult(None, fetched_etag, not_modified=True),
-                        FetchStatus.NOT_CHANGED,
-                    )
-
-                raw_state = _text(resp)
-                return (
-                    FetchResult(raw_state, fetched_etag),
-                    _fetched_status(raw_state),
+            http_status_code = resp.status
+            if resp.status not in [200, 304]:
+                _log_resp_info(resp)
+                LOGGER.warning(
+                    "Unleash Client feature fetch failed due to unexpected HTTP status code: %s",
+                    resp.status,
                 )
+                raise Exception(  # pylint: disable=broad-exception-raised
+                    "Unleash Client feature fetch failed!"
+                )
+
+            fetched_etag = resp.headers.get("etag", "")
+
+            if resp.status == 304:
+                return (
+                    FetchResult(None, fetched_etag, not_modified=True),
+                    FetchStatus.NOT_CHANGED,
+                )
+
+            raw_state = _text(resp)
+            return (
+                FetchResult(raw_state, fetched_etag),
+                _fetched_status(raw_state),
+            )
         except Exception as exc:
             LOGGER.exception(
                 "Unleash Client feature fetch failed due to exception: %s", exc

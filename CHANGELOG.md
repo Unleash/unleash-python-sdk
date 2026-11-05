@@ -8,6 +8,7 @@
 * (Major): The constructors raise `ValueError` if `api_key`, `app_name` or `IdentityOptions.instance_id` contains a line break, such as an API token read from a file with a trailing newline, and `TypeError` if one isn't a str. These values are sent as headers.
 * (Major): `initialize_client()` no longer raises when registration fails. A failed registration is logged and the client keeps running, the same way for both clients.
 * (Major): Upgraded to yggdrasil-engine 3, new engine built with PyO3 for better performance.
+* (Minor): Feature fetches are retried the same way by both clients: on a 500, 502 or 504, or when no response arrives, with a short randomised backoff between attempts (up to about 0.5s, 1s and 2s). Before, retries were immediate.
 * (Minor): New `FETCH_COMPLETED` event, emitted after every feature fetch with how it ended: `CHANGED`, `NOT_CHANGED`, `UNAUTHORIZED`, `RATE_LIMITED`, `UNAVAILABLE` or `INVALID_RESPONSE`.
 * (Minor): `feature_definitions()` reports whether each feature is enabled in the environment.
 * (Minor): New `evaluate_all_toggles()` evaluates every feature for one context in a single call, without recording usage metrics.
