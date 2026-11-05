@@ -46,11 +46,7 @@ from UnleashClient.events import (
     UnleashReadyEvent,
 )
 from UnleashClient.impact_metrics import ImpactMetrics
-from UnleashClient.utils import (
-    LOGGER,
-    InstanceAllowType,
-    _validate_url,
-)
+from UnleashClient.utils import LOGGER, InstanceAllowType
 
 INSTANCES = _get_instance_registry()
 
@@ -289,8 +285,6 @@ class UnleashClient:
                 return
             try:
                 start_scheduler = False
-
-                _validate_url(self._config.url)
 
                 if self._custom_strategies:
                     self._engine.register_custom_strategies(self._custom_strategies)

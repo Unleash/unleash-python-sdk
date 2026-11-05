@@ -62,3 +62,20 @@ def _validate_url(url: str) -> None:
         )
     if not parts.hostname:
         raise ValueError(f"Unleash URL has no host: {url!r}")
+
+
+def _validate_header_value(name: str, value: str) -> None:
+    """
+    Checks a value the client sends as the ``name`` header.
+
+    :raises TypeError: if ``value`` is not a str.
+    :raises ValueError: if ``value`` contains a line break.
+    """
+    if not isinstance(value, str):
+        raise TypeError(f"The {name} header must be a str.")
+
+    if "\r" in value or "\n" in value:
+        raise ValueError(
+            f"The {name} header contains a line break. If the value was read "
+            "from a file or an environment variable, strip it first."
+        )

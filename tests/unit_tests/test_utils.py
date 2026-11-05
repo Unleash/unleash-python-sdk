@@ -1,6 +1,10 @@
 import pytest
 
-from UnleashClient.utils import _validate_url, extract_environment_from_api_key
+from UnleashClient.utils import (
+    _validate_header_value,
+    _validate_url,
+    extract_environment_from_api_key,
+)
 
 
 def test_valid_api_key():
@@ -50,3 +54,34 @@ def test_validate_url_accepts_http_urls_with_a_host(url):
 def test_validate_url_rejects_malformed_urls(url, message):
     with pytest.raises(ValueError, match=message):
         _validate_url(url)
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "value",
+        "",
+        " leading-space",
+        "nul\0byte",
+    ],
+)
+def test_validate_header_value_accepts_values_some_library_sends(value):
+    _validate_header_value("X-Custom", value)
+
+
+@pytest.mark.parametrize("value", ["a\nb", "a\rb", "trailing-newline\n"])
+def test_validate_header_value_rejects_a_line_break(value):
+    with pytest.raises(ValueError, match="line break"):
+        _validate_header_value("X-Custom", value)
+
+
+def test_validate_header_value_rejects_a_value_that_is_not_a_str():
+    with pytest.raises(TypeError, match="str"):
+        _validate_header_value("X-Custom", 1)
+
+
+def test_validate_header_value_keeps_the_value_out_of_the_message():
+    with pytest.raises(ValueError) as error:
+        _validate_header_value("Authorization", "project:env.secret\n")
+
+    assert "secret" not in str(error.value)

@@ -179,6 +179,34 @@ def test_an_authorization_header_is_rejected(name):
         HttpOptions(headers={name: "project:environment.hash"})
 
 
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"api_key": "project:environment.hash\n"},
+        {"app_name": "my\napp"},
+        {"identity": IdentityOptions(instance_id="instance\r1")},
+        {"connection_id": "id\n"},
+    ],
+    ids=["api_key", "app_name", "instance_id", "connection_id"],
+)
+def test_a_value_sent_as_a_header_with_a_line_break_is_rejected(kwargs):
+    config = {"url": URL, "app_name": APP_NAME, **kwargs}
+
+    with pytest.raises(ValueError, match="line break"):
+        UnleashConfig(**config)
+
+
+def test_no_api_key_is_fine():
+    assert UnleashConfig(URL, APP_NAME).api_key is None
+
+
+def test_a_rejected_api_key_is_kept_out_of_the_message():
+    with pytest.raises(ValueError) as error:
+        UnleashConfig(URL, APP_NAME, api_key="project:environment.secret\n")
+
+    assert "secret" not in str(error.value)
+
+
 def test_an_authorization_header_cannot_be_added_later():
     http = HttpOptions(headers={"X-Custom": "header"})
 
