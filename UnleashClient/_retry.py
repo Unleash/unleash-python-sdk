@@ -8,13 +8,14 @@ metrics are never retried.
 import asyncio
 import random
 import time
-from typing import Union
+from typing import Optional, Union
 
 from UnleashClient.errors import AlreadyClosedError
 from UnleashClient.transport import AsyncTransport, Request, Response, Transport
 from UnleashClient.utils import LOGGER
 
 RETRY_STATUSES = frozenset({500, 502, 504})
+FETCH_RETRIES = 3
 BACKOFF_BASE = 0.5
 
 _sleep = time.sleep
@@ -38,11 +39,11 @@ _Outcome = Union[Response, Exception]
 
 def _attempts(retries: int) -> range:
     """The attempt numbers: the first attempt and ``retries`` retries."""
-    return range(1 + max(retries, 0))
+    return range(1 + retries)
 
 
 def _should_retry(attempt: int, retries: int, outcome: _Outcome) -> bool:
-    if attempt >= max(retries, 0):
+    if attempt >= retries:
         return False
     if isinstance(outcome, Response):
         return outcome.status in RETRY_STATUSES
@@ -66,16 +67,18 @@ def _next_step(attempt: int, retries: int, outcome: _Outcome) -> Union[Response,
 
 
 def _send_with_retries(
-    transport: Transport, request: Request, retries: int
+    transport: Transport, request: Request, retries: Optional[int] = None
 ) -> Response:
     """
     Send ``request``, retrying on a status in :data:`RETRY_STATUSES` and on any
     exception, with a backoff between attempts.ca
 
-    :param retries: Retries after the first attempt; negative counts as 0.
+    :param retries: Retries after the first attempt; :data:`FETCH_RETRIES` when
+                    None
     :return: The last response, which can still have a retry status.
     :raises Exception: The last attempt's exception, if it raised.
     """
+    retries = FETCH_RETRIES if retries is None else retries
     for attempt in _attempts(retries):
         try:
             outcome: _Outcome = transport.execute(request)
@@ -90,9 +93,10 @@ def _send_with_retries(
 
 
 async def _send_with_retries_async(
-    transport: AsyncTransport, request: Request, retries: int
+    transport: AsyncTransport, request: Request, retries: Optional[int] = None
 ) -> Response:
     """The asyncio twin of :func:`_send_with_retries`: only the awaits differ."""
+    retries = FETCH_RETRIES if retries is None else retries
     for attempt in _attempts(retries):
         try:
             outcome: _Outcome = await transport.execute(request)

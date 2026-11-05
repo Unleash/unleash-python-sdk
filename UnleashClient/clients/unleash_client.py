@@ -25,7 +25,6 @@ from UnleashClient._scheduler import _ScheduledJob, _Scheduler
 from UnleashClient._unleash_api_client import _UnleashApiClient
 from UnleashClient.cache import BaseCache, FileCache
 from UnleashClient.config import (
-    HttpOptions,
     IdentityOptions,
     MetricsOptions,
     PollingOptions,
@@ -40,7 +39,7 @@ from UnleashClient.connectors import (
     PollingConnector,
     StreamingConnector,
 )
-from UnleashClient.constants import ETAG, METRIC_LAST_SENT_TIME
+from UnleashClient.constants import ETAG, METRIC_LAST_SENT_TIME, REQUEST_TIMEOUT
 from UnleashClient.events import (
     BaseEvent,
     UnleashEventType,
@@ -113,7 +112,6 @@ class UnleashClient:
     :param app_name: Name of the application using the client, required.
     :param api_key: Client API token.  Optional, because a client that only loads from a backup never talks to the server.
     :param identity: How the client identifies itself, see :class:`~UnleashClient.config.IdentityOptions`.
-    :param http: How the client talks to the server, see :class:`~UnleashClient.config.HttpOptions`.
     :param mode: How the client receives flag update.
     :param metrics: How the client reports to the server, see :class:`~UnleashClient.config.MetricsOptions`.
     :param verbose_log_level: Numerical log level (https://docs.python.org/3/library/logging.html#logging-levels) for cases where checking a feature flag fails.
@@ -134,7 +132,6 @@ class UnleashClient:
         *,
         api_key: Optional[str] = None,
         identity: Optional[IdentityOptions] = None,
-        http: Optional[HttpOptions] = None,
         mode: Optional[Union[PollingOptions, StreamingOptions]] = None,
         metrics: Optional[MetricsOptions] = None,
         verbose_log_level: int = 30,
@@ -150,7 +147,6 @@ class UnleashClient:
         if transport is not None:
             _check_transport(
                 transport,
-                http_given=http is not None,
                 is_async=False,
                 session_type=requests.Session,
                 wrapper_name="RequestsTransport",
@@ -160,7 +156,6 @@ class UnleashClient:
             app_name=app_name,
             api_key=api_key,
             identity=identity,
-            http=http,
             mode=mode,
             metrics=metrics,
             verbose_log_level=verbose_log_level,
@@ -315,8 +310,7 @@ class UnleashClient:
                         store=self._store,
                         url=self._config.url,
                         headers=self._headers.streaming(),
-                        request_timeout=self._config.http.timeout,
-                        custom_options=self._config.http.options,
+                        request_timeout=REQUEST_TIMEOUT,
                     )
                 elif isinstance(mode, PollingOptions) and fetch_toggles:
                     start_scheduler = True

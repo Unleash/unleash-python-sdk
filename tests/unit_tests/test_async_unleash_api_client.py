@@ -15,19 +15,15 @@ from tests.utilities.mocks.mock_features import (
 from tests.utilities.mocks.mock_metrics import MOCK_METRICS_REQUEST
 from tests.utilities.testing_constants import (
     APP_NAME,
-    CUSTOM_HEADERS,
     ETAG_VALUE,
     INSTANCE_ID,
     PROJECT_NAME,
-    REQUEST_RETRIES,
-    REQUEST_TIMEOUT,
     URL,
 )
 from UnleashClient._aiohttp_transport import AiohttpTransport
 from UnleashClient._async_unleash_api_client import _AsyncUnleashApiClient
 from UnleashClient._headers import _HeaderFactory
 from UnleashClient.config import (
-    HttpOptions,
     IdentityOptions,
     MetricsOptions,
     PollingOptions,
@@ -73,11 +69,6 @@ async def build_api_client(server: FakeUnleash):
             "url": server.base_url,
             "app_name": APP_NAME,
             "identity": IdentityOptions(instance_id=INSTANCE_ID),
-            "http": HttpOptions(
-                headers=CUSTOM_HEADERS,
-                timeout=REQUEST_TIMEOUT,
-                retries=REQUEST_RETRIES,
-            ),
         }
         defaults.update(kwargs)
         config = UnleashConfig(**defaults)
@@ -318,10 +309,17 @@ async def test_send_metrics(server, api_client, reply, expected):
 async def test_send_metrics_returns_false_when_the_request_times_out(
     server, build_api_client
 ):
-    api_client = build_api_client(http=HttpOptions(timeout=0.1))
+    config = UnleashConfig(server.base_url, APP_NAME)
+    transport = AiohttpTransport(timeout=0.1)
+    api_client = _AsyncUnleashApiClient(
+        config, _HeaderFactory(config), transport=transport
+    )
     server.on("POST", METRICS_PATH, hang=True)
 
-    result = await api_client.send_metrics(MOCK_METRICS_REQUEST)
+    try:
+        result = await api_client.send_metrics(MOCK_METRICS_REQUEST)
+    finally:
+        await transport.aclose()
 
     assert len(server.calls("POST", METRICS_PATH)) == 1
     assert result is False
@@ -357,7 +355,6 @@ async def test_every_endpoint_gets_its_headers_from_the_factory(
     register = server.calls("POST", REGISTER_PATH)[0].headers
     metrics = server.calls("POST", METRICS_PATH)[0].headers
     for headers in (fetch, register, metrics):
-        assert headers["name"] == CUSTOM_HEADERS["name"]
         assert headers["unleash-appname"] == APP_NAME
         assert headers["Unleash-Client-Spec"] == CLIENT_SPEC_VERSION
     assert fetch["unleash-interval"] == "1000"

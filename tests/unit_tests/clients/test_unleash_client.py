@@ -32,10 +32,9 @@ from tests.utilities.testing_constants import (
     REFRESH_INTERVAL,
     URL,
 )
-from UnleashClient import INSTANCES, UnleashClient
+from UnleashClient import INSTANCES, RequestsTransport, UnleashClient
 from UnleashClient.cache import BaseCache, FileCache
 from UnleashClient.config import (
-    HttpOptions,
     IdentityOptions,
     MetricsOptions,
     PollingOptions,
@@ -164,12 +163,10 @@ def unleash_client_bootstrap_dependencies(tmp_path):
 
 
 def test_UC_builds_its_config_from_its_arguments(tmp_path):
-    http = HttpOptions(headers={"X-Custom": "header"})
     client = UnleashClient(
         url=f"{URL}/",
         app_name=APP_NAME,
         api_key="project:environment.hash",
-        http=http,
         verbose_log_level=40,
         cache_directory=str(tmp_path),
     )
@@ -177,7 +174,6 @@ def test_UC_builds_its_config_from_its_arguments(tmp_path):
     assert client._config.url == URL
     assert client._config.app_name == APP_NAME
     assert client._config.api_key == "project:environment.hash"
-    assert client._config.http is http
     assert client._config.identity == IdentityOptions()
     assert client._config.mode == PollingOptions()
     assert client._config.metrics == MetricsOptions()
@@ -887,7 +883,7 @@ def test_uc_with_network_error(tmp_path):
     unleash_client = UnleashClient(
         "https://this-will-never-try-to-dns-resolve.invalid/",
         APP_NAME,
-        http=HttpOptions(timeout=1),
+        transport=RequestsTransport(timeout=1),
         metrics=MetricsOptions(disabled=True, disable_registration=True),
         cache_directory=str(tmp_path),
     )

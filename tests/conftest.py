@@ -84,3 +84,9 @@ def cache_segments(tmp_path):
 @pytest.fixture(autouse=True)
 def no_retry_backoff(monkeypatch):
     monkeypatch.setattr("UnleashClient._retry._backoff_delay", lambda retry: 0)
+
+
+@pytest.fixture()
+def no_fetch_retries(monkeypatch):
+    """One attempt per feature fetch, for tests that script a single failure."""
+    monkeypatch.setattr("UnleashClient._retry.FETCH_RETRIES", 0)
