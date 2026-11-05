@@ -10,8 +10,8 @@ import random
 import time
 from typing import Union
 
-from UnleashClient._transport import AsyncTransport, Request, Response, Transport
 from UnleashClient.errors import AlreadyClosedError
+from UnleashClient.transport import AsyncTransport, Request, Response, Transport
 from UnleashClient.utils import LOGGER
 
 RETRY_STATUSES = frozenset({500, 502, 504})

@@ -4,6 +4,7 @@ import pytest
 import responses
 from pytest import mark, param
 from requests import ConnectionError
+from requests.structures import CaseInsensitiveDict
 
 from tests.utilities.mocks.mock_features import (
     MOCK_FEATURE_RESPONSE,
@@ -23,8 +24,7 @@ from tests.utilities.testing_constants import (
     URL,
 )
 from UnleashClient._headers import _HeaderFactory
-from UnleashClient._transport import Request, Response
-from UnleashClient._unleash_api_client import _UnleashApiClient
+from UnleashClient._unleash_api_client import _header, _UnleashApiClient
 from UnleashClient.config import (
     HttpOptions,
     IdentityOptions,
@@ -39,6 +39,7 @@ from UnleashClient.constants import (
     REGISTER_URL,
 )
 from UnleashClient.events import FetchStatus, UnleashEventType
+from UnleashClient.transport import Request, Response
 
 FULL_FEATURE_URL = URL + FEATURES_URL
 FULL_REGISTER_URL = URL + REGISTER_URL
@@ -521,3 +522,17 @@ def test_a_payload_that_cannot_be_serialised_still_raises(call):
         call(api_client_over(transport))({"not-json": object()})
 
     assert transport.requests == []
+
+
+@pytest.mark.parametrize(
+    "headers,expected",
+    (
+        ({"ETag": "v1"}, "v1"),
+        ({"etag": "v1"}, "v1"),
+        (CaseInsensitiveDict({"ETAG": "v1"}), "v1"),
+        ({"Content-Type": "application/json"}, ""),
+    ),
+    ids=("plain-dict-capitalised", "plain-dict-lowercase", "requests-dict", "absent"),
+)
+def test_header_matches_names_case_insensitively(headers, expected):
+    assert _header(Response(status=200, headers=headers, body=b""), "etag") == expected
