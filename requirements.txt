@@ -13,6 +13,7 @@ aiohttp
 # - Testing
 black
 coveralls
+httpx
 isort
 mimesis==4.1.3
 multidict

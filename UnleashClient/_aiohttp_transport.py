@@ -5,9 +5,9 @@ and returns the response.
 
 from typing import Optional
 
-from UnleashClient._transport import Request, Response
 from UnleashClient.constants import REQUEST_TIMEOUT
 from UnleashClient.errors import AlreadyClosedError
+from UnleashClient.transport import Request, Response
 
 try:
     import aiohttp
