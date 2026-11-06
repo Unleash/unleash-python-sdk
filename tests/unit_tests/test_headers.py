@@ -1,6 +1,5 @@
 from UnleashClient._headers import _HeaderFactory
 from UnleashClient.config import (
-    HttpOptions,
     IdentityOptions,
     MetricsOptions,
     PollingOptions,
@@ -44,14 +43,6 @@ def test_base_carries_the_application_headers():
     assert headers["Unleash-Client-Spec"] == CLIENT_SPEC_VERSION
 
 
-def test_base_includes_the_custom_headers():
-    factory = build_factory(http=HttpOptions(headers={"X-Custom": "header"}))
-
-    headers = factory.base()
-
-    assert headers["X-Custom"] == "header"
-
-
 def test_base_sends_the_api_key_as_the_authorization_header():
     factory = build_factory(api_key="project:env.hash")
 
@@ -68,36 +59,14 @@ def test_base_has_no_authorization_header_without_an_api_key():
     assert "Authorization" not in headers
 
 
-def test_application_headers_win_over_custom_headers():
-    factory = build_factory(
-        http=HttpOptions(headers={"Content-Type": "application/xml"})
-    )
-
-    headers = factory.base()
-
-    assert headers["Content-Type"] == "application/json"
-
-
-def test_custom_headers_cannot_override_the_identification_headers():
-    factory = build_factory(http=HttpOptions(headers={"unleash-appname": "spoofed"}))
-
-    headers = factory.base()
-
-    assert headers["unleash-appname"] == TEST_APP_NAME
-
-
 def test_each_call_returns_a_fresh_dict():
     # The returned dicts are handed to collaborators that hold on to them.
-    config = UnleashConfig(
-        TEST_URL, TEST_APP_NAME, http=HttpOptions(headers={"name": "header"})
-    )
-    factory = _HeaderFactory(config)
+    factory = build_factory()
 
     first = factory.base()
     first["injected"] = "value"
 
     assert "injected" not in factory.base()
-    assert "injected" not in config.http.headers
     assert "injected" not in APPLICATION_HEADERS
 
 
@@ -142,9 +111,7 @@ def test_streaming_adds_the_sse_accept_header():
 def test_streaming_is_what_the_streaming_connector_used_to_rebuild():
     # StreamingConnector used to re-merge these itself.  Pinning the
     # equivalence keeps the two from drifting apart.
-    factory = build_factory(
-        api_key="project:env.hash", http=HttpOptions(headers={"X-Custom": "header"})
-    )
+    factory = build_factory(api_key="project:env.hash")
 
     headers = factory.streaming()
 

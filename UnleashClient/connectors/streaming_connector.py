@@ -1,5 +1,5 @@
 import threading
-from typing import Any, Mapping, Optional
+from typing import Optional
 
 from ld_eventsource import SSEClient
 from ld_eventsource.config import ConnectStrategy, ErrorStrategy, RetryDelayStrategy
@@ -21,7 +21,6 @@ class StreamingConnector(BaseConnector):
         backoff_max: float = 30.0,
         backoff_multiplier: float = 2.0,
         backoff_jitter: Optional[float] = 0.5,
-        custom_options: Optional[Mapping[str, Any]] = None,
     ) -> None:
         """
         :param request_timeout: Seconds to wait for the stream response.
@@ -44,10 +43,6 @@ class StreamingConnector(BaseConnector):
         self._stop = threading.Event()
         self._thread: Optional[threading.Thread] = None
         self._client: Optional[SSEClient] = None
-        base_options = dict(custom_options or {})
-        if self._timeout is not None and "timeout" not in base_options:
-            base_options = {"timeout": self._timeout, **base_options}
-        self._custom_options = base_options
 
     def start(self):
         if self._thread and self._thread.is_alive():
@@ -75,7 +70,9 @@ class StreamingConnector(BaseConnector):
             connect_strategy = ConnectStrategy.http(
                 self._base_url,
                 headers=self._headers,
-                urllib3_request_options=self._custom_options,
+                urllib3_request_options=(
+                    {"timeout": self._timeout} if self._timeout is not None else {}
+                ),
             )
 
             retry_strategy = RetryDelayStrategy.default(

@@ -10,7 +10,7 @@ client, or any object with an ``execute(Request) -> Response`` method.
 
 import inspect
 from dataclasses import dataclass, field
-from typing import Any, Mapping, Optional, Protocol, runtime_checkable
+from typing import Mapping, Optional, Protocol, runtime_checkable
 
 import requests
 from requests.structures import CaseInsensitiveDict
@@ -102,7 +102,6 @@ def _reject_authorization(headers: Mapping[str, str], transport_name: str) -> No
 def _check_transport(
     transport: object,
     *,
-    http_given: bool,
     is_async: bool,
     session_type: type,
     wrapper_name: str,
@@ -111,12 +110,6 @@ def _check_transport(
     Raises for a transport the client can't use, so the mistake shows up in the
     constructor instead of as a failed request on every poll.
     """
-    # temp check until HttpOptions is gone
-    if http_given:
-        raise ValueError(
-            "Pass either http or transport, not both. Set headers and the "
-            f"timeout on the transport: {wrapper_name}(headers=..., timeout=...)."
-        )
     if isinstance(transport, session_type):
         raise TypeError(
             f"Wrap the session in a transport: transport={wrapper_name}(session)."
@@ -176,13 +169,10 @@ class RequestsTransport:
         *,
         headers: Optional[Mapping[str, str]] = None,
         timeout: float = REQUEST_TIMEOUT,
-        # going away with HttpOptions
-        _request_kwargs: Optional[Mapping[str, Any]] = None,
     ) -> None:
         self._session = session
         self._headers = dict(headers or {})
         self._timeout = timeout
-        self._request_kwargs = dict(_request_kwargs or {})
 
         _reject_authorization(self._headers, "RequestsTransport")
         if session is not None and _session_retries(session):
@@ -209,9 +199,7 @@ class RequestsTransport:
     def _send(
         self, session: requests.Session, request: Request, kwargs: dict
     ) -> Response:
-        resp = session.request(
-            request.method, request.url, **kwargs, **self._request_kwargs
-        )
+        resp = session.request(request.method, request.url, **kwargs)
         return Response(
             status=resp.status_code, headers=resp.headers, body=resp.content
         )

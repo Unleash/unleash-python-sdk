@@ -7,7 +7,6 @@ from .clients import (
     build_ready_callback,
 )
 from .config import (
-    HttpOptions,
     IdentityOptions,
     MetricsOptions,
     PollingOptions,

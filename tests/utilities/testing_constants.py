@@ -11,10 +11,7 @@ METRICS_INTERVAL = 2
 METRICS_JITTER = None
 DISABLE_METRICS = True
 DISABLE_REGISTRATION = True
-CUSTOM_HEADERS = {"name": "My random header."}
-CUSTOM_OPTIONS = {"verify": False}
 REQUEST_TIMEOUT = 30
-REQUEST_RETRIES = 3
 
 # URLs
 URL = "http://localhost:4242/api"

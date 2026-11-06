@@ -5,7 +5,6 @@ from yggdrasil_engine.engine import UnleashEngine
 SDK_NAME = "unleash-python-sdk"
 SDK_VERSION = version("UnleashClient")
 REQUEST_TIMEOUT = 30
-REQUEST_RETRIES = 3
 METRIC_LAST_SENT_TIME = "mlst"
 CLIENT_SPEC_VERSION = UnleashEngine.get_spec_version()
 

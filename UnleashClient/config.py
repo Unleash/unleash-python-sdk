@@ -2,10 +2,8 @@
 
 import uuid
 from dataclasses import KW_ONLY, dataclass, field
-from types import MappingProxyType
-from typing import Any, Mapping, Optional, Union
+from typing import Any, Optional, Union
 
-from UnleashClient.constants import REQUEST_RETRIES, REQUEST_TIMEOUT
 from UnleashClient.utils import (
     LOGGER,
     _validate_header_value,
@@ -24,35 +22,6 @@ def redact_to_print_safely(value: Optional[str]) -> Optional[str]:
 
 def _optional_int(value: Any) -> Optional[int]:
     return int(value) if value is not None else None
-
-
-@dataclass(frozen=True, kw_only=True)
-class HttpOptions:
-    """
-    :param headers: Extra headers sent with every request.  The API key is not one of them: pass it as ``api_key`` to the client.
-    :param options: Extra keyword arguments passed to every ``requests`` call.
-    :param timeout: Request timeout in seconds.
-    :param retries: Number of retries for failed requests.
-    :raises ValueError: If ``headers`` contains an ``Authorization`` header.
-    """
-
-    # repr=False: custom headers can carry credentials of their own, such as a
-    # proxy's, which the dataclass __repr__ would put into logs and tracebacks.
-    headers: Optional[Mapping[str, str]] = field(default=None, repr=False)
-    options: Optional[Mapping[str, Any]] = None
-    timeout: int = REQUEST_TIMEOUT
-    retries: int = REQUEST_RETRIES
-
-    def __post_init__(self) -> None:
-        object.__setattr__(self, "headers", MappingProxyType(dict(self.headers or {})))
-        object.__setattr__(self, "options", MappingProxyType(dict(self.options or {})))
-        # not just silently ignoring the authorization header, because not properly migrated v6 clients
-        # could start without an api_key and get 401s and serve cached flags
-        if any(key.lower() == "authorization" for key in self.headers):
-            raise ValueError(
-                "Pass the API key as api_key to the client, "
-                "not as an Authorization header in HttpOptions.headers."
-            )
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -146,7 +115,6 @@ class UnleashConfig:
     # logs and tracebacks.
     api_key: Optional[str] = field(default=None, repr=False)
     identity: IdentityOptions = field(default_factory=IdentityOptions)
-    http: HttpOptions = field(default_factory=HttpOptions)
     mode: Union[PollingOptions, StreamingOptions] = field(
         default_factory=PollingOptions
     )
@@ -167,8 +135,6 @@ class UnleashConfig:
         ):
             if value is not None:
                 _validate_header_value(name, value)
-        if self.http is None:
-            object.__setattr__(self, "http", HttpOptions())
         if self.mode is None:
             object.__setattr__(self, "mode", PollingOptions())
         if self.metrics is None:

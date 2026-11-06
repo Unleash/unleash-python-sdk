@@ -8,7 +8,7 @@ from tests.utilities.fake_unleash_server import FakeUnleash
 from tests.utilities.testing_constants import APP_NAME
 from UnleashClient.cache import FileCache
 from UnleashClient.clients.async_unleash_client import AsyncUnleashClient
-from UnleashClient.config import HttpOptions, IdentityOptions, MetricsOptions
+from UnleashClient.config import IdentityOptions, MetricsOptions
 from UnleashClient.constants import FEATURES_URL
 
 API_PREFIX = "/api"
@@ -38,7 +38,6 @@ async def get_async_client(url, state, cache_directory=None):
         url=url,
         app_name=APP_NAME,
         identity=IdentityOptions(instance_id="pytest_%s" % uuid.uuid4()),
-        http=HttpOptions(retries=0),
         metrics=MetricsOptions(disabled=True, disable_registration=True),
         cache=cache,
     )

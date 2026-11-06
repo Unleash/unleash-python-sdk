@@ -117,26 +117,6 @@ def test_execute_sends_once_on_a_connection_error():
 
 
 @responses.activate
-def test_execute_passes_the_extra_request_kwargs():
-    responses.add(
-        responses.GET, ENDPOINT, status=302, headers={"Location": URL + "/elsewhere"}
-    )
-
-    response = RequestsTransport(_request_kwargs={"allow_redirects": False}).execute(
-        Request(method="GET", url=ENDPOINT, headers={})
-    )
-
-    assert response.status == 302
-
-
-def test_execute_rejects_an_extra_kwarg_it_already_sets():
-    transport = RequestsTransport(_request_kwargs={"timeout": 5})
-
-    with pytest.raises(TypeError):
-        transport.execute(Request(method="GET", url=ENDPOINT, headers={}))
-
-
-@responses.activate
 def test_execute_uses_a_fresh_session_for_every_request():
     responses.add(responses.GET, ENDPOINT, status=200, headers={"Set-Cookie": "a=1"})
     responses.add(responses.GET, ENDPOINT, status=200)

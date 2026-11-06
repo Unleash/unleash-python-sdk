@@ -117,14 +117,14 @@ The client will evaluate the fallback function if the feature flag is not found 
 
 ```python
 from UnleashClient import (
-    HttpOptions, MetricsOptions, PollingOptions, UnleashClient,
+    MetricsOptions, PollingOptions, RequestsTransport, UnleashClient,
 )
 
 client = UnleashClient(
     url="https://YOUR-API-URL",
     app_name="my-python-app",
     api_key="<API token>",
-    http=HttpOptions(timeout=10),
+    transport=RequestsTransport(timeout=10),
     mode=PollingOptions(interval=30),
     metrics=MetricsOptions(disabled=True),
 )
@@ -138,7 +138,6 @@ Settings can't be changed after the client is created.
 | app_name               | Name of the application using the client. Required.                                                                                       | —                   |
 | api_key                | Client API token, sent as the `Authorization` header. | None                |
 | identity               | How the client identifies itself. See [`IdentityOptions`](#identityoptions).                                                              | `IdentityOptions()` |
-| http                   | How the client talks to the server. See [`HttpOptions`](#httpoptions).                                                                    | `HttpOptions()`     |
 | mode                   | How the client receives flag updates: [`PollingOptions`](#pollingoptions) or [`StreamingOptions`](#streamingoptions).                     | `PollingOptions()`  |
 | metrics                | How the client reports to the server. See [`MetricsOptions`](#metricsoptions).                                                            | `MetricsOptions()`  |
 | verbose_log_level      | [Log level](https://docs.python.org/3/library/logging.html#logging-levels) for messages about unknown flags and failed impression events. | 30                  |
@@ -149,7 +148,7 @@ Settings can't be changed after the client is created.
 | scheduler_executor     | Name of the executor to use on your custom `scheduler`. Required with `scheduler`. Sync client only.                                      | None                |
 | multiple_instance_mode | How to handle multiple client instances (`BLOCK`, `WARN`, `SILENTLY_ALLOW`).                                                              | `WARN`              |
 | event_callback         | Function that receives impression and lifecycle events. See [events and impression data](#events-and-impression-data).                    | None                |
-| transport              | How requests are sent. Can't be combined with `http` (which will be removed). See [custom HTTP transport](#custom-http-transport).    | `RequestsTransport` or `AiohttpTransport` |
+| transport              | How requests are sent, including headers, timeout, proxy and TLS settings. See [custom HTTP transport](#custom-http-transport).    | `RequestsTransport` or `AiohttpTransport` |
 
 #### `IdentityOptions`
 
@@ -158,15 +157,6 @@ Settings can't be changed after the client is created.
 | instance_id        | Unique identifier for this client instance.                                            | "unleash-python-sdk" |
 | sdk_flavor         | Identifier of an integration built on this SDK (e.g. an OpenFeature provider).         | None                 |
 | sdk_flavor_version | Version of the integration named by `sdk_flavor`.                                      | None                 |
-
-#### `HttpOptions`
-
-| Parameter | Description                                                                                                                        | Default |
-| --------- | ---------------------------------------------------------------------------------------------------------------------------------- | ------- |
-| headers   | Extra HTTP headers sent with every request. Pass the API token as `api_key`; an `Authorization` header here raises `ValueError`.   | None    |
-| options   | Extra keyword arguments for every [HTTP request](https://requests.readthedocs.io/en/latest/api/#main-interface). Sync client only. | None    |
-| timeout   | HTTP request timeout (seconds).                                                                                                    | 30      |
-| retries   | How many times a failed feature fetch is retried.                                                                                  | 3       |
 
 #### `PollingOptions`
 
@@ -671,11 +661,11 @@ All four examples are in [`examples/`](examples/) and run as part of the SDK's t
 
 #### Things to know
 
-- **Don't retry in your transport.** The client already retries failed feature fetches, with a backoff. A `requests` session with a retrying adapter mounted logs a warning, because failed fetches would be retried twice over. aiohttp has no retry setting, but resends a GET once by itself when the server drops a reused connection; that's expected, and not a retry to turn off.
+- **Don't retry in your transport.** The client already retries a failed feature fetch up to 3 times, with a backoff. A `requests` session with a retrying adapter mounted logs a warning, because failed fetches would be retried twice over. aiohttp has no retry setting, but resends a GET once by itself when the server drops a reused connection; that's expected, and not a retry to turn off.
 - **Don't log request headers.** They include your API token.
 - **Don't add an HTTP cache.** The client already sends `If-None-Match` and handles `304 Not Modified`. A caching session (such as CacheControl or requests-cache) turns each 304 into its cached 200, so the client reloads unchanged flags on every poll. The flags stay correct.
 - **Create the session in the process that uses it.** With a forking server, such as gunicorn with `--preload` or uWSGI without `lazy-apps`, build the session together with the client in each worker. Forked processes must not share open connections. See [running in multi-process setups](#running-in-multi-process-setups).
-- **Streaming mode doesn't use the transport.** With `mode=StreamingOptions()`, the stream connects with the client's default HTTP settings.
+- **Streaming mode doesn't use the transport.** With `mode=StreamingOptions()`, the stream connects with the SDK's own headers and a 30 second timeout. Custom transport's headers, timeout, proxy and TLS settings don't apply to it.
 
 ## Running in multi-process setups
 

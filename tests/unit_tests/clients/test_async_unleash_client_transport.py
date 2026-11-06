@@ -9,7 +9,7 @@ from tests.utilities.fake_unleash_server import FakeUnleash
 from tests.utilities.testing_constants import APP_NAME, ETAG_VALUE, URL
 from UnleashClient import INSTANCES, AiohttpTransport, Request, Response
 from UnleashClient.clients.async_unleash_client import AsyncUnleashClient
-from UnleashClient.config import HttpOptions, MetricsOptions, PollingOptions
+from UnleashClient.config import MetricsOptions, PollingOptions
 from UnleashClient.constants import FEATURES_URL, METRICS_URL, REGISTER_URL
 from UnleashClient.utils import InstanceAllowType
 
@@ -152,11 +152,6 @@ async def test_a_session_closed_too_early_is_a_failed_fetch(tmp_path, server):
     assert server.requests == []
 
 
-def test_http_and_transport_together_raise(tmp_path):
-    with pytest.raises(ValueError, match="either http or transport"):
-        build_client(tmp_path, FakeAsyncTransport(), http=HttpOptions(timeout=5))
-
-
 class SyncTransport:
     def execute(self, request):
         raise AssertionError("never sent")
@@ -183,8 +178,8 @@ async def test_a_transport_that_cannot_work_raises(tmp_path, make_transport, mes
 
 
 def test_a_rejected_transport_does_not_register_the_instance(tmp_path):
-    with pytest.raises(ValueError):
-        build_client(tmp_path, FakeAsyncTransport(), http=HttpOptions())
+    with pytest.raises(TypeError):
+        build_client(tmp_path, object())
 
     # BLOCK would raise if the rejected client had been registered
     build_client(
