@@ -127,7 +127,10 @@ def _check_transport(
             "transport must have an execute(request) method, see "
             "UnleashClient.transport."
         )
-    if inspect.iscoroutinefunction(execute) != is_async:
+    is_coroutine = inspect.iscoroutinefunction(execute)
+    if is_async and not is_coroutine:
+        is_coroutine = inspect.iscoroutinefunction(inspect.unwrap(execute))
+    if is_coroutine != is_async:
         raise TypeError(
             "transport.execute is not async: AsyncUnleashClient needs an async "
             "transport."
