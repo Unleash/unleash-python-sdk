@@ -8,8 +8,8 @@ from examples import fake_transport
 from examples.fake_transport import FakeTransport, flag
 from tests.utilities.testing_constants import APP_NAME, ETAG_VALUE, URL
 from UnleashClient import INSTANCES, RequestsTransport, Response, UnleashClient
-from UnleashClient.config import MetricsOptions, PollingOptions, StreamingOptions
-from UnleashClient.constants import FEATURES_URL, REQUEST_TIMEOUT
+from UnleashClient.config import MetricsOptions, PollingOptions
+from UnleashClient.constants import FEATURES_URL
 from UnleashClient.utils import InstanceAllowType
 
 
