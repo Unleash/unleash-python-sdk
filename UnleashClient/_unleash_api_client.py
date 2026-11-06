@@ -117,11 +117,13 @@ class _UnleashApiClient:
         self._headers: _HeaderFactory = headers
         self._events: Optional[_EventDispatcher] = events
 
-        self._transport: Transport = transport or RequestsTransport(
-            timeout=config.http.timeout,
-            # this is going to go away soon, just like the whole httpOptions in the client constructor
-            _request_kwargs=config.http.options,
-        )
+        if transport is None:
+            transport = RequestsTransport(
+                timeout=config.http.timeout,
+                # this is going to go away soon, just like the whole httpOptions in the client constructor
+                _request_kwargs=config.http.options,
+            )
+        self._transport: Transport = transport
 
     # pylint: disable=broad-except
     def fetch_features(self, etag: str = "", *, options: PollingOptions) -> FetchResult:
