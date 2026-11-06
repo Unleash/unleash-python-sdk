@@ -49,6 +49,20 @@ def test_the_client_sends_every_request_through_the_transport(tmp_path):
     )
 
 
+class RecordingTransport(FakeTransport):
+    def __len__(self):
+        return len(self.requests)
+
+
+def test_a_falsy_transport_is_used_and_not_replaced_by_the_default(tmp_path):
+    transport = RecordingTransport(flag("testFlag", True))
+
+    with build_client(tmp_path, transport) as client:
+        assert client.is_enabled("testFlag")
+
+    assert len(transport) > 0
+
+
 class PlainDictEtagTransport(FakeTransport):
     """Returns its ETag in a plain dict, with the header name capitalised."""
 

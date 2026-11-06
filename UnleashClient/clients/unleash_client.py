@@ -54,7 +54,7 @@ from UnleashClient.utils import LOGGER, InstanceAllowType
 INSTANCES = _get_instance_registry()
 
 
-# temp check until http optiins is gone
+# temp check until http options is gone
 def _check_transport(
     transport: Optional[Transport], http: Optional[HttpOptions]
 ) -> None:
