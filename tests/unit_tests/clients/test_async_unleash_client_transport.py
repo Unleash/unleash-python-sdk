@@ -1,3 +1,4 @@
+import functools
 import json
 
 import aiohttp
@@ -180,6 +181,59 @@ async def test_a_transport_that_cannot_work_raises(tmp_path, make_transport, mes
     finally:
         if isinstance(transport, aiohttp.ClientSession):
             await transport.close()
+
+
+def traced(execute):
+    """A sync decorator, like a tracing one, that returns the coroutine."""
+
+    @functools.wraps(execute)
+    def wrapper(self, request):
+        return execute(self, request)
+
+    return wrapper
+
+
+def run_async(execute):
+    """An async decorator around a sync method."""
+
+    @functools.wraps(execute)
+    async def wrapper(self, request):
+        return execute(self, request)
+
+    return wrapper
+
+
+class TracedTransport(FakeAsyncTransport):
+    @traced
+    async def execute(self, request: Request) -> Response:
+        return await super().execute(request)
+
+
+class SyncMadeAsyncTransport(FakeAsyncTransport):
+    @run_async
+    def execute(self, request: Request) -> Response:
+        self.requests.append(request)
+        body = json.dumps(FEATURES).encode()
+        return Response(status=200, headers={}, body=body)
+
+
+@mark.asyncio
+@pytest.mark.parametrize(
+    "make_transport",
+    (TracedTransport, SyncMadeAsyncTransport),
+    ids=("sync-decorator-on-async-execute", "async-decorator-on-sync-execute"),
+)
+async def test_a_decorated_async_execute_is_accepted(tmp_path, make_transport):
+    transport = make_transport()
+
+    async with build_client(
+        tmp_path,
+        transport,
+        metrics=MetricsOptions(disabled=True, disable_registration=True),
+    ) as client:
+        assert client.is_enabled("testFlag")
+
+    assert transport.requests
 
 
 def test_a_rejected_transport_does_not_register_the_instance(tmp_path):
