@@ -8,7 +8,7 @@ from typing import Any, Dict, Optional, Tuple
 from UnleashClient._aiohttp_transport import AiohttpTransport
 from UnleashClient._event_dispatcher import _EventDispatcher
 from UnleashClient._headers import _HeaderFactory
-from UnleashClient._transport import AsyncTransport, Request
+from UnleashClient._transport import AsyncTransport, Method, Request
 from UnleashClient._unleash_api_client import (
     FetchResult,
     _emit_fetch_completed,
@@ -136,7 +136,7 @@ class _AsyncUnleashApiClient:
                 base_params = {"project": options.project_name}
 
             request = Request(
-                method="GET", url=base_url, headers=headers, params=base_params
+                method=Method.GET, url=base_url, headers=headers, params=base_params
             )
             attempts = 1 + max(config.http.retries, 0)
 
@@ -204,7 +204,7 @@ class _AsyncUnleashApiClient:
 
             resp = await self._transport.execute(
                 Request(
-                    method="POST",
+                    method=Method.POST,
                     url=_normalized_url(config.url, REGISTER_URL),
                     headers=self._headers.base(),
                     body=json.dumps(payload).encode("utf-8"),
@@ -254,7 +254,7 @@ class _AsyncUnleashApiClient:
 
             resp = await self._transport.execute(
                 Request(
-                    method="POST",
+                    method=Method.POST,
                     url=_normalized_url(config.url, METRICS_URL),
                     headers=self._headers.metrics(),
                     body=json.dumps(payload).encode("utf-8"),

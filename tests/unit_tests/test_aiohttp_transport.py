@@ -8,7 +8,7 @@ from pytest import mark
 
 from tests.utilities.fake_unleash_server import FakeUnleash
 from UnleashClient._aiohttp_transport import AiohttpTransport
-from UnleashClient._transport import AsyncTransport, Request
+from UnleashClient._transport import AsyncTransport, Method, Request
 from UnleashClient.errors import AlreadyClosedError
 
 PATH = "/client/features"
@@ -43,7 +43,7 @@ async def test_execute_sends_a_get_with_its_headers_and_params(server, transport
 
     await transport.execute(
         Request(
-            method="GET",
+            method=Method.GET,
             url=server.base_url + PATH,
             headers={"X-Test": "value"},
             params={"project": "ivan"},
@@ -62,7 +62,7 @@ async def test_execute_sends_a_post_with_its_body(server, transport):
 
     await transport.execute(
         Request(
-            method="POST",
+            method=Method.POST,
             url=server.base_url + PATH,
             headers={},
             body=b'{"appName": "x"}',
@@ -77,7 +77,7 @@ async def test_execute_returns_the_status_headers_and_body(server, transport):
     server.on("GET", PATH, payload={"version": 1}, headers={"ETag": "v1"})
 
     response = await transport.execute(
-        Request(method="GET", url=server.base_url + PATH, headers={})
+        Request(method=Method.GET, url=server.base_url + PATH, headers={})
     )
 
     assert response.status == 200
@@ -91,7 +91,7 @@ async def test_execute_returns_any_status_instead_of_raising(server, transport, 
     server.on("GET", PATH, status=status)
 
     response = await transport.execute(
-        Request(method="GET", url=server.base_url + PATH, headers={})
+        Request(method=Method.GET, url=server.base_url + PATH, headers={})
     )
 
     assert response.status == status
@@ -103,7 +103,7 @@ async def test_execute_raises_when_no_response_arrives(server, transport):
 
     with pytest.raises(aiohttp.ClientConnectionError):
         await transport.execute(
-            Request(method="GET", url=server.base_url + PATH, headers={})
+            Request(method=Method.GET, url=server.base_url + PATH, headers={})
         )
 
 
@@ -115,7 +115,7 @@ async def test_execute_raises_when_the_server_does_not_answer_in_time(server):
     try:
         with pytest.raises(asyncio.TimeoutError):
             await transport.execute(
-                Request(method="GET", url=server.base_url + PATH, headers={})
+                Request(method=Method.GET, url=server.base_url + PATH, headers={})
             )
     finally:
         await transport.aclose()
@@ -124,7 +124,7 @@ async def test_execute_raises_when_the_server_does_not_answer_in_time(server):
 @mark.asyncio
 async def test_execute_reuses_one_session(server, transport):
     server.on("GET", PATH, repeat=True)
-    request = Request(method="GET", url=server.base_url + PATH, headers={})
+    request = Request(method=Method.GET, url=server.base_url + PATH, headers={})
 
     await transport.execute(request)
     first = transport._session
@@ -138,7 +138,7 @@ async def test_execute_reuses_one_session(server, transport):
 async def test_aclose_closes_the_session(server, transport):
     server.on("GET", PATH)
     await transport.execute(
-        Request(method="GET", url=server.base_url + PATH, headers={})
+        Request(method=Method.GET, url=server.base_url + PATH, headers={})
     )
     session = transport._session
 
@@ -150,7 +150,7 @@ async def test_aclose_closes_the_session(server, transport):
 @mark.asyncio
 async def test_execute_after_aclose_raises(server, transport):
     server.on("GET", PATH, repeat=True)
-    request = Request(method="GET", url=server.base_url + PATH, headers={})
+    request = Request(method=Method.GET, url=server.base_url + PATH, headers={})
     await transport.execute(request)
 
     await transport.aclose()
@@ -168,7 +168,7 @@ async def test_execute_after_aclose_raises_without_an_earlier_request(server):
 
     with pytest.raises(AlreadyClosedError):
         await transport.execute(
-            Request(method="GET", url=server.base_url + PATH, headers={})
+            Request(method=Method.GET, url=server.base_url + PATH, headers={})
         )
     assert server.requests == []
 

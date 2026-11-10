@@ -25,7 +25,7 @@ from tests.utilities.testing_constants import (
 )
 from UnleashClient._async_unleash_api_client import _AsyncUnleashApiClient
 from UnleashClient._headers import _HeaderFactory
-from UnleashClient._transport import Request, Response
+from UnleashClient._transport import Method, Request, Response
 from UnleashClient.config import (
     HttpOptions,
     IdentityOptions,
@@ -530,7 +530,7 @@ async def test_fetch_features_sends_its_request_through_the_transport():
 
     assert result == ('{"version": 1}', ETAG_VALUE, False)
     (request,) = transport.requests
-    assert request.method == "GET"
+    assert request.method == Method.GET
     assert request.url == URL + FEATURES_URL
     assert request.params == {"project": PROJECT_NAME}
     assert request.headers["If-None-Match"] == ETAG_VALUE
@@ -543,7 +543,7 @@ async def test_register_posts_its_payload_through_the_transport():
     assert await api_client_over(transport).register({"appName": APP_NAME})
 
     (request,) = transport.requests
-    assert request.method == "POST"
+    assert request.method == Method.POST
     assert request.url == URL + REGISTER_URL
     assert json.loads(request.body) == {"appName": APP_NAME}
 
@@ -555,7 +555,7 @@ async def test_send_metrics_posts_its_payload_through_the_transport():
     assert await api_client_over(transport).send_metrics(MOCK_METRICS_REQUEST)
 
     (request,) = transport.requests
-    assert request.method == "POST"
+    assert request.method == Method.POST
     assert request.url == URL + METRICS_URL
     assert json.loads(request.body) == MOCK_METRICS_REQUEST
 
