@@ -7,7 +7,13 @@ from requests.exceptions import InvalidHeader, InvalidSchema, InvalidURL, Missin
 
 from UnleashClient._event_dispatcher import _EventDispatcher
 from UnleashClient._headers import _HeaderFactory
-from UnleashClient._transport import Request, RequestsTransport, Response, Transport
+from UnleashClient._transport import (
+    Method,
+    Request,
+    RequestsTransport,
+    Response,
+    Transport,
+)
 from UnleashClient.config import PollingOptions, UnleashConfig
 from UnleashClient.constants import FEATURES_URL, METRICS_URL, REGISTER_URL
 from UnleashClient.events import (
@@ -162,7 +168,7 @@ class _UnleashApiClient:
 
             resp = self._transport.execute(
                 Request(
-                    method="GET",
+                    method=Method.GET,
                     url=base_url,
                     headers={
                         **self._headers.polling(options),
@@ -222,7 +228,7 @@ class _UnleashApiClient:
 
             resp = self._transport.execute(
                 Request(
-                    method="POST",
+                    method=Method.POST,
                     url=_normalized_url(config.url, REGISTER_URL),
                     headers=self._headers.base(),
                     body=json.dumps(payload).encode("utf-8"),
@@ -266,7 +272,7 @@ class _UnleashApiClient:
 
             resp = self._transport.execute(
                 Request(
-                    method="POST",
+                    method=Method.POST,
                     url=_normalized_url(config.url, METRICS_URL),
                     headers=self._headers.metrics(),
                     body=json.dumps(payload).encode("utf-8"),

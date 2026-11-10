@@ -4,6 +4,7 @@ response.
 """
 
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import Any, Mapping, Optional, Protocol, runtime_checkable
 
 import requests
@@ -13,19 +14,26 @@ from urllib3 import Retry
 from UnleashClient.constants import REQUEST_TIMEOUT
 
 
+class Method(str, Enum):
+    GET = "GET"
+    POST = "POST"
+
+    __str__ = str.__str__
+
+
 @dataclass(frozen=True, kw_only=True)
 class Request:
     """
     HTTP request.
 
-    :param method: ``"GET"`` or ``"POST"``.
+    :param method: HTTP method.
     :param url: Absolute url, without the query string.
     :param headers: Headers to send.
     :param params: Query string parameters.
     :param body: Request body, or None to send none.
     """
 
-    method: str
+    method: Method
     url: str
     headers: Mapping[str, str]
     params: Mapping[str, str] = field(default_factory=dict)
@@ -91,7 +99,7 @@ class RequestsTransport:
             kwargs["data"] = request.body
 
         with requests.Session() as session:
-            if request.method == "GET" and self._retries is not None:
+            if request.method == Method.GET and self._retries is not None:
                 adapter = HTTPAdapter(
                     max_retries=Retry(
                         total=self._retries, status_forcelist=[500, 502, 504]
