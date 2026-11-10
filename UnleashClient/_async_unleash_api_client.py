@@ -1,18 +1,22 @@
-"""Unleash API client over aiohttp, for the async Unleash client."""
+"""Unleash API client for the async Unleash client."""
 
 import asyncio
 import json
 import threading
 from typing import Any, Dict, Optional, Tuple
 
+from UnleashClient._aiohttp_transport import AiohttpTransport
 from UnleashClient._event_dispatcher import _EventDispatcher
 from UnleashClient._headers import _HeaderFactory
+from UnleashClient._transport import AsyncTransport, Method, Request
 from UnleashClient._unleash_api_client import (
     FetchResult,
     _emit_fetch_completed,
     _failure_status,
     _fetched_status,
+    _log_resp_info,
     _normalized_url,
+    _text,
 )
 from UnleashClient.config import PollingOptions, UnleashConfig
 from UnleashClient.constants import FEATURES_URL, METRICS_URL, REGISTER_URL
@@ -28,18 +32,11 @@ except ImportError as exc:  # pragma: no cover
         "Install it with: pip install UnleashClient[async]"
     ) from exc
 
-
 RETRY_STATUSES = frozenset({500, 502, 504})
 
 RETRYABLE_ERRORS = (aiohttp.ClientConnectionError, asyncio.TimeoutError)
 
 FATAL_URL_ERRORS = (aiohttp.InvalidURL, aiohttp.NonHttpUrlClientError)
-
-
-async def _log_resp_info(resp: "aiohttp.ClientResponse") -> None:
-    LOGGER.debug("HTTP status code: %s", resp.status)
-    LOGGER.debug("HTTP headers: %s", resp.headers)
-    LOGGER.debug("HTTP content: %s", await resp.text())
 
 
 class _AsyncUnleashApiClient:
@@ -50,16 +47,27 @@ class _AsyncUnleashApiClient:
         config: UnleashConfig,
         headers: _HeaderFactory,
         events: Optional[_EventDispatcher] = None,
+        transport: Optional[AsyncTransport] = None,
     ) -> None:
         """
         :param config: read for the url, timeouts, retries and project.
         :param headers: builds the header set each request needs.
         :param events: receives ``FETCH_COMPLETED`` after every feature fetch.
+        :param transport: sends the requests. Defaults to an
+                          :class:`AiohttpTransport` built from ``config.http``,
+                          which :meth:`aclose` closes. A transport passed in is
+                          left open: whoever created it closes it.
         """
         self._config: UnleashConfig = config
         self._headers: _HeaderFactory = headers
         self._events: Optional[_EventDispatcher] = events
-        self._session: Optional["aiohttp.ClientSession"] = None
+        # set only when this API client built the transport, and so it closes it.
+        self._default_transport: Optional[AiohttpTransport] = None
+        if transport is None:
+            transport = self._default_transport = AiohttpTransport(
+                timeout=config.http.timeout
+            )
+        self._transport: AsyncTransport = transport
         self._is_closed: bool = False
         self._close_lock = threading.Lock()
 
@@ -67,22 +75,10 @@ class _AsyncUnleashApiClient:
         if self._is_closed:
             raise AlreadyClosedError()
 
-    async def _get_session(self) -> "aiohttp.ClientSession":
-        if self._session is None or self._session.closed:
-            self._session = aiohttp.ClientSession()
-        return self._session
-
-    def _timeout(self) -> "aiohttp.ClientTimeout":
-        # sock_connect/sock_read rather than total: the sync client's scalar
-        # timeout bounds each socket operation, not the whole request.
-        seconds = self._config.http.timeout
-        return aiohttp.ClientTimeout(
-            total=None, sock_connect=seconds, sock_read=seconds
-        )
-
     async def aclose(self) -> None:
         """
-        Close the pooled session and put the API client out of service.
+        Put the API client out of service, and close its transport if the API
+        client created it.
 
         Every later request raises :class:`AlreadyClosedError`. Closing an already
         closed API client does nothing.
@@ -92,10 +88,9 @@ class _AsyncUnleashApiClient:
                 return
 
             self._is_closed = True
-            session, self._session = self._session, None
 
-        if session is not None and not session.closed:
-            await session.close()
+        if self._default_transport is not None:
+            await self._default_transport.aclose()
 
     async def fetch_features(
         self, etag: str = "", *, options: PollingOptions
@@ -140,51 +135,47 @@ class _AsyncUnleashApiClient:
             if options.project_name:
                 base_params = {"project": options.project_name}
 
-            session = await self._get_session()
+            request = Request(
+                method=Method.GET, url=base_url, headers=headers, params=base_params
+            )
             attempts = 1 + max(config.http.retries, 0)
 
             for attempt in range(attempts):
                 last_attempt = attempt == attempts - 1
                 try:
-                    async with session.get(
-                        base_url,
-                        headers=headers,
-                        params=base_params,
-                        timeout=self._timeout(),
-                    ) as resp:
-                        if resp.status in RETRY_STATUSES and not last_attempt:
-                            continue
-
-                        http_status_code = resp.status
-                        if resp.status not in [200, 304]:
-                            await _log_resp_info(resp)
-                            LOGGER.warning(
-                                "Unleash Client feature fetch failed due to unexpected HTTP status code: %s",
-                                resp.status,
-                            )
-                            raise Exception(  # pylint: disable=broad-exception-raised
-                                "Unleash Client feature fetch failed!"
-                            )
-
-                        fetched_etag = resp.headers.get("etag", "")
-
-                        if resp.status == 304:
-                            return (
-                                FetchResult(None, fetched_etag, not_modified=True),
-                                FetchStatus.NOT_CHANGED,
-                            )
-
-                        raw_state = await resp.text()
-                        return (
-                            FetchResult(raw_state, fetched_etag),
-                            _fetched_status(raw_state),
-                        )
+                    resp = await self._transport.execute(request)
                 except RETRYABLE_ERRORS:
-                    # No usable response arrived, even if a status line did
-                    # before the body timed out
-                    http_status_code = None
                     if last_attempt:
                         raise
+                    continue
+
+                if resp.status in RETRY_STATUSES and not last_attempt:
+                    continue
+
+                http_status_code = resp.status
+                if resp.status not in [200, 304]:
+                    _log_resp_info(resp)
+                    LOGGER.warning(
+                        "Unleash Client feature fetch failed due to unexpected HTTP status code: %s",
+                        resp.status,
+                    )
+                    raise Exception(  # pylint: disable=broad-exception-raised
+                        "Unleash Client feature fetch failed!"
+                    )
+
+                fetched_etag = resp.headers.get("etag", "")
+
+                if resp.status == 304:
+                    return (
+                        FetchResult(None, fetched_etag, not_modified=True),
+                        FetchStatus.NOT_CHANGED,
+                    )
+
+                raw_state = _text(resp)
+                return (
+                    FetchResult(raw_state, fetched_etag),
+                    _fetched_status(raw_state),
+                )
         except Exception as exc:
             LOGGER.exception(
                 "Unleash Client feature fetch failed due to exception: %s", exc
@@ -211,24 +202,26 @@ class _AsyncUnleashApiClient:
             LOGGER.info("Registering unleash client with unleash @ %s", config.url)
             LOGGER.info("Registration request information: %s", payload)
 
-            session = await self._get_session()
-            async with session.post(
-                _normalized_url(config.url, REGISTER_URL),
-                data=json.dumps(payload),
-                headers=self._headers.base(),
-                timeout=self._timeout(),
-            ) as resp:
-                if resp.status not in {200, 202}:
-                    await _log_resp_info(resp)
-                    LOGGER.warning(
-                        "Unleash Client registration failed due to unexpected HTTP status code: %s",
-                        resp.status,
-                    )
-                    return False
+            resp = await self._transport.execute(
+                Request(
+                    method=Method.POST,
+                    url=_normalized_url(config.url, REGISTER_URL),
+                    headers=self._headers.base(),
+                    body=json.dumps(payload).encode("utf-8"),
+                )
+            )
 
-                LOGGER.info("Unleash Client successfully registered!")
+            if resp.status not in {200, 202}:
+                _log_resp_info(resp)
+                LOGGER.warning(
+                    "Unleash Client registration failed due to unexpected HTTP status code: %s",
+                    resp.status,
+                )
+                return False
 
-                return True
+            LOGGER.info("Unleash Client successfully registered!")
+
+            return True
         except FATAL_URL_ERRORS as exc:
             LOGGER.exception(
                 "Unleash Client registration failed fatally due to exception: %s", exc
@@ -259,24 +252,26 @@ class _AsyncUnleashApiClient:
             LOGGER.info("Sending messages to with unleash @ %s", config.url)
             LOGGER.info("unleash metrics information: %s", payload)
 
-            session = await self._get_session()
-            async with session.post(
-                _normalized_url(config.url, METRICS_URL),
-                data=json.dumps(payload),
-                headers=self._headers.metrics(),
-                timeout=self._timeout(),
-            ) as resp:
-                if resp.status != 202:
-                    await _log_resp_info(resp)
-                    LOGGER.warning(
-                        "Unleash Client metrics submission due to unexpected HTTP status code: %s",
-                        resp.status,
-                    )
-                    return False
+            resp = await self._transport.execute(
+                Request(
+                    method=Method.POST,
+                    url=_normalized_url(config.url, METRICS_URL),
+                    headers=self._headers.metrics(),
+                    body=json.dumps(payload).encode("utf-8"),
+                )
+            )
 
-                LOGGER.info("Unleash Client metrics successfully sent!")
+            if resp.status != 202:
+                _log_resp_info(resp)
+                LOGGER.warning(
+                    "Unleash Client metrics submission due to unexpected HTTP status code: %s",
+                    resp.status,
+                )
+                return False
 
-                return True
+            LOGGER.info("Unleash Client metrics successfully sent!")
+
+            return True
         except aiohttp.ClientError as exc:
             LOGGER.warning(
                 "Unleash Client metrics submission failed due to exception: %s", exc

@@ -71,6 +71,21 @@ class Transport(Protocol):
         """
 
 
+@runtime_checkable
+class AsyncTransport(Protocol):
+    """Sends requests for the async client."""
+
+    async def execute(self, request: Request) -> Response:
+        """
+        Implementations must send ``request`` once and return the response,
+        regardless of its status code.
+
+        Implementations must not raise when a response was received, even for
+        an error status. They raise only if no response was received, for
+        example due to a connection error or timeout.
+        """
+
+
 class RequestsTransport:
     """
     Sends requests with ``requests``, on a fresh session for every request.
