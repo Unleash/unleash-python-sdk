@@ -77,10 +77,12 @@ class AsyncTransport(Protocol):
 
     async def execute(self, request: Request) -> Response:
         """
-        Send ``request`` once and return the response, whatever its status.
+        Implementations must send ``request`` once and return the response,
+        regardless of its status code.
 
-        :raises Exception: only when no response arrived, e.g. a connection
-                           error or a timeout.
+        Implementations must not raise when a response was received, even for
+        an error status. They raise only if no response was received, for
+        example due to a connection error or timeout.
         """
 
 
