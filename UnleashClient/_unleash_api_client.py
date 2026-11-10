@@ -3,13 +3,17 @@ import uuid
 from typing import Any, Dict, NamedTuple, Optional, Tuple
 
 import requests
-from requests import Response
-from requests.adapters import HTTPAdapter
 from requests.exceptions import InvalidHeader, InvalidSchema, InvalidURL, MissingSchema
-from urllib3 import Retry
 
 from UnleashClient._event_dispatcher import _EventDispatcher
 from UnleashClient._headers import _HeaderFactory
+from UnleashClient._transport import (
+    Method,
+    Request,
+    RequestsTransport,
+    Response,
+    Transport,
+)
 from UnleashClient.config import PollingOptions, UnleashConfig
 from UnleashClient.constants import FEATURES_URL, METRICS_URL, REGISTER_URL
 from UnleashClient.events import (
@@ -78,19 +82,27 @@ def _normalized_url(url: str, path: str) -> str:
     return f"{url}{path}"
 
 
+def _text(resp: Response) -> str:
+    return resp.body.decode("utf-8", errors="replace")
+
+
 def _log_resp_info(resp: Response) -> None:
-    LOGGER.debug("HTTP status code: %s", resp.status_code)
+    LOGGER.debug("HTTP status code: %s", resp.status)
     LOGGER.debug("HTTP headers: %s", resp.headers)
-    LOGGER.debug("HTTP content: %s", resp.text)
+    LOGGER.debug("HTTP content: %s", _text(resp))
 
 
 class _UnleashApiClient:
     """
-    Sends the SDK's requests to the Unleash server: feature fetches, client
-    registration and metrics submission.
+    Talks to the Unleash API: feature fetches, client registration and metrics
+    submission. Builds each request and decides what its response means; the
+    transport only sends it.
 
     :param config: Client configuration.
     :param headers: Builds the header set each endpoint needs.
+    :param events: Receives ``FETCH_COMPLETED`` after every feature fetch.
+    :param transport: Sends the requests. Defaults to a :class:`RequestsTransport`
+                      built from ``config.http``.
     """
 
     def __init__(
@@ -98,10 +110,18 @@ class _UnleashApiClient:
         config: UnleashConfig,
         headers: _HeaderFactory,
         events: Optional[_EventDispatcher] = None,
+        transport: Optional[Transport] = None,
     ) -> None:
         self._config: UnleashConfig = config
         self._headers: _HeaderFactory = headers
         self._events: Optional[_EventDispatcher] = events
+
+        self._transport: Transport = transport or RequestsTransport(
+            timeout=config.http.timeout,
+            _retries=config.http.retries,
+            # this is going to go away soon, just like the whole httpOptions in the client constructor
+            _request_kwargs=config.http.options,
+        )
 
     # pylint: disable=broad-except
     def fetch_features(self, etag: str = "", *, options: PollingOptions) -> FetchResult:
@@ -146,31 +166,24 @@ class _UnleashApiClient:
             if options.project_name:
                 base_params = {"project": options.project_name}
 
-            adapter = HTTPAdapter(
-                max_retries=Retry(
-                    total=config.http.retries, status_forcelist=[500, 502, 504]
-                )
-            )
-            with requests.Session() as session:
-                session.mount("https://", adapter)
-                session.mount("http://", adapter)
-                resp = session.get(
-                    base_url,
+            resp = self._transport.execute(
+                Request(
+                    method=Method.GET,
+                    url=base_url,
                     headers={
                         **self._headers.polling(options),
                         **request_specific_headers,
                     },
                     params=base_params,
-                    timeout=config.http.timeout,
-                    **config.http.options,
                 )
+            )
 
-            http_status_code = resp.status_code
-            if resp.status_code not in [200, 304]:
+            http_status_code = resp.status
+            if resp.status not in [200, 304]:
                 _log_resp_info(resp)
                 LOGGER.warning(
                     "Unleash Client feature fetch failed due to unexpected HTTP status code: %s",
-                    resp.status_code,
+                    resp.status,
                 )
                 raise Exception(
                     "Unleash Client feature fetch failed!"
@@ -180,13 +193,14 @@ class _UnleashApiClient:
             if "etag" in resp.headers.keys():
                 fetched_etag = resp.headers["etag"]
 
-            if resp.status_code == 304:
+            if resp.status == 304:
                 return (
                     FetchResult(None, fetched_etag, not_modified=True),
                     FetchStatus.NOT_CHANGED,
                 )
 
-            return FetchResult(resp.text, fetched_etag), _fetched_status(resp.text)
+            raw_state = _text(resp)
+            return FetchResult(raw_state, fetched_etag), _fetched_status(raw_state)
         except Exception as exc:
             LOGGER.exception(
                 "Unleash Client feature fetch failed due to exception: %s", exc
@@ -212,19 +226,20 @@ class _UnleashApiClient:
             LOGGER.info("Registering unleash client with unleash @ %s", config.url)
             LOGGER.info("Registration request information: %s", payload)
 
-            resp = requests.post(
-                _normalized_url(config.url, REGISTER_URL),
-                data=json.dumps(payload),
-                headers=self._headers.base(),
-                timeout=config.http.timeout,
-                **config.http.options,
+            resp = self._transport.execute(
+                Request(
+                    method=Method.POST,
+                    url=_normalized_url(config.url, REGISTER_URL),
+                    headers=self._headers.base(),
+                    body=json.dumps(payload).encode("utf-8"),
+                )
             )
 
-            if resp.status_code not in {200, 202}:
+            if resp.status not in {200, 202}:
                 _log_resp_info(resp)
                 LOGGER.warning(
                     "Unleash Client registration failed due to unexpected HTTP status code: %s",
-                    resp.status_code,
+                    resp.status,
                 )
                 return False
 
@@ -255,19 +270,20 @@ class _UnleashApiClient:
             LOGGER.info("Sending messages to with unleash @ %s", config.url)
             LOGGER.info("unleash metrics information: %s", payload)
 
-            resp = requests.post(
-                _normalized_url(config.url, METRICS_URL),
-                data=json.dumps(payload),
-                headers=self._headers.metrics(),
-                timeout=config.http.timeout,
-                **config.http.options,
+            resp = self._transport.execute(
+                Request(
+                    method=Method.POST,
+                    url=_normalized_url(config.url, METRICS_URL),
+                    headers=self._headers.metrics(),
+                    body=json.dumps(payload).encode("utf-8"),
+                )
             )
 
-            if resp.status_code != 202:
+            if resp.status != 202:
                 _log_resp_info(resp)
                 LOGGER.warning(
                     "Unleash Client metrics submission due to unexpected HTTP status code: %s",
-                    resp.status_code,
+                    resp.status,
                 )
                 return False
 
