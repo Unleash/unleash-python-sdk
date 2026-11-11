@@ -7,7 +7,6 @@ from datetime import datetime, timezone
 from enum import IntEnum
 from typing import Callable, Optional, Union
 
-import requests
 from apscheduler.schedulers.base import BaseScheduler
 from yggdrasil_engine.engine import UnleashEngine
 
@@ -65,15 +64,12 @@ def _check_transport(
             "Pass either http or transport, not both. Set headers and the "
             "timeout on the transport: RequestsTransport(headers=..., timeout=...)."
         )
-    if isinstance(transport, requests.Session):
-        raise TypeError(
-            "Wrap the session in a transport: transport=RequestsTransport(session)."
-        )
     execute = getattr(transport, "execute", None)
     if not callable(execute):
         raise TypeError(
             "transport must have an execute(request) method, see "
-            "UnleashClient.transport.Transport."
+            "UnleashClient.transport.Transport. To use your own "
+            "requests.Session, pass transport=RequestsTransport(session)."
         )
     if inspect.iscoroutinefunction(execute):
         raise TypeError(
