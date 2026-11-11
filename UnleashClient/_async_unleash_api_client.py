@@ -36,8 +36,6 @@ RETRY_STATUSES = frozenset({500, 502, 504})
 
 RETRYABLE_ERRORS = (aiohttp.ClientConnectionError, asyncio.TimeoutError)
 
-FATAL_URL_ERRORS = (aiohttp.InvalidURL, aiohttp.NonHttpUrlClientError)
-
 
 class _AsyncUnleashApiClient:
     """The asyncio twin of :class:`UnleashClient._unleash_api_client._UnleashApiClient`."""
@@ -187,9 +185,9 @@ class _AsyncUnleashApiClient:
         """
         Register this client with the server.
 
-        Returns True on 200 or 202, False on any other status and on a general
-        ``ClientError``. The two errors aiohttp uses for a url it cannot make a
-        request against at all are re-raised rather than swallowed.
+        Returns True on 200 or 202, False on any other status and when the
+        request fails: any exception from the transport is logged and reported
+        as False.
 
         :param payload: as built by
                         :func:`UnleashClient._payloads._build_register_payload`.
@@ -198,48 +196,41 @@ class _AsyncUnleashApiClient:
         self._raise_if_closed()
 
         config = self._config
+        LOGGER.info("Registering unleash client with unleash @ %s", config.url)
+        LOGGER.info("Registration request information: %s", payload)
+
+        request = Request(
+            method=Method.POST,
+            url=_normalized_url(config.url, REGISTER_URL),
+            headers=self._headers.base(),
+            body=json.dumps(payload).encode("utf-8"),
+        )
         try:
-            LOGGER.info("Registering unleash client with unleash @ %s", config.url)
-            LOGGER.info("Registration request information: %s", payload)
-
-            resp = await self._transport.execute(
-                Request(
-                    method=Method.POST,
-                    url=_normalized_url(config.url, REGISTER_URL),
-                    headers=self._headers.base(),
-                    body=json.dumps(payload).encode("utf-8"),
-                )
-            )
-
-            if resp.status not in {200, 202}:
-                _log_resp_info(resp)
-                LOGGER.warning(
-                    "Unleash Client registration failed due to unexpected HTTP status code: %s",
-                    resp.status,
-                )
-                return False
-
-            LOGGER.info("Unleash Client successfully registered!")
-
-            return True
-        except FATAL_URL_ERRORS as exc:
-            LOGGER.exception(
-                "Unleash Client registration failed fatally due to exception: %s", exc
-            )
-            raise exc
-        except aiohttp.ClientError as exc:
+            resp = await self._transport.execute(request)
+        except Exception as exc:  # pylint: disable=broad-except
             LOGGER.exception(
                 "Unleash Client registration failed due to exception: %s", exc
             )
+            return False
 
-        return False
+        if resp.status not in {200, 202}:
+            _log_resp_info(resp)
+            LOGGER.warning(
+                "Unleash Client registration failed due to unexpected HTTP status code: %s",
+                resp.status,
+            )
+            return False
+
+        LOGGER.info("Unleash Client successfully registered!")
+
+        return True
 
     async def send_metrics(self, payload: Dict[str, Any]) -> bool:
         """
         Send one metrics bucket.
 
-        Returns True only on 202. Every other status, a ``ClientError`` and a
-        timeout all return False.
+        Returns True only on 202. Every other status and any exception from the
+        transport return False.
 
         :param payload: the metrics request body.
         :raises AlreadyClosedError: if the API client has been closed.
@@ -248,38 +239,37 @@ class _AsyncUnleashApiClient:
         self._raise_if_closed()
 
         config = self._config
+        LOGGER.info("Sending messages to with unleash @ %s", config.url)
+        LOGGER.info("unleash metrics information: %s", payload)
+
+        request = Request(
+            method=Method.POST,
+            url=_normalized_url(config.url, METRICS_URL),
+            headers=self._headers.metrics(),
+            body=json.dumps(payload).encode("utf-8"),
+        )
         try:
-            LOGGER.info("Sending messages to with unleash @ %s", config.url)
-            LOGGER.info("unleash metrics information: %s", payload)
-
-            resp = await self._transport.execute(
-                Request(
-                    method=Method.POST,
-                    url=_normalized_url(config.url, METRICS_URL),
-                    headers=self._headers.metrics(),
-                    body=json.dumps(payload).encode("utf-8"),
-                )
-            )
-
-            if resp.status != 202:
-                _log_resp_info(resp)
-                LOGGER.warning(
-                    "Unleash Client metrics submission due to unexpected HTTP status code: %s",
-                    resp.status,
-                )
-                return False
-
-            LOGGER.info("Unleash Client metrics successfully sent!")
-
-            return True
-        except aiohttp.ClientError as exc:
-            LOGGER.warning(
-                "Unleash Client metrics submission failed due to exception: %s", exc
-            )
-        except asyncio.TimeoutError:
-            LOGGER.warning("Unleash Client metrics submission timed out.")
+            resp = await self._transport.execute(request)
         except asyncio.CancelledError:
             LOGGER.warning("Unleash Client metrics submission was cancelled.")
             raise
+        except asyncio.TimeoutError:
+            LOGGER.warning("Unleash Client metrics submission timed out.")
+            return False
+        except Exception as exc:  # pylint: disable=broad-except
+            LOGGER.warning(
+                "Unleash Client metrics submission failed due to exception: %s", exc
+            )
+            return False
 
-        return False
+        if resp.status != 202:
+            _log_resp_info(resp)
+            LOGGER.warning(
+                "Unleash Client metrics submission due to unexpected HTTP status code: %s",
+                resp.status,
+            )
+            return False
+
+        LOGGER.info("Unleash Client metrics successfully sent!")
+
+        return True
