@@ -8,6 +8,7 @@
 * (Major): `initialize_client()` no longer raises when registration fails. A failed registration is logged and the client keeps running, the same way for both clients.
 * (Major): Upgraded to yggdrasil-engine 3, new engine built with PyO3 for better performance.
 * (Minor): `api_key`, `app_name` and `IdentityOptions.instance_id` are stripped of surrounding whitespace. `UnleashClient` and `AsyncUnleashClient` raise `TypeError` if one is set but isn't a str, instead of every request failing.
+* (Minor): Feature fetches are retried the same way by both clients: on a 500, 502 or 504, or when no response arrives, with a short randomised backoff between attempts (up to about 0.5s, 1s and 2s). Before, retries were immediate.
 * (Minor): New `FETCH_COMPLETED` event, emitted after every feature fetch with how it ended: `CHANGED`, `NOT_CHANGED`, `UNAUTHORIZED`, `RATE_LIMITED`, `UNAVAILABLE` or `INVALID_RESPONSE`.
 * (Minor): `feature_definitions()` reports whether each feature is enabled in the environment.
 * (Minor): New `evaluate_all_toggles()` evaluates every feature for one context in a single call, without recording usage metrics.

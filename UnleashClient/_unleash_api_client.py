@@ -4,6 +4,7 @@ from typing import Any, Dict, NamedTuple, Optional, Tuple
 
 from UnleashClient._event_dispatcher import _EventDispatcher
 from UnleashClient._headers import _HeaderFactory
+from UnleashClient._retry import _send_with_retries
 from UnleashClient._transport import (
     Method,
     Request,
@@ -115,7 +116,6 @@ class _UnleashApiClient:
 
         self._transport: Transport = transport or RequestsTransport(
             timeout=config.http.timeout,
-            _retries=config.http.retries,
             # this is going to go away soon, just like the whole httpOptions in the client constructor
             _request_kwargs=config.http.options,
         )
@@ -163,7 +163,8 @@ class _UnleashApiClient:
             if options.project_name:
                 base_params = {"project": options.project_name}
 
-            resp = self._transport.execute(
+            resp = _send_with_retries(
+                self._transport,
                 Request(
                     method=Method.GET,
                     url=base_url,
@@ -172,7 +173,8 @@ class _UnleashApiClient:
                         **request_specific_headers,
                     },
                     params=base_params,
-                )
+                ),
+                config.http.retries,
             )
 
             http_status_code = resp.status
