@@ -185,9 +185,8 @@ def test_an_authorization_header_is_rejected(name):
         {"api_key": "project:environment.\nhash"},
         {"app_name": "my\napp"},
         {"identity": IdentityOptions(instance_id="instance\r1")},
-        {"connection_id": "id\n"},
     ],
-    ids=["api_key", "app_name", "instance_id", "connection_id"],
+    ids=["api_key", "app_name", "instance_id"],
 )
 def test_a_value_sent_as_a_header_with_a_line_break_is_rejected(kwargs):
     config = {"url": URL, "app_name": APP_NAME, **kwargs}

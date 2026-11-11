@@ -133,12 +133,12 @@ class UnleashConfig:
     never talks to the server: deciding which settings make requests would need
     updating with every new server call.
 
-    ``api_key``, ``app_name``, ``identity.instance_id`` and ``connection_id``
-    are sent as headers, so they must be str
+    ``api_key``, ``app_name`` and ``identity.instance_id`` are sent as headers,
+    so they must be str.
 
     :raises ValueError: if ``url`` is not an absolute http(s) URL with a host,
                         or a value sent as a header contains a line break.
-    :raises TypeError: if a value sent as a header and is not a str.
+    :raises TypeError: if a value sent as a header is set and is not a str.
 
     ``api_key`` is optional because a client that only loads from a backup never talks to the server.
     """
@@ -174,7 +174,6 @@ class UnleashConfig:
             ("Authorization", self.api_key),
             ("unleash-appname", self.app_name),
             ("unleash-instanceid", self.identity.instance_id),
-            ("unleash-connection-id", self.connection_id),
         ):
             if value is not None:
                 _validate_header_value(name, value)
