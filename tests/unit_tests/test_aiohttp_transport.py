@@ -8,8 +8,8 @@ from pytest import mark
 
 from tests.utilities.fake_unleash_server import FakeUnleash
 from UnleashClient._aiohttp_transport import AiohttpTransport
-from UnleashClient._transport import AsyncTransport, Method, Request
 from UnleashClient.errors import AlreadyClosedError
+from UnleashClient.transport import AsyncTransport, Method, Request
 
 PATH = "/client/features"
 

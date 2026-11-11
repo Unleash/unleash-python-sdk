@@ -26,7 +26,6 @@ from tests.utilities.testing_constants import (
 from UnleashClient._aiohttp_transport import AiohttpTransport
 from UnleashClient._async_unleash_api_client import _AsyncUnleashApiClient
 from UnleashClient._headers import _HeaderFactory
-from UnleashClient._transport import Method, Request, Response
 from UnleashClient.config import (
     HttpOptions,
     IdentityOptions,
@@ -42,6 +41,7 @@ from UnleashClient.constants import (
 )
 from UnleashClient.errors import AlreadyClosedError
 from UnleashClient.events import FetchStatus, UnleashEventType
+from UnleashClient.transport import Method, Request, Response
 
 API_PREFIX = "/api"
 FEATURES_PATH = API_PREFIX + FEATURES_URL

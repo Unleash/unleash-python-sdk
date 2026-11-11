@@ -9,8 +9,8 @@ from UnleashClient._retry import (
     _send_with_retries,
     _send_with_retries_async,
 )
-from UnleashClient._transport import Method, Request, Response
 from UnleashClient.errors import AlreadyClosedError
+from UnleashClient.transport import Method, Request, Response
 
 # Imported before the autouse no_retry_backoff fixture replaces it.
 _real_backoff_delay = _retry._backoff_delay

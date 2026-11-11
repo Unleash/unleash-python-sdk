@@ -9,7 +9,6 @@ from UnleashClient._aiohttp_transport import AiohttpTransport
 from UnleashClient._event_dispatcher import _EventDispatcher
 from UnleashClient._headers import _HeaderFactory
 from UnleashClient._retry import _send_with_retries_async
-from UnleashClient._transport import AsyncTransport, Method, Request
 from UnleashClient._unleash_api_client import (
     FetchResult,
     _emit_fetch_completed,
@@ -23,6 +22,7 @@ from UnleashClient.config import PollingOptions, UnleashConfig
 from UnleashClient.constants import FEATURES_URL, METRICS_URL, REGISTER_URL
 from UnleashClient.errors import AlreadyClosedError
 from UnleashClient.events import FetchStatus
+from UnleashClient.transport import AsyncTransport, Method, Request
 from UnleashClient.utils import LOGGER
 
 
