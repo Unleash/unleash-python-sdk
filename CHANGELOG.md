@@ -5,9 +5,9 @@
 * (Major): The API token is passed as `api_key="<API token>"`. An `Authorization` header in `HttpOptions.headers` raises `ValueError`.
 * (Major): The deprecated `environment` setting has been removed. The `environment` field of the evaluation context and the impact metrics `environment` label come from the API token, or are `"default"` when the token doesn't name one.
 * (Major): The `UnleashClient` and `AsyncUnleashClient` constructors raise `ValueError` if `url` is not an absolute http(s) URL with a host, for every client.
-* (Major): The constructors raise `ValueError` if `api_key`, `app_name` or `IdentityOptions.instance_id` contains a line break, such as an API token read from a file with a trailing newline, and `TypeError` if one isn't a str. These values are sent as headers.
 * (Major): `initialize_client()` no longer raises when registration fails. A failed registration is logged and the client keeps running, the same way for both clients.
 * (Major): Upgraded to yggdrasil-engine 3, new engine built with PyO3 for better performance.
+* (Minor): `api_key`, `app_name` and `IdentityOptions.instance_id` are stripped of surrounding whitespace. `UnleashClient` and `AsyncUnleashClient` raise `TypeError` if one is set but isn't a str, instead of every request failing.
 * (Minor): New `FETCH_COMPLETED` event, emitted after every feature fetch with how it ended: `CHANGED`, `NOT_CHANGED`, `UNAUTHORIZED`, `RATE_LIMITED`, `UNAVAILABLE` or `INVALID_RESPONSE`.
 * (Minor): `feature_definitions()` reports whether each feature is enabled in the environment.
 * (Minor): New `evaluate_all_toggles()` evaluates every feature for one context in a single call, without recording usage metrics.

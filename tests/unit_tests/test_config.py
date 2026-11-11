@@ -182,7 +182,7 @@ def test_an_authorization_header_is_rejected(name):
 @pytest.mark.parametrize(
     "kwargs",
     [
-        {"api_key": "project:environment.hash\n"},
+        {"api_key": "project:environment.\nhash"},
         {"app_name": "my\napp"},
         {"identity": IdentityOptions(instance_id="instance\r1")},
         {"connection_id": "id\n"},
@@ -196,13 +196,27 @@ def test_a_value_sent_as_a_header_with_a_line_break_is_rejected(kwargs):
         UnleashConfig(**config)
 
 
+def test_values_sent_as_headers_are_stripped():
+    # e.g. a token read from a file
+    config = UnleashConfig(
+        URL,
+        " my-app\n",
+        api_key="project:environment.hash\n",
+        identity=IdentityOptions(instance_id="\tinstance-1\r\n"),
+    )
+
+    assert config.api_key == "project:environment.hash"
+    assert config.app_name == "my-app"
+    assert config.identity.instance_id == "instance-1"
+
+
 def test_no_api_key_is_fine():
     assert UnleashConfig(URL, APP_NAME).api_key is None
 
 
 def test_a_rejected_api_key_is_kept_out_of_the_message():
     with pytest.raises(ValueError) as error:
-        UnleashConfig(URL, APP_NAME, api_key="project:environment.secret\n")
+        UnleashConfig(URL, APP_NAME, api_key="project:environment.sec\nret")
 
     assert "secret" not in str(error.value)
 

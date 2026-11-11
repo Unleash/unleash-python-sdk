@@ -1,7 +1,7 @@
 """Configuration value object shared by the sync and async Unleash clients."""
 
 import uuid
-from dataclasses import KW_ONLY, dataclass, field
+from dataclasses import KW_ONLY, dataclass, field, replace
 from types import MappingProxyType
 from typing import Any, Mapping, Optional, Union
 
@@ -12,6 +12,10 @@ from UnleashClient.utils import (
     _validate_url,
     extract_environment_from_api_key,
 )
+
+
+def _stripped(value: Any) -> Any:
+    return value.strip() if isinstance(value, str) else value
 
 
 def redact_to_print_safely(value: Optional[str]) -> Optional[str]:
@@ -130,11 +134,11 @@ class UnleashConfig:
     updating with every new server call.
 
     ``api_key``, ``app_name``, ``identity.instance_id`` and ``connection_id``
-    are sent as headers, so they must be str without a line break.
+    are sent as headers, so they must be str
 
     :raises ValueError: if ``url`` is not an absolute http(s) URL with a host,
                         or a value sent as a header contains a line break.
-    :raises TypeError: if a value sent as a header is not a str.
+    :raises TypeError: if a value sent as a header and is not a str.
 
     ``api_key`` is optional because a client that only loads from a backup never talks to the server.
     """
@@ -159,6 +163,13 @@ class UnleashConfig:
         _validate_url(self.url)
         if self.identity is None:
             object.__setattr__(self, "identity", IdentityOptions())
+        object.__setattr__(self, "api_key", _stripped(self.api_key))
+        object.__setattr__(self, "app_name", _stripped(self.app_name))
+        instance_id = _stripped(self.identity.instance_id)
+        if instance_id != self.identity.instance_id:
+            object.__setattr__(
+                self, "identity", replace(self.identity, instance_id=instance_id)
+            )
         for name, value in (
             ("Authorization", self.api_key),
             ("unleash-appname", self.app_name),

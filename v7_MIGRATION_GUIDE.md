@@ -98,16 +98,6 @@ client.initialize_client(fetch_toggles=False)
 
 In v6 a malformed URL only raised when the client registered. With registration disabled, every fetch and metrics send failed and was only logged.
 
-## Values sent as headers are checked
-
-The client sends `api_key`, `app_name`, `IdentityOptions.instance_id` and `connection_id` as request headers, so the constructor raises a `ValueError` if one contains a line break, and a `TypeError` if one isn't a str. The message names the header but never contains its value.
-
-The most common cause is an API token read from a file or an environment variable with a trailing newline. Strip it before passing it:
-
-``` python
-client = UnleashClient(url, app_name, api_key=os.environ["UNLEASH_API_KEY"].strip())
-```
-
 ## `environment` has been removed
 
 The `environment` argument has been removed, with no replacement. Your API token decides which environment the client gets flags for.
