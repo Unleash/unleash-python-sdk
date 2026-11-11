@@ -1,6 +1,7 @@
 # ruff: noqa: F401
 from typing import TYPE_CHECKING
 
+from ._requests_transport import RequestsTransport
 from .clients import (
     INSTANCES,
     UnleashClient,
@@ -13,14 +14,7 @@ from .config import (
     PollingOptions,
     StreamingOptions,
 )
-from .transport import (
-    AsyncTransport,
-    Method,
-    Request,
-    RequestsTransport,
-    Response,
-    Transport,
-)
+from .transport import AsyncTransport, Method, Request, Response, Transport
 
 if TYPE_CHECKING:
     from ._aiohttp_transport import AiohttpTransport

@@ -8,7 +8,8 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 from tests.utilities.testing_constants import URL
-from UnleashClient.transport import Method, Request, RequestsTransport, Transport
+from UnleashClient import RequestsTransport
+from UnleashClient.transport import Method, Request, Transport
 
 ENDPOINT = URL + "/client/features"
 
