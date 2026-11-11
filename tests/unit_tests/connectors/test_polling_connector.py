@@ -8,14 +8,10 @@ from tests.utilities.mocks.mock_features import (
 )
 from tests.utilities.testing_constants import (
     APP_NAME,
-    CUSTOM_HEADERS,
-    CUSTOM_OPTIONS,
     ETAG_VALUE,
     INSTANCE_ID,
     PROJECT_NAME,
     PROJECT_URL,
-    REQUEST_RETRIES,
-    REQUEST_TIMEOUT,
     URL,
 )
 from UnleashClient._event_dispatcher import _EventDispatcher
@@ -24,7 +20,6 @@ from UnleashClient._headers import _HeaderFactory
 from UnleashClient._scheduler import _Scheduler
 from UnleashClient._unleash_api_client import _UnleashApiClient
 from UnleashClient.config import (
-    HttpOptions,
     IdentityOptions,
     PollingOptions,
     UnleashConfig,
@@ -39,12 +34,6 @@ FULL_FEATURE_URL = URL + FEATURES_URL
 def build_api_client(**kwargs) -> _UnleashApiClient:
     defaults = {
         "identity": IdentityOptions(instance_id=INSTANCE_ID),
-        "http": HttpOptions(
-            headers=CUSTOM_HEADERS,
-            options=CUSTOM_OPTIONS,
-            timeout=REQUEST_TIMEOUT,
-            retries=REQUEST_RETRIES,
-        ),
     }
     defaults.update(kwargs)
     config = UnleashConfig(URL, APP_NAME, **defaults)

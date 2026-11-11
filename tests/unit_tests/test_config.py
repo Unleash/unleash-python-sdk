@@ -4,7 +4,6 @@ from dataclasses import FrozenInstanceError
 import pytest
 
 from UnleashClient.config import (
-    HttpOptions,
     IdentityOptions,
     MetricsOptions,
     PollingOptions,
@@ -30,7 +29,6 @@ def test_defaults():
     assert config.metrics == MetricsOptions(
         interval=60, jitter=None, disabled=False, disable_registration=False
     )
-    assert config.http == HttpOptions(headers={}, options={}, timeout=30, retries=3)
     assert config.verbose_log_level == 30
 
 
@@ -39,7 +37,6 @@ def test_groups_left_as_none_get_their_defaults():
         URL,
         APP_NAME,
         identity=None,
-        http=None,
         mode=None,
         metrics=None,
         connection_id="fixed-id",
@@ -56,20 +53,9 @@ def test_is_immutable():
     with pytest.raises(FrozenInstanceError):
         config.mode.interval = 1
     with pytest.raises(FrozenInstanceError):
-        config.http.timeout = 1
-    with pytest.raises(FrozenInstanceError):
         config.metrics.disabled = True
     with pytest.raises(FrozenInstanceError):
         config.identity.instance_id = "other"
-
-
-def test_options_are_shared_between_configs_without_copying():
-    http = HttpOptions(headers={"X-Custom": "header"})
-
-    first = UnleashConfig(URL, APP_NAME, http=http)
-    second = UnleashConfig(URL, "other", http=http)
-
-    assert first.http is second.http
 
 
 def test_url_is_rstripped():
@@ -118,14 +104,12 @@ def test_no_other_coercion():
     config = UnleashConfig(
         URL,
         APP_NAME,
-        http=HttpOptions(timeout="9"),
         mode=PollingOptions(interval="60"),
         metrics=MetricsOptions(interval="60"),
     )
 
     assert config.mode.interval == "60"
     assert config.metrics.interval == "60"
-    assert config.http.timeout == "9"
 
 
 def test_connection_id_is_generated_and_unique():
@@ -140,43 +124,6 @@ def test_connection_id_can_be_supplied():
     config = UnleashConfig(URL, APP_NAME, connection_id="fixed-id")
 
     assert config.connection_id == "fixed-id"
-
-
-def test_headers_and_options_are_copied():
-    headers = {"X-Custom": "header"}
-    options = {"verify": False}
-    http = HttpOptions(headers=headers, options=options)
-
-    headers["extra"] = "header"
-    options["extra"] = "option"
-
-    assert http.headers == {"X-Custom": "header"}
-    assert http.options == {"verify": False}
-
-
-def test_missing_headers_and_options_become_empty_dicts():
-    http = HttpOptions(headers=None, options=None)
-
-    assert http.headers == {}
-    assert http.options == {}
-
-
-def test_headers_and_options_are_read_only():
-    http = HttpOptions(headers={"X-Custom": "header"}, options={"verify": True})
-
-    with pytest.raises(TypeError):
-        http.headers["X-Custom"] = "changed"
-    with pytest.raises(TypeError):
-        http.options["verify"] = False
-
-    assert http.headers == {"X-Custom": "header"}
-    assert http.options == {"verify": True}
-
-
-@pytest.mark.parametrize("name", ["Authorization", "authorization", "AUTHORIZATION"])
-def test_an_authorization_header_is_rejected(name):
-    with pytest.raises(ValueError, match="api_key"):
-        HttpOptions(headers={name: "project:environment.hash"})
 
 
 @pytest.mark.parametrize(
@@ -218,13 +165,6 @@ def test_a_rejected_api_key_is_kept_out_of_the_message():
         UnleashConfig(URL, APP_NAME, api_key="project:environment.sec\nret")
 
     assert "secret" not in str(error.value)
-
-
-def test_an_authorization_header_cannot_be_added_later():
-    http = HttpOptions(headers={"X-Custom": "header"})
-
-    with pytest.raises(TypeError):
-        http.headers["Authorization"] = "project:environment.hash"
 
 
 @pytest.mark.parametrize("mode", ["streaming", "polling", {"interval": 5}])

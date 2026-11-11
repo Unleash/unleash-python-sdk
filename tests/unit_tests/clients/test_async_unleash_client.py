@@ -18,7 +18,6 @@ from UnleashClient._metrics import _MetricsReporter
 from UnleashClient.cache import FileCache
 from UnleashClient.clients.async_unleash_client import AsyncUnleashClient
 from UnleashClient.config import (
-    HttpOptions,
     IdentityOptions,
     MetricsOptions,
     PollingOptions,
@@ -78,12 +77,6 @@ def test_both_clients_build_the_same_config(tmpdir):
             instance_id="123",
             sdk_flavor="openfeature",
             sdk_flavor_version="1.2.3",
-        ),
-        http=HttpOptions(
-            headers={"X-Custom": "header"},
-            options={"verify": False},
-            timeout=9,
-            retries=2,
         ),
         mode=PollingOptions(interval=1, jitter=2, project_name="ivan"),
         metrics=MetricsOptions(
@@ -147,7 +140,6 @@ def test_both_clients_build_the_same_headers(tmpdir):
         app_name=APP_NAME,
         api_key="project:environment.hash",
         identity=IdentityOptions(instance_id="123"),
-        http=HttpOptions(headers={"X-Custom": "header"}),
         mode=PollingOptions(interval=1),
         metrics=MetricsOptions(interval=3),
     )
@@ -479,13 +471,12 @@ async def server():
 
 
 @pytest_asyncio.fixture
-async def build_running_client(tmpdir, server: FakeUnleash):
+async def build_running_client(tmpdir, server: FakeUnleash, no_fetch_retries):
     built = []
 
     def _build(**kwargs) -> AsyncUnleashClient:
         kwargs.setdefault("url", server.base_url)
         kwargs.setdefault("app_name", APP_NAME)
-        kwargs.setdefault("http", HttpOptions(retries=0))
         kwargs.setdefault("metrics", MetricsOptions(disabled=True))
         client = build_async_client(tmpdir, **kwargs)
         built.append(client)

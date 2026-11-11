@@ -13,20 +13,15 @@ from tests.utilities.mocks.mock_features import (
 from tests.utilities.mocks.mock_metrics import MOCK_METRICS_REQUEST
 from tests.utilities.testing_constants import (
     APP_NAME,
-    CUSTOM_HEADERS,
-    CUSTOM_OPTIONS,
     ETAG_VALUE,
     INSTANCE_ID,
     PROJECT_NAME,
     PROJECT_URL,
-    REQUEST_RETRIES,
-    REQUEST_TIMEOUT,
     URL,
 )
 from UnleashClient._headers import _HeaderFactory
 from UnleashClient._unleash_api_client import _header, _UnleashApiClient
 from UnleashClient.config import (
-    HttpOptions,
     IdentityOptions,
     MetricsOptions,
     PollingOptions,
@@ -55,12 +50,6 @@ def build_api_client():
             "url": URL,
             "app_name": APP_NAME,
             "identity": IdentityOptions(instance_id=INSTANCE_ID),
-            "http": HttpOptions(
-                headers=CUSTOM_HEADERS,
-                options=CUSTOM_OPTIONS,
-                timeout=REQUEST_TIMEOUT,
-                retries=REQUEST_RETRIES,
-            ),
         }
         defaults.update(kwargs)
         config = UnleashConfig(**defaults)
@@ -103,8 +92,7 @@ def test_fetch_features(api_client, response, status, calls, expected):
 
     result = api_client.fetch_features(options=PollingOptions())
 
-    # 4 calls on a 500 is 1 + REQUEST_RETRIES: the mounted HTTPAdapter/Retry
-    # has to survive every move of this code.
+    # 4 calls on a 500 is 1 + FETCH_RETRIES.
     assert len(responses.calls) == calls
     assert expected(result.raw_state)
 
@@ -179,21 +167,6 @@ def test_fetch_features_retries_and_recovers(build_api_client):
     assert result.etag == ETAG_VALUE
 
 
-@responses.activate
-def test_fetch_features_swallows_a_bad_custom_option(build_api_client):
-    responses.add(
-        responses.GET, FULL_FEATURE_URL, json=MOCK_FEATURE_RESPONSE, status=200
-    )
-
-    # `timeout` collides with the keyword the API client already passes. It is a
-    # TypeError, not a RequestException, and fetch_features swallows everything.
-    result = build_api_client(http=HttpOptions(options={"timeout": 5})).fetch_features(
-        options=PollingOptions()
-    )
-
-    assert result == (None, "", False)
-
-
 # register
 
 
@@ -217,7 +190,7 @@ def test_register(api_client, payload, status, expected):
 
     result = api_client.register({"appName": APP_NAME})
 
-    # No retry adapter on this one, unlike fetch_features.
+    # Never retried, unlike fetch_features.
     assert len(responses.calls) == 1
     assert result is expected
 
@@ -252,16 +225,6 @@ def test_register_reports_a_url_requests_rejects_as_a_failure(build_api_client, 
     assert build_api_client(url=url).register({}) is False
 
 
-@responses.activate
-def test_register_reports_a_bad_custom_option_as_a_failure(build_api_client):
-    responses.add(responses.POST, FULL_REGISTER_URL, json={}, status=202)
-
-    api_client = build_api_client(http=HttpOptions(options={"timeout": 5}))
-
-    assert api_client.register({}) is False
-    assert len(responses.calls) == 0
-
-
 # send_metrics
 
 
@@ -294,16 +257,6 @@ def test_send_metrics(api_client, payload, status, expected):
 
 
 @responses.activate
-def test_send_metrics_reports_a_bad_custom_option_as_a_failure(build_api_client):
-    responses.add(responses.POST, FULL_METRICS_URL, json={}, status=202)
-
-    api_client = build_api_client(http=HttpOptions(options={"timeout": 5}))
-
-    assert api_client.send_metrics({}) is False
-    assert len(responses.calls) == 0
-
-
-@responses.activate
 def test_every_endpoint_gets_its_headers_from_the_factory(build_api_client):
     responses.add(
         responses.GET, FULL_FEATURE_URL, json=MOCK_FEATURE_RESPONSE, status=200
@@ -317,9 +270,8 @@ def test_every_endpoint_gets_its_headers_from_the_factory(build_api_client):
     api_client.send_metrics(MOCK_METRICS_REQUEST)
 
     fetch, register, metrics = (call.request.headers for call in responses.calls)
-    # The custom header and the identification pair reach all three...
+    # The identification headers reach all three...
     for headers in (fetch, register, metrics):
-        assert headers["name"] == CUSTOM_HEADERS["name"]
         assert headers["unleash-appname"] == APP_NAME
         assert headers["Unleash-Client-Spec"] == CLIENT_SPEC_VERSION
     # ...and each endpoint gets the interval its own header set carries.

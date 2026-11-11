@@ -8,7 +8,7 @@ from examples import fake_transport
 from examples.fake_transport import FakeTransport, flag
 from tests.utilities.testing_constants import APP_NAME, ETAG_VALUE, URL
 from UnleashClient import INSTANCES, RequestsTransport, Response, UnleashClient
-from UnleashClient.config import HttpOptions, MetricsOptions, PollingOptions
+from UnleashClient.config import MetricsOptions, PollingOptions
 from UnleashClient.constants import FEATURES_URL
 from UnleashClient.utils import InstanceAllowType
 
@@ -111,11 +111,6 @@ def test_the_client_never_closes_a_session_passed_in(tmp_path, mocker):
     close.assert_not_called()
 
 
-def test_http_and_transport_together_raise(tmp_path):
-    with pytest.raises(ValueError, match="either http or transport"):
-        build_client(tmp_path, FakeTransport(), http=HttpOptions(timeout=5))
-
-
 class AsyncTransport:
     async def execute(self, request):
         raise AssertionError("never sent")
@@ -136,8 +131,8 @@ def test_a_transport_that_cannot_work_raises(tmp_path, transport, message):
 
 
 def test_a_rejected_transport_does_not_register_the_instance(tmp_path):
-    with pytest.raises(ValueError):
-        build_client(tmp_path, FakeTransport(), http=HttpOptions())
+    with pytest.raises(TypeError):
+        build_client(tmp_path, object())
 
     with build_client(
         tmp_path, FakeTransport(), multiple_instance_mode=InstanceAllowType.BLOCK
