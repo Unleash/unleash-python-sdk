@@ -531,7 +531,7 @@ tls.load_cert_chain("/etc/unleash/client.crt", "/etc/unleash/client.key")
 
 async def main():
     async with aiohttp.ClientSession(
-        trust_env=True,  
+        trust_env=True,
         connector=aiohttp.TCPConnector(ssl=tls),
         trace_configs=[my_trace_config],  # e.g. aiohttp tracing for OpenTelemetry
     ) as session:
