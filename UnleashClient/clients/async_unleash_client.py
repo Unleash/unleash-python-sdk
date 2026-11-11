@@ -4,6 +4,7 @@ Asynchronous Unleash client. Requires the optional ``aiohttp`` dependency:
 """
 
 import asyncio
+import inspect
 import warnings
 from datetime import datetime, timezone
 from typing import Callable, Optional, cast
@@ -37,8 +38,36 @@ from UnleashClient.connectors._async_connector import _AsyncPollingConnector
 from UnleashClient.constants import ETAG, METRIC_LAST_SENT_TIME
 from UnleashClient.events import BaseEvent
 from UnleashClient.impact_metrics import ImpactMetrics
-from UnleashClient.transport import AsyncTransport, _check_transport
+from UnleashClient.transport import AsyncTransport
 from UnleashClient.utils import LOGGER, InstanceAllowType
+
+
+# temp check until http options is gone
+def _check_transport(
+    transport: Optional[AsyncTransport], http: Optional[HttpOptions]
+) -> None:
+    if transport is None:
+        return
+    if http is not None:
+        raise ValueError(
+            "Pass either http or transport, not both. Set headers and the "
+            "timeout on the transport: AiohttpTransport(headers=..., timeout=...)."
+        )
+    execute = getattr(transport, "execute", None)
+    if not callable(execute):
+        raise TypeError(
+            "transport must have an async execute(request) method, see "
+            "UnleashClient.transport.AsyncTransport. To use your own "
+            "aiohttp.ClientSession, pass transport=AiohttpTransport(session)."
+        )
+    if not (
+        inspect.iscoroutinefunction(execute)
+        or inspect.iscoroutinefunction(inspect.unwrap(execute))
+    ):
+        raise TypeError(
+            "transport.execute is not async: AsyncUnleashClient needs an async "
+            "transport."
+        )
 
 
 class AsyncUnleashClient:
@@ -100,14 +129,7 @@ class AsyncUnleashClient:
         event_callback: Optional[Callable[[BaseEvent], None]] = None,
         transport: Optional[AsyncTransport] = None,
     ) -> None:
-        if transport is not None:
-            _check_transport(
-                transport,
-                http_given=http is not None,
-                is_async=True,
-                session_name="aiohttp.ClientSession",
-                wrapper_name="AiohttpTransport",
-            )
+        _check_transport(transport, http)
         if isinstance(mode, StreamingOptions):
             raise ValueError(
                 "AsyncUnleashClient does not support streaming yet. "

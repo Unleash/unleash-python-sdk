@@ -1,4 +1,5 @@
 # pylint: disable=invalid-name
+import inspect
 import threading
 import uuid
 import warnings
@@ -46,10 +47,34 @@ from UnleashClient.events import (
     UnleashReadyEvent,
 )
 from UnleashClient.impact_metrics import ImpactMetrics
-from UnleashClient.transport import Transport, _check_transport
+from UnleashClient.transport import Transport
 from UnleashClient.utils import LOGGER, InstanceAllowType
 
 INSTANCES = _get_instance_registry()
+
+
+# temp check until http options is gone
+def _check_transport(
+    transport: Optional[Transport], http: Optional[HttpOptions]
+) -> None:
+    if transport is None:
+        return
+    if http is not None:
+        raise ValueError(
+            "Pass either http or transport, not both. Set headers and the "
+            "timeout on the transport: RequestsTransport(headers=..., timeout=...)."
+        )
+    execute = getattr(transport, "execute", None)
+    if not callable(execute):
+        raise TypeError(
+            "transport must have an execute(request) method, see "
+            "UnleashClient.transport.Transport. To use your own "
+            "requests.Session, pass transport=RequestsTransport(session)."
+        )
+    if inspect.iscoroutinefunction(execute):
+        raise TypeError(
+            "transport.execute is async: UnleashClient needs a sync transport."
+        )
 
 
 class _RunState(IntEnum):
@@ -146,14 +171,7 @@ class UnleashClient:
         event_callback: Optional[Callable[[BaseEvent], None]] = None,
         transport: Optional[Transport] = None,
     ) -> None:
-        if transport is not None:
-            _check_transport(
-                transport,
-                http_given=http is not None,
-                is_async=False,
-                session_name="requests.Session",
-                wrapper_name="RequestsTransport",
-            )
+        _check_transport(transport, http)
         self._config = UnleashConfig(
             url=url,
             app_name=app_name,

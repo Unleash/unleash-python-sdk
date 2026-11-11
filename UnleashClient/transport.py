@@ -8,7 +8,6 @@ Pass a transport to the client to choose how requests are sent:
 client, or any object with an ``execute(Request) -> Response`` method.
 """
 
-import inspect
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Mapping, Optional, Protocol, runtime_checkable
@@ -108,43 +107,6 @@ def _reject_authorization(headers: Mapping[str, str], transport_name: str) -> No
         raise ValueError(
             "Pass the API key as api_key to the client, "
             f"not as an Authorization header to {transport_name}."
-        )
-
-
-def _check_transport(
-    transport: object,
-    *,
-    http_given: bool,
-    is_async: bool,
-    session_name: str,
-    wrapper_name: str,
-) -> None:
-    """
-    Raises for a transport the client can't use, so the mistake shows up in the
-    constructor instead of as a failed request on every poll.
-    """
-    # temp check until HttpOptions is gone
-    if http_given:
-        raise ValueError(
-            "Pass either http or transport, not both. Set headers and the "
-            f"timeout on the transport: {wrapper_name}(headers=..., timeout=...)."
-        )
-    execute = getattr(transport, "execute", None)
-    if not callable(execute):
-        raise TypeError(
-            "transport must have an execute(request) method, see "
-            f"UnleashClient.transport. To use your own {session_name}, pass "
-            f"transport={wrapper_name}(session)."
-        )
-    is_coroutine = inspect.iscoroutinefunction(execute)
-    if is_async and not is_coroutine:
-        is_coroutine = inspect.iscoroutinefunction(inspect.unwrap(execute))
-    if is_coroutine != is_async:
-        raise TypeError(
-            "transport.execute is not async: AsyncUnleashClient needs an async "
-            "transport."
-            if is_async
-            else "transport.execute is async: UnleashClient needs a sync transport."
         )
 
 
