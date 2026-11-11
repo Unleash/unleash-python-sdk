@@ -116,11 +116,11 @@ client = UnleashClient(
 )
 ```
 
-`custom_options` were keyword arguments for every `requests` call. Most of them are session settings, anything else, such as `allow_redirects`, can be done in your own transport, see [custom HTTP transport](./README.md#custom-http-transport). The client never closes a session you pass in.
+`custom_options` were keyword arguments for every `requests` call. Most of them are session settings, anything else, such as `allow_redirects`, can be done in your own transport, see [custom HTTP transport](./README.md#custom-http-transport). The client never closes a custom session that was passed in.
 
 `request_retries` has been removed. A failed feature fetch is retried up to 3 times, on a 500, 502 or 504 or when no response arrives, with a short backoff. Registration and metrics are never retried. To stop retries stacking, don't mount a retrying adapter on your session.
 
-In streaming mode, the stream doesn't use the transport: it connects with the SDK's own headers and a 30 second timeout. In v6 it also received `custom_headers`, `request_timeout` and `custom_options`; there is no replacement for those. If your proxy or gateway needs a custom header on every request, use polling for now.
+In streaming mode, the stream doesn't use the transport: it connects with the SDK's own headers and a 30 second timeout. In v6 it also received `custom_headers`, `request_timeout` and `custom_options`; there is no replacement for those. If a custom header is needed on every request, use polling for now.
 
 ## The URL is validated
 
@@ -162,7 +162,7 @@ client.is_enabled("my-flag", {"environment": "default"})
 
 A client's settings can't be changed after it is created. To change a setting, create a new client.
 
-In v6.9, assigning to `unleash_url`, `unleash_custom_headers` and the other request settings on a running client took effect on the next request; that is no longer possible. Option objects and transport headers are copied when they are built, so changing the dicts you passed in has no effect either.
+In v6.9, assigning to `unleash_url`, `unleash_custom_headers` and the other request settings on a running client took effect on the next request; that is no longer possible. The option objects are frozen, and `RequestsTransport` and `AiohttpTransport` copy the `headers` you pass them, so changing that dict afterwards has no effect either.
 
 ## Removed `unleash_*` properties
 

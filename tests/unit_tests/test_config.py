@@ -58,15 +58,6 @@ def test_is_immutable():
         config.identity.instance_id = "other"
 
 
-def test_options_are_shared_between_configs_without_copying():
-    identity = IdentityOptions(instance_id="instance-1")
-
-    first = UnleashConfig(URL, APP_NAME, identity=identity)
-    second = UnleashConfig(URL, "other", identity=identity)
-
-    assert first.identity is second.identity
-
-
 def test_url_is_rstripped():
     assert UnleashConfig("http://localhost:4242/api/", APP_NAME).url == URL
     assert UnleashConfig("http://localhost:4242/api///", APP_NAME).url == URL

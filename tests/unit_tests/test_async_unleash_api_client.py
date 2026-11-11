@@ -60,11 +60,14 @@ async def server():
 async def build_api_client(server: FakeUnleash):
     """
     Factory pointed at the fake server. Keyword arguments override the defaults
-    on the config. Every API client it builds is closed on teardown.
+    on the config. Every API client it builds is closed on teardown; a
+    ``transport`` passed in is left open, so the test closes it.
     """
     built = []
 
-    def _build_api_client(events=None, **kwargs) -> _AsyncUnleashApiClient:
+    def _build_api_client(
+        events=None, transport=None, **kwargs
+    ) -> _AsyncUnleashApiClient:
         defaults = {
             "url": server.base_url,
             "app_name": APP_NAME,
@@ -72,7 +75,9 @@ async def build_api_client(server: FakeUnleash):
         }
         defaults.update(kwargs)
         config = UnleashConfig(**defaults)
-        api_client = _AsyncUnleashApiClient(config, _HeaderFactory(config), events)
+        api_client = _AsyncUnleashApiClient(
+            config, _HeaderFactory(config), events, transport=transport
+        )
         built.append(api_client)
         return api_client
 
@@ -309,11 +314,8 @@ async def test_send_metrics(server, api_client, reply, expected):
 async def test_send_metrics_returns_false_when_the_request_times_out(
     server, build_api_client
 ):
-    config = UnleashConfig(server.base_url, APP_NAME)
     transport = AiohttpTransport(timeout=0.1)
-    api_client = _AsyncUnleashApiClient(
-        config, _HeaderFactory(config), transport=transport
-    )
+    api_client = build_api_client(transport=transport)
     server.on("POST", METRICS_PATH, hang=True)
 
     try:
