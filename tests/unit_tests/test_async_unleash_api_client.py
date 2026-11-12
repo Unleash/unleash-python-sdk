@@ -21,8 +21,8 @@ from tests.utilities.testing_constants import (
     URL,
 )
 from UnleashClient._aiohttp_transport import AiohttpTransport
-from UnleashClient._async_unleash_api_client import _AsyncUnleashApiClient
 from UnleashClient._headers import _HeaderFactory
+from UnleashClient.api_client._async import _AsyncUnleashApiClient
 from UnleashClient.config import (
     IdentityOptions,
     MetricsOptions,

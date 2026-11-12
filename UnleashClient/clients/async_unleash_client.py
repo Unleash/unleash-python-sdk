@@ -13,7 +13,6 @@ from yggdrasil_engine.engine import UnleashEngine
 
 from UnleashClient._async_metrics import _AsyncMetricsReporter
 from UnleashClient._async_scheduler import _AsyncScheduler
-from UnleashClient._async_unleash_api_client import _AsyncUnleashApiClient
 from UnleashClient._context import _ContextEnricher
 from UnleashClient._evaluator import _Evaluator
 from UnleashClient._event_dispatcher import _EventDispatcher
@@ -24,6 +23,7 @@ from UnleashClient._instance_registry import (
     _instance_identifier,
 )
 from UnleashClient._payloads import _build_register_payload
+from UnleashClient.api_client._async import _AsyncUnleashApiClient
 from UnleashClient.cache import BaseCache, FileCache
 from UnleashClient.clients.unleash_client import _RunState
 from UnleashClient.config import (

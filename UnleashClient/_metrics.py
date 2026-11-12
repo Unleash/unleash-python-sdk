@@ -4,7 +4,7 @@ from yggdrasil_engine.engine import UnleashEngine
 
 from UnleashClient._payloads import _build_metrics_payload
 from UnleashClient._scheduler import _ScheduledJob, _Scheduler
-from UnleashClient._unleash_api_client import _UnleashApiClient
+from UnleashClient.api_client._sync import _UnleashApiClient
 from UnleashClient.config import UnleashConfig
 from UnleashClient.impact_metrics import ImpactMetrics
 from UnleashClient.utils import LOGGER

@@ -22,7 +22,7 @@ from UnleashClient._instance_registry import (
 from UnleashClient._metrics import _MetricsReporter
 from UnleashClient._payloads import _build_register_payload
 from UnleashClient._scheduler import _ScheduledJob, _Scheduler
-from UnleashClient._unleash_api_client import _UnleashApiClient
+from UnleashClient.api_client._sync import _UnleashApiClient
 from UnleashClient.cache import BaseCache, FileCache
 from UnleashClient.config import (
     IdentityOptions,

@@ -9,7 +9,7 @@ from UnleashClient._aiohttp_transport import AiohttpTransport
 from UnleashClient._event_dispatcher import _EventDispatcher
 from UnleashClient._headers import _HeaderFactory
 from UnleashClient._retry import _send_with_retries_async
-from UnleashClient._unleash_api_client import (
+from UnleashClient.api_client._shared import (
     FetchResult,
     _emit_fetch_completed,
     _failure_status,
@@ -28,7 +28,7 @@ from UnleashClient.utils import LOGGER
 
 
 class _AsyncUnleashApiClient:
-    """The asyncio twin of :class:`UnleashClient._unleash_api_client._UnleashApiClient`."""
+    """The asyncio twin of :class:`UnleashClient.api_client._sync._UnleashApiClient`."""
 
     def __init__(
         self,

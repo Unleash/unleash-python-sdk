@@ -10,10 +10,10 @@ from tests.utilities.events import WAIT_TIMEOUT, EventRecorder
 from tests.utilities.fake_unleash_server import FakeUnleash
 from tests.utilities.mocks.mock_features import MOCK_FEATURE_RESPONSE
 from tests.utilities.testing_constants import APP_NAME, ETAG_VALUE
-from UnleashClient._async_unleash_api_client import _AsyncUnleashApiClient
 from UnleashClient._event_dispatcher import _EventDispatcher
 from UnleashClient._feature_store import _FeatureStore
 from UnleashClient._headers import _HeaderFactory
+from UnleashClient.api_client._async import _AsyncUnleashApiClient
 from UnleashClient.config import PollingOptions, UnleashConfig
 from UnleashClient.connectors._async_connector import _AsyncPollingConnector
 from UnleashClient.constants import ETAG, FEATURES_URL

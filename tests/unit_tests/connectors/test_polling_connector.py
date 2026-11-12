@@ -18,7 +18,7 @@ from UnleashClient._event_dispatcher import _EventDispatcher
 from UnleashClient._feature_store import _FeatureStore
 from UnleashClient._headers import _HeaderFactory
 from UnleashClient._scheduler import _Scheduler
-from UnleashClient._unleash_api_client import _UnleashApiClient
+from UnleashClient.api_client._sync import _UnleashApiClient
 from UnleashClient.config import (
     IdentityOptions,
     PollingOptions,

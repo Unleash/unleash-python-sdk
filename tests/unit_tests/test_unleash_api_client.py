@@ -20,7 +20,8 @@ from tests.utilities.testing_constants import (
     URL,
 )
 from UnleashClient._headers import _HeaderFactory
-from UnleashClient._unleash_api_client import _header, _UnleashApiClient
+from UnleashClient.api_client._shared import _header
+from UnleashClient.api_client._sync import _UnleashApiClient
 from UnleashClient.config import (
     IdentityOptions,
     MetricsOptions,
