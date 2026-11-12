@@ -20,7 +20,7 @@ from tests.utilities.testing_constants import (
     URL,
 )
 from UnleashClient._headers import _HeaderFactory
-from UnleashClient.api_client._shared import _header
+from UnleashClient.api_client._shared import _decode_body, _header
 from UnleashClient.api_client._sync import _UnleashApiClient
 from UnleashClient.config import (
     IdentityOptions,
@@ -489,3 +489,56 @@ def test_a_payload_that_cannot_be_serialised_still_raises(call):
 )
 def test_header_matches_names_case_insensitively(headers, expected):
     assert _header(Response(status=200, headers=headers, body=b""), "etag") == expected
+
+
+@pytest.mark.parametrize(
+    "headers,expected",
+    (
+        ({"Content-Type": "application/json; charset=iso-8859-1"}, "iso8859-1"),
+        ({"content-type": 'application/json; charset="ISO-8859-1"'}, "iso8859-1"),
+        ({"Content-Type": "application/json; charset=utf-8"}, "utf-8"),
+        ({"Content-Type": "application/json"}, "utf-8"),
+        ({}, "utf-8"),
+        ({"Content-Type": "application/json; charset=no-such-charset"}, "utf-8"),
+        ({"Content-Type": "application/json; q=1; charset=latin-1"}, "iso8859-1"),
+        ({"Content-Type": "application/json; CHARSET=latin-1"}, "iso8859-1"),
+        ({"Content-Type": "application/json ; charset = latin-1 "}, "iso8859-1"),
+        ({"Content-Type": "application/json; charset="}, "utf-8"),
+    ),
+    ids=(
+        "declared",
+        "quoted-uppercase",
+        "utf-8",
+        "no-charset",
+        "no-header",
+        "unknown",
+        "after-another-parameter",
+        "uppercase-name",
+        "spaces",
+        "empty",
+    ),
+)
+def test_decode_body_uses_the_declared_charset_or_utf_8(headers, expected):
+    body = "caf\u00e9".encode(expected)
+
+    assert _decode_body(Response(status=200, headers=headers, body=body)) == (
+        "caf\u00e9"
+    )
+    
+
+STATE_WITH_ACCENT = '{"version": 1, "name": "caf\u00e9"}'
+
+def test_a_state_that_does_not_decode_is_a_failed_fetch():
+    transport = RecordingTransport(
+        Response(
+            status=200,
+            headers={"ETag": ETAG_VALUE, "Content-Type": "application/json"},
+            body=STATE_WITH_ACCENT.encode("iso-8859-1"),
+        )
+    )
+    events = RecordingEvents()
+
+    result = api_client_over(transport, events).fetch_features(options=PollingOptions())
+
+    assert result == (None, "", False)
+    assert fetch_outcomes(events) == [FetchStatus.INVALID_RESPONSE]
