@@ -3,6 +3,7 @@ What both API clients share: the fetch result, how a fetch outcome is
 classified and reported, and reading a response. Names no HTTP library.
 """
 
+import codecs
 import uuid
 from typing import NamedTuple, Optional
 
@@ -82,11 +83,20 @@ def _header(resp: Response, name: str) -> str:
     return ""
 
 
-def _text(resp: Response) -> str:
-    return resp.body.decode("utf-8", errors="replace")
+def _decode_body(resp: Response) -> str:
+    params = {}
+    for param in _header(resp, "content-type").split(";")[1:]:
+        name, _, value = param.partition("=")
+        params[name.strip().lower()] = value.strip().strip('"')
+    charset = params.get("charset", "utf-8")
+    try:
+        codecs.lookup(charset)
+    except LookupError:
+        charset = "utf-8"
+    return resp.body.decode(charset)
 
 
 def _log_resp_info(resp: Response) -> None:
     LOGGER.debug("HTTP status code: %s", resp.status)
     LOGGER.debug("HTTP headers: %s", resp.headers)
-    LOGGER.debug("HTTP content: %s", _text(resp))
+    LOGGER.debug("HTTP content: %s", resp.body.decode("utf-8", errors="replace"))

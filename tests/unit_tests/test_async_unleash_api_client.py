@@ -528,6 +528,29 @@ async def test_fetch_features_sends_its_request_through_the_transport():
     assert request.headers["If-None-Match"] == ETAG_VALUE
 
 
+STATE_WITH_ACCENT = '{"version": 1, "name": "caf\u00e9"}'
+
+
+@mark.asyncio
+async def test_a_state_that_does_not_decode_is_a_failed_fetch():
+    # Latin-1 bytes sent as UTF-8: "\xe9" alone is not valid UTF-8
+    transport = RecordingTransport(
+        Response(
+            status=200,
+            headers={"ETag": ETAG_VALUE, "Content-Type": "application/json"},
+            body=STATE_WITH_ACCENT.encode("iso-8859-1"),
+        )
+    )
+    events = RecordingEvents()
+
+    result = await api_client_over(transport, events).fetch_features(
+        options=PollingOptions()
+    )
+
+    assert result == (None, "", False)
+    assert fetch_outcomes(events) == [FetchStatus.INVALID_RESPONSE]
+
+
 @mark.asyncio
 async def test_register_posts_its_payload_through_the_transport():
     transport = RecordingTransport(Response(status=202, headers={}, body=b""))

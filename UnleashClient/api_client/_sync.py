@@ -6,13 +6,13 @@ from UnleashClient._headers import _HeaderFactory
 from UnleashClient._retry import _send_with_retries
 from UnleashClient.api_client._shared import (
     FetchResult,
+    _decode_body,
     _emit_fetch_completed,
     _failure_status,
     _fetched_status,
     _header,
     _log_resp_info,
     _normalized_url,
-    _text,
 )
 from UnleashClient.config import PollingOptions, UnleashConfig
 from UnleashClient.constants import FEATURES_URL, METRICS_URL, REGISTER_URL
@@ -125,7 +125,7 @@ class _UnleashApiClient:
                     FetchStatus.NOT_CHANGED,
                 )
 
-            raw_state = _text(resp)
+            raw_state = _decode_body(resp)
             return FetchResult(raw_state, fetched_etag), _fetched_status(raw_state)
         except Exception as exc:
             LOGGER.exception(
