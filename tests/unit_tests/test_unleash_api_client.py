@@ -524,9 +524,10 @@ def test_decode_body_uses_the_declared_charset_or_utf_8(headers, expected):
     assert _decode_body(Response(status=200, headers=headers, body=body)) == (
         "caf\u00e9"
     )
-    
+
 
 STATE_WITH_ACCENT = '{"version": 1, "name": "caf\u00e9"}'
+
 
 def test_a_state_that_does_not_decode_is_a_failed_fetch():
     transport = RecordingTransport(
