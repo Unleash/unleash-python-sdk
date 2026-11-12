@@ -3,7 +3,6 @@ from typing import Any, Dict, Optional, Tuple
 
 from UnleashClient._event_dispatcher import _EventDispatcher
 from UnleashClient._headers import _HeaderFactory
-from UnleashClient._requests_transport import RequestsTransport
 from UnleashClient._retry import _send_with_retries
 from UnleashClient.api_client._shared import (
     FetchResult,
@@ -19,6 +18,7 @@ from UnleashClient.config import PollingOptions, UnleashConfig
 from UnleashClient.constants import FEATURES_URL, METRICS_URL, REGISTER_URL
 from UnleashClient.events import FetchStatus
 from UnleashClient.transport import Method, Request, Transport
+from UnleashClient.transport._requests import RequestsTransport
 from UnleashClient.utils import LOGGER
 
 

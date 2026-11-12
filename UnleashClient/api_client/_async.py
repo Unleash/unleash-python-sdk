@@ -5,7 +5,6 @@ import json
 import threading
 from typing import Any, Dict, Optional, Tuple
 
-from UnleashClient._aiohttp_transport import AiohttpTransport
 from UnleashClient._event_dispatcher import _EventDispatcher
 from UnleashClient._headers import _HeaderFactory
 from UnleashClient._retry import _send_with_retries_async
@@ -24,6 +23,7 @@ from UnleashClient.constants import FEATURES_URL, METRICS_URL, REGISTER_URL
 from UnleashClient.errors import AlreadyClosedError
 from UnleashClient.events import FetchStatus
 from UnleashClient.transport import AsyncTransport, Method, Request
+from UnleashClient.transport._aiohttp import AiohttpTransport
 from UnleashClient.utils import LOGGER
 
 
