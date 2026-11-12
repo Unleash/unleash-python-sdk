@@ -461,6 +461,13 @@ def test_any_transport_exception_is_a_failed_request(exc):
     assert api_client.send_metrics({}) is False
 
 
+def test_register_and_send_metrics_never_raise_on_a_broken_response():
+    api_client = api_client_over(RecordingTransport(object()))
+
+    assert api_client.register({}) is False
+    assert api_client.send_metrics({}) is False
+
+
 @mark.parametrize(
     "call",
     (

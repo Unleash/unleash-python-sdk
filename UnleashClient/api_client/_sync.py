@@ -138,12 +138,12 @@ class _UnleashApiClient:
         """
         Register this client with the Unleash server.
 
-        Any exception from the transport is a failed request: it is logged and
-        False is returned.
+        Never raises for a failed request: an exception from the transport, or
+        a response the SDK can't read, is logged and False is returned.
 
         :param payload: Registration request body.
-        :return: True on 200 or 202; False on any other status and on a request
-                 error.
+        :return: True on 200 or 202; False on any other status, on a request
+                 error and on a response the SDK can't read.
         """
         config = self._config
         LOGGER.info("Registering unleash client with unleash @ %s", config.url)
@@ -157,33 +157,33 @@ class _UnleashApiClient:
         )
         try:
             resp = self._transport.execute(request)
+            if resp.status not in {200, 202}:
+                _log_resp_info(resp)
+                LOGGER.warning(
+                    "Unleash Client registration failed due to unexpected HTTP status code: %s",
+                    resp.status,
+                )
+                return False
+
+            LOGGER.info("Unleash Client successfully registered!")
+
+            return True
         except Exception as exc:  # pylint: disable=broad-except
             LOGGER.exception(
                 "Unleash Client registration failed due to exception: %s", exc
             )
             return False
 
-        if resp.status not in {200, 202}:
-            _log_resp_info(resp)
-            LOGGER.warning(
-                "Unleash Client registration failed due to unexpected HTTP status code: %s",
-                resp.status,
-            )
-            return False
-
-        LOGGER.info("Unleash Client successfully registered!")
-
-        return True
-
     def send_metrics(self, payload: Dict[str, Any]) -> bool:
         """
         Send one metrics bucket to the Unleash server.
 
-        Any exception from the transport is a failed request: it is logged and
-        False is returned.
+        Never raises for a failed request: an exception from the transport, or
+        a response the SDK can't read, is logged and False is returned.
 
         :param payload: Metrics request body.
-        :return: True on 202; False on any other status and on a request error.
+        :return: True on 202; False on any other status, on a request error and
+                 on a response the SDK can't read.
         """
         config = self._config
         LOGGER.info("Sending messages to with unleash @ %s", config.url)
@@ -197,20 +197,19 @@ class _UnleashApiClient:
         )
         try:
             resp = self._transport.execute(request)
+            if resp.status != 202:
+                _log_resp_info(resp)
+                LOGGER.warning(
+                    "Unleash Client metrics submission due to unexpected HTTP status code: %s",
+                    resp.status,
+                )
+                return False
+
+            LOGGER.info("Unleash Client metrics successfully sent!")
+
+            return True
         except Exception as exc:  # pylint: disable=broad-except
             LOGGER.warning(
                 "Unleash Client metrics submission failed due to exception: %s", exc
             )
             return False
-
-        if resp.status != 202:
-            _log_resp_info(resp)
-            LOGGER.warning(
-                "Unleash Client metrics submission due to unexpected HTTP status code: %s",
-                resp.status,
-            )
-            return False
-
-        LOGGER.info("Unleash Client metrics successfully sent!")
-
-        return True

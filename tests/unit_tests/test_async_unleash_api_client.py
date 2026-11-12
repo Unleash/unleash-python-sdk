@@ -628,6 +628,14 @@ async def test_any_transport_exception_is_a_failed_request(exc):
 
 
 @mark.asyncio
+async def test_register_and_send_metrics_never_raise_on_a_broken_response():
+    api_client = api_client_over(RecordingTransport(object()))
+
+    assert await api_client.register({}) is False
+    assert await api_client.send_metrics({}) is False
+
+
+@mark.asyncio
 async def test_a_transport_closed_by_its_creator_gives_failed_requests():
     transport = AiohttpTransport()
     await transport.aclose()
