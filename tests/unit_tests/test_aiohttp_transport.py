@@ -7,9 +7,9 @@ import pytest_asyncio
 from pytest import mark
 
 from tests.utilities.fake_unleash_server import FakeUnleash
-from UnleashClient._aiohttp_transport import AiohttpTransport
 from UnleashClient.errors import AlreadyClosedError
 from UnleashClient.transport import AsyncTransport, Method, Request
+from UnleashClient.transport._aiohttp import AiohttpTransport
 
 PATH = "/client/features"
 

@@ -1,96 +1,25 @@
 import json
-import uuid
-from typing import Any, Dict, NamedTuple, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 from UnleashClient._event_dispatcher import _EventDispatcher
 from UnleashClient._headers import _HeaderFactory
-from UnleashClient._requests_transport import RequestsTransport
 from UnleashClient._retry import _send_with_retries
+from UnleashClient.api_client._shared import (
+    FetchResult,
+    _emit_fetch_completed,
+    _failure_status,
+    _fetched_status,
+    _header,
+    _log_resp_info,
+    _normalized_url,
+    _text,
+)
 from UnleashClient.config import PollingOptions, UnleashConfig
 from UnleashClient.constants import FEATURES_URL, METRICS_URL, REGISTER_URL
-from UnleashClient.events import (
-    FetchStatus,
-    UnleashEventType,
-    UnleashFetchCompletedEvent,
-)
-from UnleashClient.transport import Method, Request, Response, Transport
+from UnleashClient.events import FetchStatus
+from UnleashClient.transport import Method, Request, Transport
+from UnleashClient.transport._requests import RequestsTransport
 from UnleashClient.utils import LOGGER
-
-
-class FetchResult(NamedTuple):
-    """
-    The outcome of one feature fetch.
-
-    :param raw_state: Feature state body, or None on a 304 and on failure.
-    :param etag: ETag returned by the server, or "" when the response had none.
-    :param not_modified: True when the server answered 304.
-    """
-
-    raw_state: Optional[str]
-    etag: str
-    not_modified: bool = False
-
-
-def _failure_status(http_status_code: Optional[int]) -> FetchStatus:
-    """Classifies a failed fetch by the response it got, if any."""
-    if http_status_code is None:
-        return FetchStatus.UNAVAILABLE
-    if http_status_code in (401, 403):
-        return FetchStatus.UNAUTHORIZED
-    if http_status_code == 429:
-        return FetchStatus.RATE_LIMITED
-    if http_status_code >= 500:
-        return FetchStatus.UNAVAILABLE
-    return FetchStatus.INVALID_RESPONSE
-
-
-def _fetched_status(raw_state: str) -> FetchStatus:
-    """An empty 200 is not usable: there is no state to apply."""
-    return FetchStatus.CHANGED if raw_state else FetchStatus.INVALID_RESPONSE
-
-
-def _emit_fetch_completed(
-    events: Optional[_EventDispatcher], status: FetchStatus
-) -> None:
-    """
-    Reports how a fetch ended. Never raises: a broken listener must not break
-    the fetch.
-    """
-    if events is None:
-        return
-
-    try:
-        events.emit_event(
-            UnleashFetchCompletedEvent(
-                event_type=UnleashEventType.FETCH_COMPLETED,
-                event_id=uuid.uuid4(),
-                status=status,
-            )
-        )
-    except Exception:  # pylint: disable=broad-except
-        LOGGER.debug("Failed to emit the fetch completed event", exc_info=True)
-
-
-def _normalized_url(url: str, path: str) -> str:
-    return f"{url}{path}"
-
-
-def _header(resp: Response, name: str) -> str:
-    name = name.lower()
-    for key, value in resp.headers.items():
-        if key.lower() == name:
-            return value
-    return ""
-
-
-def _text(resp: Response) -> str:
-    return resp.body.decode("utf-8", errors="replace")
-
-
-def _log_resp_info(resp: Response) -> None:
-    LOGGER.debug("HTTP status code: %s", resp.status)
-    LOGGER.debug("HTTP headers: %s", resp.headers)
-    LOGGER.debug("HTTP content: %s", _text(resp))
 
 
 class _UnleashApiClient:

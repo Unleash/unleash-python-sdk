@@ -1,11 +1,6 @@
 """
 HTTP layer under the Unleash client: sends one request and returns the
 response.
-
-Pass a transport to the client to choose how requests are sent:
-``RequestsTransport`` with your own ``requests.Session``,
-``AiohttpTransport`` with your own ``aiohttp.ClientSession`` for the async
-client, or any object with an ``execute(Request) -> Response`` method.
 """
 
 from dataclasses import dataclass, field

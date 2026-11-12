@@ -5,8 +5,8 @@ from typing import Optional
 from yggdrasil_engine.engine import UnleashEngine
 
 from UnleashClient._async_scheduler import _AsyncJob, _AsyncScheduler
-from UnleashClient._async_unleash_api_client import _AsyncUnleashApiClient
 from UnleashClient._payloads import _build_metrics_payload
+from UnleashClient.api_client._async import _AsyncUnleashApiClient
 from UnleashClient.config import UnleashConfig
 from UnleashClient.impact_metrics import ImpactMetrics
 from UnleashClient.utils import LOGGER

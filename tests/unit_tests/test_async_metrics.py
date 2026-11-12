@@ -10,8 +10,8 @@ from yggdrasil_engine.engine import UnleashEngine
 from tests.utilities.fake_unleash_server import FakeUnleash
 from UnleashClient._async_metrics import _AsyncMetricsReporter
 from UnleashClient._async_scheduler import _AsyncJob, _AsyncJobFn, _AsyncScheduler
-from UnleashClient._async_unleash_api_client import _AsyncUnleashApiClient
 from UnleashClient._headers import _HeaderFactory
+from UnleashClient.api_client._async import _AsyncUnleashApiClient
 from UnleashClient.config import IdentityOptions, MetricsOptions, UnleashConfig
 from UnleashClient.constants import CLIENT_SPEC_VERSION, METRICS_URL
 from UnleashClient.impact_metrics import ImpactMetrics

@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
 
 from UnleashClient._async_scheduler import _AsyncScheduler
-from UnleashClient._async_unleash_api_client import _AsyncUnleashApiClient
 from UnleashClient._feature_store import _FeatureStore
+from UnleashClient.api_client._async import _AsyncUnleashApiClient
 from UnleashClient.config import PollingOptions
 
 

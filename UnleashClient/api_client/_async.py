@@ -5,11 +5,10 @@ import json
 import threading
 from typing import Any, Dict, Optional, Tuple
 
-from UnleashClient._aiohttp_transport import AiohttpTransport
 from UnleashClient._event_dispatcher import _EventDispatcher
 from UnleashClient._headers import _HeaderFactory
 from UnleashClient._retry import _send_with_retries_async
-from UnleashClient._unleash_api_client import (
+from UnleashClient.api_client._shared import (
     FetchResult,
     _emit_fetch_completed,
     _failure_status,
@@ -24,11 +23,12 @@ from UnleashClient.constants import FEATURES_URL, METRICS_URL, REGISTER_URL
 from UnleashClient.errors import AlreadyClosedError
 from UnleashClient.events import FetchStatus
 from UnleashClient.transport import AsyncTransport, Method, Request
+from UnleashClient.transport._aiohttp import AiohttpTransport
 from UnleashClient.utils import LOGGER
 
 
 class _AsyncUnleashApiClient:
-    """The asyncio twin of :class:`UnleashClient._unleash_api_client._UnleashApiClient`."""
+    """The asyncio twin of :class:`UnleashClient.api_client._sync._UnleashApiClient`."""
 
     def __init__(
         self,

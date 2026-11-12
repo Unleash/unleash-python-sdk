@@ -1,6 +1,6 @@
 from UnleashClient._feature_store import _FeatureStore
 from UnleashClient._scheduler import _ScheduledJob, _Scheduler
-from UnleashClient._unleash_api_client import _UnleashApiClient
+from UnleashClient.api_client._sync import _UnleashApiClient
 from UnleashClient.config import PollingOptions
 
 from .base_connector import BaseConnector
