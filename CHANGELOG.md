@@ -1,19 +1,24 @@
 ## Unreleased (v7.0.0)
 * (Major): Python 3.10 or newer is required. Support for Python 3.8 and 3.9 has been dropped.
-* (Major): `UnleashClient` and `AsyncUnleashClient` take their settings as option groups: `identity=IdentityOptions(...)`, `mode=PollingOptions(...)` or `mode=StreamingOptions()`, and `metrics=MetricsOptions(...)`. Every argument after `url` and `app_name` is keyword-only. `ExperimentalMode` has been removed. See the [v7 migration guide](./v7_MIGRATION_GUIDE.md).
+* (Major): `UnleashClient` and `AsyncUnleashClient` take their settings as option groups: `identity=IdentityOptions(...)`, `mode=PollingOptions(...)` or `mode=StreamingOptions()`, and `metrics=MetricsOptions(...)`. Every argument after `url` and `app_name` is keyword-only. `ExperimentalMode` has been removed. See the [v7 migration guide](./v7_MIGRATION_GUIDE.md)
+* (Major): `AsyncUnleashClient` raises `ValueError` for `mode=StreamingOptions()`. Before, it accepted streaming settings and polled.
 * (Major): Settings can no longer be changed on an existing client. The `unleash_*` settings properties and the `strategy_mapping` and `connector_mode` properties have been removed, together with their setters.
 * (Major): The API token is passed as `api_key="<API token>"`. An `Authorization` header in a transport's `headers` raises `ValueError`.
 * (Major): HTTP settings are set on the transport: `custom_headers` and `request_timeout` become `RequestsTransport(headers=..., timeout=...)`, or `AiohttpTransport(...)` for `AsyncUnleashClient`. `custom_options` has been removed: configure a `requests.Session` and pass `RequestsTransport(session)`. `request_retries` has been removed: a failed feature fetch is retried up to 3 times. The streaming connection doesn't use the transport: it is sent with the SDK's own headers and a 30s timeout.
-* (Major): The deprecated `environment` setting has been removed. The `environment` field of the evaluation context and the impact metrics `environment` label come from the API token, or are `"default"` when the token doesn't name one.
+* (Major): The deprecated `environment` setting has been removed. The `environment` field of the evaluation context and the impact metrics `environment` label come from the API token, or are `"default"` when the token doesn't name one. Flags with an `environment` constraint can evaluate differently, see the [v7 migration guide](./v7_MIGRATION_GUIDE.md#environment-has-been-removed).
 * (Major): The `UnleashClient` and `AsyncUnleashClient` constructors raise `ValueError` if `url` is not an absolute http(s) URL with a host, for every client.
 * (Major): `initialize_client()` no longer raises when registration fails. A failed registration is logged and the client keeps running, the same way for both clients.
 * (Major): Upgraded to yggdrasil-engine 3, new engine built with PyO3 for better performance.
+* (Major): `UnleashClient.utils.normalized_hash` has been removed, and `mmh3` is no longer a dependency.
 * (Minor): `api_key`, `app_name` and `IdentityOptions.instance_id` are stripped of surrounding whitespace. `UnleashClient` and `AsyncUnleashClient` raise `TypeError` if one is set but isn't a str, instead of every request failing.
 * (Minor): Feature fetches are retried the same way by both clients: on a 500, 502 or 504, or when no response arrives, with a short randomised backoff between attempts (up to about 0.5s, 1s and 2s). Before, retries were immediate.
+* (Minor): Feature responses are decoded with the charset of the response, UTF-8 by default. A body that doesn't decode is rejected with `INVALID_RESPONSE` and the last state is kept. Before, it was loaded anyway.
 * (Minor): `UnleashClient` and `AsyncUnleashClient` take `transport=` to choose how their requests are sent: a `RequestsTransport` with custom `requests.Session`, an `AiohttpTransport` with custom `aiohttp.ClientSession`, for a proxy, TLS settings or connection reuse, or any object with an `execute(Request) -> Response` method, for another HTTP library. See [custom HTTP transport](./README.md#custom-http-transport).
 * (Minor): New `FETCH_COMPLETED` event, emitted after every feature fetch with how it ended: `CHANGED`, `NOT_CHANGED`, `UNAUTHORIZED`, `RATE_LIMITED`, `UNAVAILABLE` or `INVALID_RESPONSE`.
 * (Minor): `feature_definitions()` reports whether each feature is enabled in the environment.
 * (Minor): New `evaluate_all_toggles()` evaluates every feature for one context in a single call, without recording usage metrics.
+* (Bugfix): The `applicationHostname` strategy matches the machine's hostname again. Since v6.0.0 it always evaluated to `False`.
+* (Bugfix): Registration and metrics report the engine's real `yggdrasilVersion`. Before, it was a stale `0.20.8`.
 
 ## v6.9.1
 * (Bugfix): Capped yggdrasil-engine below 3.0.0 so installs don't pick up a breaking major version.
