@@ -15,9 +15,27 @@ from .config import (
 from .transport import AsyncTransport, Method, Request, Response, Transport
 from .transport._requests import RequestsTransport
 
+__all__ = [
+    "AsyncTransport",
+    "IdentityOptions",
+    "Method",
+    "MetricsOptions",
+    "PollingOptions",
+    "Request",
+    "RequestsTransport",
+    "Response",
+    "StreamingOptions",
+    "Transport",
+    "UnleashClient",
+]
+
 if TYPE_CHECKING:
-    from .clients.async_unleash_client import AsyncUnleashClient
-    from .transport._aiohttp import AiohttpTransport
+    from .clients.async_unleash_client import (
+        AsyncUnleashClient as AsyncUnleashClient,  # noqa: PLC0414
+    )
+    from .transport._aiohttp import (
+        AiohttpTransport as AiohttpTransport,  # noqa: PLC0414
+    )
 
 
 def __getattr__(name: str):
