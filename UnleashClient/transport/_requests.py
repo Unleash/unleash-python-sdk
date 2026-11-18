@@ -9,7 +9,7 @@ import requests
 from requests.structures import CaseInsensitiveDict
 
 from UnleashClient.constants import REQUEST_TIMEOUT
-from UnleashClient.transport import Request, Response, _reject_authorization
+from UnleashClient.transport import Request, Response
 from UnleashClient.utils import LOGGER
 
 
@@ -42,9 +42,9 @@ class RequestsTransport:
                     session, closed after the response.
     :param headers: Extra headers sent with every request. The SDK's own headers
                     take precedence over them.
+                    An ``Authorization`` header is replaced by ``api_key`` when it is passed,
+                    and makes the client raise ``ValueError`` when ``api_key`` is not passed.
     :param timeout: Seconds to wait for the connection and for each read.
-    :raises ValueError: If ``headers`` contains an ``Authorization`` header: pass
-                        the API key as ``api_key`` to the client.
     """
 
     def __init__(
@@ -58,7 +58,6 @@ class RequestsTransport:
         self._headers = dict(headers or {})
         self._timeout = timeout
 
-        _reject_authorization(self._headers, "RequestsTransport")
         if session is not None and _session_retries(session):
             LOGGER.warning(
                 "The session passed to RequestsTransport retries requests itself. "

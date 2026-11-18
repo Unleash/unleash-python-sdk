@@ -46,7 +46,8 @@ from UnleashClient.events import (
     UnleashReadyEvent,
 )
 from UnleashClient.impact_metrics import ImpactMetrics
-from UnleashClient.transport import Transport
+from UnleashClient.transport import Transport, _check_authorization
+from UnleashClient.transport._requests import RequestsTransport
 from UnleashClient.utils import LOGGER, InstanceAllowType
 
 INSTANCES = _get_instance_registry()
@@ -170,6 +171,8 @@ class UnleashClient:
             metrics=metrics,
             verbose_log_level=verbose_log_level,
         )
+        if isinstance(transport, RequestsTransport):
+            _check_authorization(transport._headers, self._config.api_key)
         self._custom_strategies = custom_strategies or {}
         self._enricher = _ContextEnricher(self._config)
         self._headers = _HeaderFactory(self._config)

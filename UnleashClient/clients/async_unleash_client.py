@@ -37,7 +37,8 @@ from UnleashClient.connectors._async_connector import _AsyncPollingConnector
 from UnleashClient.constants import ETAG, METRIC_LAST_SENT_TIME
 from UnleashClient.events import BaseEvent
 from UnleashClient.impact_metrics import ImpactMetrics
-from UnleashClient.transport import AsyncTransport
+from UnleashClient.transport import AsyncTransport, _check_authorization
+from UnleashClient.transport._aiohttp import AiohttpTransport
 from UnleashClient.utils import LOGGER, InstanceAllowType
 
 
@@ -133,6 +134,8 @@ class AsyncUnleashClient:
             metrics=metrics,
             verbose_log_level=verbose_log_level,
         )
+        if isinstance(transport, AiohttpTransport):
+            _check_authorization(transport._headers, self._config.api_key)
         self._custom_strategies: dict = custom_strategies or {}
         self._enricher: _ContextEnricher = _ContextEnricher(self._config)
         self._headers: _HeaderFactory = _HeaderFactory(self._config)

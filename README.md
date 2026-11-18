@@ -466,6 +466,8 @@ By default, `UnleashClient` sends its requests with `requests`, on a new session
 - `RequestsTransport(session)` or `AiohttpTransport(session)` to keep the default library but configure the session;
 - any object with an `execute(request) -> Response` method, to use another HTTP library. For `AsyncUnleashClient`, `execute` is `async`.
 
+Pass the API token as `api_key`, not as an `Authorization` header in the `headers` of `RequestsTransport` or `AiohttpTransport`. If you also set `api_key`, the header is ignored with a warning. Without `api_key`, the client raises `ValueError` if an `Authorization` header is passed.
+
 #### Custom `requests` session
 
 The session is used for every request and never closed by the client: close it yourself after `client.destroy()`.
@@ -503,7 +505,7 @@ client = UnleashClient(
 
 A session also keeps connections open between polls, instead of opening a new one each time.
 
-`RequestsTransport` takes `headers` and `timeout` with or without a session. The SDK's own headers take precedence over custom ones, and an `Authorization` header raises `ValueError`: pass the API token as `api_key`.
+`RequestsTransport` takes `headers` and `timeout` with or without a session. The SDK's own headers take precedence over custom ones.
 
 #### Custom `aiohttp` session
 
