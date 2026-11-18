@@ -7,7 +7,7 @@ from typing import Mapping, Optional
 
 from UnleashClient.constants import REQUEST_TIMEOUT
 from UnleashClient.errors import AlreadyClosedError
-from UnleashClient.transport import Request, Response, _reject_authorization
+from UnleashClient.transport import Request, Response
 
 try:
     import aiohttp
@@ -38,10 +38,10 @@ class AiohttpTransport:
                     :meth:`aclose` closes it.
     :param headers: Extra headers sent with every request. The SDK's own headers
                     take precedence over them.
+                    An ``Authorization`` header is replaced by ``api_key`` when it is passed,
+                    and makes the client raise ``ValueError`` when ``api_key`` is not passed.
     :param timeout: Seconds to wait for the connection and for each read. Applies
                     to every request, in place of the session's own timeout.
-    :raises ValueError: If ``headers`` contains an ``Authorization`` header: pass
-                        the API key as ``api_key`` to the client.
     """
 
     def __init__(
@@ -56,8 +56,6 @@ class AiohttpTransport:
         self._timeout = timeout
         self._session: Optional["aiohttp.ClientSession"] = None
         self._is_closed: bool = False
-
-        _reject_authorization(self._headers, "AiohttpTransport")
 
     def _get_session(self) -> "aiohttp.ClientSession":
         if self._is_closed:

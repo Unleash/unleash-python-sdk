@@ -7,6 +7,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Mapping, Optional, Protocol, runtime_checkable
 
+from UnleashClient.utils import LOGGER
+
 
 class Method(str, Enum):
     GET = "GET"
@@ -91,9 +93,15 @@ class AsyncTransport(Protocol):
         """
 
 
-def _reject_authorization(headers: Mapping[str, str], transport_name: str) -> None:
-    if any(name.lower() == "authorization" for name in headers):
+def _check_authorization(headers: Mapping[str, str], api_key: Optional[str]) -> None:
+    if not any(name.lower() == "authorization" for name in headers):
+        return
+    if not api_key:
         raise ValueError(
             "Pass the API key as api_key to the client, "
-            f"not as an Authorization header to {transport_name}."
+            "not as an Authorization header to the transport."
         )
+    LOGGER.warning(
+        "Ignoring the Authorization header passed to the transport: the client "
+        "sends api_key instead."
+    )

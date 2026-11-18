@@ -170,3 +170,23 @@ def test_the_httpx_example_works(tmp_path):
     fetches = [r for r in sent if r.method == "GET"]
     assert fetches[0].url.params["project"] == "checkout"
     assert fetches[1].headers["If-None-Match"] == ETAG_VALUE
+
+
+@pytest.mark.parametrize("name", ["Authorization", "authorization"])
+def test_an_authorization_header_alongside_api_key_logs_a_warning(
+    tmp_path, caplog, name
+):
+    build_client(tmp_path, RequestsTransport(headers={name: "token"}))
+
+    assert "Authorization header" in caplog.text
+
+
+@pytest.mark.parametrize("name", ["Authorization", "authorization"])
+def test_an_authorization_header_without_api_key_raises(tmp_path, name):
+    with pytest.raises(ValueError, match="api_key"):
+        UnleashClient(
+            URL,
+            APP_NAME,
+            cache_directory=str(tmp_path),
+            transport=RequestsTransport(headers={name: "token"}),
+        )

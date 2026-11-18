@@ -201,10 +201,15 @@ def test_the_request_headers_win_over_the_transport_headers_whatever_their_case(
     assert responses.calls[0].request.headers["unleash-appname"] == "my-app"
 
 
-@pytest.mark.parametrize("name", ["Authorization", "authorization"])
-def test_an_authorization_header_raises(name):
-    with pytest.raises(ValueError, match="api_key"):
-        RequestsTransport(headers={name: "token"})
+@responses.activate
+def test_the_sdk_authorization_header_replaces_a_custom_one():
+    responses.add(responses.GET, ENDPOINT, status=200)
+
+    RequestsTransport(headers={"authorization": "custom"}).execute(
+        Request(method=Method.GET, url=ENDPOINT, headers={"Authorization": "api-key"})
+    )
+
+    assert responses.calls[0].request.headers["Authorization"] == "api-key"
 
 
 @responses.activate

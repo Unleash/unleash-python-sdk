@@ -284,7 +284,20 @@ async def test_the_request_headers_win_over_the_transport_headers_whatever_their
     assert server.calls("GET", PATH)[0].headers.getall("unleash-appname") == ["my-app"]
 
 
-@pytest.mark.parametrize("name", ["Authorization", "authorization"])
-def test_an_authorization_header_raises(name):
-    with pytest.raises(ValueError, match="api_key"):
-        AiohttpTransport(headers={name: "token"})
+@mark.asyncio
+async def test_the_sdk_authorization_header_replaces_a_custom_one(server):
+    server.on("GET", PATH)
+    transport = AiohttpTransport(headers={"authorization": "custom"})
+
+    try:
+        await transport.execute(
+            Request(
+                method=Method.GET,
+                url=server.base_url + PATH,
+                headers={"Authorization": "api-key"},
+            )
+        )
+    finally:
+        await transport.aclose()
+
+    assert server.calls("GET", PATH)[0].headers.getall("Authorization") == ["api-key"]
