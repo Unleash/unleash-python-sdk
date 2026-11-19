@@ -79,7 +79,7 @@ Pass the API token as `api_key` instead of as an `Authorization` header:
 client = UnleashClient(url, app_name, api_key="<API token>")
 ```
 
-An `Authorization` header in the `headers` of a `RequestsTransport` or `AiohttpTransport` raises a `ValueError`, in any letter case. It is not silently ignored, because a client without a key still starts: its requests fail with 401 and it keeps serving the flags in its cache, so the mistake could go unnoticed. All other custom headers work as before.
+An `Authorization` header, in any letter case, in the `headers` of a `RequestsTransport` or `AiohttpTransport` is ignored with a warning when `api_key` is set: the client sends `api_key` instead. Without `api_key`, the client raises a `ValueError`. It doesn't silently fall back to no key, because a client without a key still starts: its requests fail with 401 and it keeps serving the flags in its cache, so the mistake could go unnoticed. All other custom headers work as before.
 
 ## HTTP settings are set on the transport
 

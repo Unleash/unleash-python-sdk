@@ -5,7 +5,7 @@ importlib_metadata
 python-dateutil
 requests
 semver
-yggdrasil-engine==3.0.0a2
+yggdrasil-engine==3.0.0
 launchdarkly-eventsource
 aiohttp
 
