@@ -80,6 +80,17 @@ def test_is_enabled_hands_the_fallback_the_enriched_context(mocker):
     assert "currentTime" in context
 
 
+def test_is_enabled_answers_a_flag_that_fails_to_evaluate_with_the_fallback(mocker):
+    evaluator = build_evaluator()
+    fallback = mocker.Mock(return_value=True)
+
+    result = evaluator.is_enabled(IMPRESSION_FLAG, {"userId": "123\ud800"}, fallback)
+
+    assert result is True
+    fallback.assert_called_once()
+    assert fallback.call_args[0][0] == IMPRESSION_FLAG
+
+
 def test_get_variant_returns_the_variant_and_that_it_was_found():
     evaluator = build_evaluator()
 
