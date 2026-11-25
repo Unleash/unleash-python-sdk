@@ -50,6 +50,18 @@ class RoundTrippingCache(BaseCache):
         self.written.clear()
 
 
+class CountingEngine(UnleashEngine):
+    """An engine that counts how many times it was handed a state."""
+
+    def __init__(self):
+        super().__init__()
+        self.loads = 0
+
+    def take_state(self, state_json: str):
+        self.loads += 1
+        return super().take_state(state_json)
+
+
 class FailingDispatcher:
     """A dispatcher whose delivery is broken."""
 
@@ -294,3 +306,177 @@ def test_a_failing_dispatcher_does_not_break_the_state_path(cache_empty):
     _FeatureStore(engine, cache_empty, FailingDispatcher()).apply_fetched(FEATURES)
 
     assert engine.is_enabled("testFlag", {}).is_enabled
+
+
+def test_apply_fetched_without_state_does_not_reload_an_unchanged_body(cache_empty):
+    engine = CountingEngine()
+    store = _FeatureStore(engine, cache_empty)
+
+    store.apply_fetched(FEATURES, ETAG_VALUE)
+    # Two 304s: the cache still holds the body the engine was loaded with.
+    store.apply_fetched(None, ETAG_VALUE)
+    store.apply_fetched(None, ETAG_VALUE)
+
+    assert engine.loads == 1
+    assert engine.is_enabled("testFlag", {}).is_enabled
+
+
+def test_apply_fetched_without_state_loads_the_cache_into_an_empty_engine(
+    cache_empty,
+):
+    engine = CountingEngine()
+    cache_empty.set(FEATURES_URL, FEATURES)
+    cache_empty.set(ETAG, ETAG_VALUE)
+
+    _FeatureStore(engine, cache_empty).apply_fetched(None, ETAG_VALUE)
+
+    assert engine.loads == 1
+    assert engine.is_enabled("testFlag", {}).is_enabled
+
+
+def test_apply_fetched_with_a_new_body_loads_it(cache_empty):
+    engine = CountingEngine()
+    store = _FeatureStore(engine, cache_empty)
+
+    store.apply_fetched(FEATURES, ETAG_VALUE)
+    store.apply_fetched(OTHER_FEATURES, '"newer"')
+
+    assert engine.loads == 2
+    assert engine.is_enabled("ivan-project", {}).is_enabled
+
+
+def test_apply_fetched_with_an_unchanged_body_still_emits_fetched(
+    cache_empty, dispatcher, recorder
+):
+    engine = CountingEngine()
+    store = _FeatureStore(engine, cache_empty, dispatcher)
+
+    store.apply_fetched(FEATURES, ETAG_VALUE)
+    store.apply_fetched(FEATURES, ETAG_VALUE)
+
+    assert recorder.wait_for(UnleashEventType.FETCHED, count=2)
+    dispatcher.close(timeout=WAIT_TIMEOUT)
+
+    assert engine.loads == 1
+    assert len(recorder.of_type(UnleashEventType.FETCHED)) == 2
+
+
+def test_apply_fetched_without_state_loads_what_another_process_cached(cache_empty):
+    # Two processes, each with its own engine, sharing one cache on disk.
+    engine_a, engine_b = CountingEngine(), CountingEngine()
+    store_a = _FeatureStore(engine_a, cache_empty)
+    store_b = _FeatureStore(engine_b, cache_empty)
+    store_a.apply_fetched(FEATURES, ETAG_VALUE)
+    store_b.apply_fetched(None, ETAG_VALUE)
+
+    # A fetches newer state; B then sends the ETag A cached and gets a 304.
+    store_a.apply_fetched(OTHER_FEATURES, '"newer"')
+    store_b.apply_fetched(None, store_b.cached_etag)
+
+    assert engine_b.loads == 2
+    assert engine_b.is_enabled("ivan-project", {}).is_enabled
+
+
+def test_apply_fetched_without_state_loads_a_body_cached_under_the_same_etag(
+    cache_empty,
+):
+    engine = CountingEngine()
+    store = _FeatureStore(engine, cache_empty)
+    store.apply_fetched(OTHER_FEATURES, '"newer"')
+
+    # A process sharing the cache overwrites the body but not the ETag, as a
+    # write racing this process's reads can leave it.
+    cache_empty.set(FEATURES_URL, FEATURES)
+    store.apply_fetched(None, '"newer"')
+
+    assert engine.loads == 2
+    assert engine.is_enabled("testFlag", {}).is_enabled
+    assert not engine.is_enabled("ivan-project", {}).is_enabled
+
+
+def test_apply_fetched_without_state_or_etag_does_not_reload_an_unchanged_body(
+    cache_empty,
+):
+    engine = CountingEngine()
+    store = _FeatureStore(engine, cache_empty)
+
+    store.apply_fetched(FEATURES, "")
+    store.apply_fetched(None, "")
+
+    assert engine.loads == 1
+
+
+def test_apply_fetched_without_state_retries_a_body_that_failed_to_load(
+    cache_empty,
+):
+    engine = CountingEngine()
+    store = _FeatureStore(engine, cache_empty)
+
+    store.apply_fetched("not json", ETAG_VALUE)
+    store.apply_fetched(None, ETAG_VALUE)
+
+    assert engine.loads == 2
+
+
+def test_apply_fetched_without_state_after_a_streamed_update_reloads_the_cache(
+    cache_empty,
+):
+    engine = CountingEngine()
+    store = _FeatureStore(engine, cache_empty)
+    store.apply_fetched(FEATURES, ETAG_VALUE)
+    store.apply_streamed(DELTA)
+
+    store.apply_fetched(None, ETAG_VALUE)
+    store.apply_fetched(None, ETAG_VALUE)
+
+    assert engine.loads == 3
+    assert engine.is_enabled("deltaFlag", {}).is_enabled
+
+
+def test_load_from_cache_after_a_streamed_update_loads_the_body_it_held_before(
+    cache_empty,
+):
+    engine = UnleashEngine()
+    store = _FeatureStore(engine, cache_empty)
+    store.apply_fetched(FEATURES)
+    store.apply_streamed(DELTA)
+
+    # The cache is back to the body loaded before streaming, e.g. written by a
+    # process sharing it.
+    cache_empty.set(FEATURES_URL, FEATURES)
+    store.load_from_cache()
+
+    assert not engine.is_enabled("deltaFlag", {}).is_enabled
+
+
+def test_load_from_cache_does_not_reload_an_unchanged_body(cache_empty):
+    # What an offline client's periodic refresh does.
+    engine = CountingEngine()
+    store = _FeatureStore(engine, cache_empty)
+    cache_empty.set(FEATURES_URL, FEATURES)
+
+    store.load_from_cache()
+    store.load_from_cache()
+    cache_empty.set(FEATURES_URL, OTHER_FEATURES)
+    store.load_from_cache()
+
+    assert engine.loads == 2
+    assert engine.is_enabled("ivan-project", {}).is_enabled
+
+
+def test_apply_fetched_skipping_the_reload_emits_the_same_events(
+    cache_empty, dispatcher, recorder
+):
+    store = _FeatureStore(CountingEngine(), cache_empty, dispatcher)
+
+    store.apply_fetched(FEATURES, ETAG_VALUE)
+    store.apply_fetched(None, ETAG_VALUE)
+    store.apply_fetched(None, ETAG_VALUE)
+
+    assert recorder.wait_for(UnleashEventType.FETCHED, count=1)
+    dispatcher.close(timeout=WAIT_TIMEOUT)
+
+    assert [event.event_type for event in recorder.events] == [
+        UnleashEventType.READY,
+        UnleashEventType.FETCHED,
+    ]

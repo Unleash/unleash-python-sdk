@@ -49,6 +49,7 @@ class _FeatureStore:
         self._engine = engine
         self._cache = cache
         self._events = events
+        self._loaded_state: Optional[str] = None
 
     @property
     def cached_etag(self) -> str:
@@ -64,6 +65,16 @@ class _FeatureStore:
         with the offending body at debug level, never raised: every caller is
         already falling back on the cache and has nothing better to do with the
         failure.
+
+        A cached body identical to the one the engine last loaded is not handed
+        to the engine again: parsing a large payload on every poll that brings
+        nothing new (a 304, a failed fetch, an offline refresh) is the costly
+        part, and comparing the body is cheap next to it.  The body is compared
+        rather than the ETag because processes sharing a cache, such as
+        ``FileCache``, write the body and the ETag separately and can do so
+        between this process's reads; the body read here is the one the engine
+        ends up holding, whatever else was written.  A body that failed to load
+        is not remembered, so it is tried again on the next call.
         """
         feature_provisioning = self._cache.get(FEATURES_URL)
         if not feature_provisioning:
@@ -73,8 +84,14 @@ class _FeatureStore:
             )
             return
 
+        if feature_provisioning == self._loaded_state:
+            self.emit_ready()
+            return
+
+        self._loaded_state = None
         try:
             warnings = self._engine.take_state(feature_provisioning)
+            self._loaded_state = feature_provisioning
             self.emit_ready()
             if warnings:
                 LOGGER.warning(
@@ -95,8 +112,8 @@ class _FeatureStore:
         load from the cache, then emit FETCHED.
 
         ``raw_state`` is None on a 304 or a failed fetch; the cached state is
-        loaded again and no FETCHED event is emitted.  A falsy ``etag`` leaves
-        the cached one in place.
+        loaded again, unless it is what the engine already holds, and no FETCHED
+        event is emitted.  A falsy ``etag`` leaves the cached one in place.
 
         The engine is fed from the cache rather than from ``raw_state``, so a
         custom cache's round-trip is what reaches the engine.
@@ -132,7 +149,11 @@ class _FeatureStore:
         post-merge state, not the payload, that a later ``load_from_cache`` can
         use.  Raises whatever the engine raises: the caller decides whether to
         fall back on the cache.
+
+        The engine no longer holds the body ``load_from_cache`` last loaded, so
+        that body is forgotten and the next ``load_from_cache`` loads.
         """
+        self._loaded_state = None
         self._engine.take_state(raw_state)
         self._cache.set(FEATURES_URL, self._engine.get_state())
 
