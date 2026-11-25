@@ -473,7 +473,10 @@ class UnleashClient:
 
         Notes:
 
-        * If client hasn't been initialized yet or an error occurs, flag will default to false.
+        * A toggle the client does not know, which is every toggle before the
+          client has fetched state, or one that fails to evaluate, resolves to
+          ``fallback_function``'s answer, or to false when no fallback function
+          is given.
 
         :param feature_name: Name of the feature
         :param context: Dictionary with context (e.g. IPs, email) for feature toggle.

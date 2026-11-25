@@ -1,3 +1,6 @@
+## v7.0.1
+* (Bugfix): `fallback_function` is called when a flag fails to evaluate, as documented. Since v6.9.0 the flag evaluated to `False` without calling it.
+
 ## v7.0.0
 * (Major): Python 3.10 or newer is required. Support for Python 3.8 and 3.9 has been dropped.
 * (Major): `UnleashClient` and `AsyncUnleashClient` take their settings as option groups: `identity=IdentityOptions(...)`, `mode=PollingOptions(...)` or `mode=StreamingOptions()`, and `metrics=MetricsOptions(...)`. Every argument after `url` and `app_name` is keyword-only. `ExperimentalMode` has been removed. See the [v7 migration guide](./v7_MIGRATION_GUIDE.md)
