@@ -1,4 +1,4 @@
-## Unreleased (v7.0.1)
+## v7.0.1
 * (Bugfix): `fallback_function` is called when a flag fails to evaluate, as documented. Since v6.9.0 the flag evaluated to `False` without calling it.
 
 ## v7.0.0
