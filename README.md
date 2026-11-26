@@ -240,6 +240,9 @@ client = UnleashClient(
 
 #### Bootstrap from URL
 
+If the server returns a 4xx or 5xx status, `bootstrap_from_url` raises
+`requests.HTTPError` and leaves the existing cache unchanged.
+
 ```python
 from UnleashClient.cache import FileCache
 
