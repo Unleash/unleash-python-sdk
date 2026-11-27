@@ -119,9 +119,11 @@ class FileCache(BaseCache):
 
         :param initial_configuration_url: Url that returns document containing initial configuration.  Must return JSON.
         :param headers: Headers to use when GETing the initial configuration URL.
+        :raises requests.HTTPError: If the URL answers with a 4xx or 5xx status.  The cache is left unchanged.
         """
         timeout = request_timeout if request_timeout else self.request_timeout
         response = requests.get(initial_config_url, headers=headers, timeout=timeout)
+        response.raise_for_status()
         self.set(FEATURES_URL, response.text)
         self.bootstrapped = True
 
