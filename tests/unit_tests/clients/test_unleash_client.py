@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
+import requests
 import responses
 from apscheduler.executors.pool import ThreadPoolExecutor
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -1010,6 +1011,23 @@ def test_uc_cache_bootstrap_url(cache):
     )
     assert len(unleash_client.feature_definitions()) >= 4
     assert unleash_client.is_enabled("testFlag")
+
+
+@responses.activate
+@pytest.mark.parametrize("status", [401, 500])
+def test_uc_cache_bootstrap_url_error_status(cache, status):
+    responses.add(
+        responses.GET,
+        URL + FEATURES_URL,
+        json={"message": "error"},
+        status=status,
+    )
+
+    with pytest.raises(requests.HTTPError):
+        cache.bootstrap_from_url(initial_config_url=URL + FEATURES_URL)
+
+    assert not cache.bootstrapped
+    assert not cache.exists(FEATURES_URL)
 
 
 @responses.activate
